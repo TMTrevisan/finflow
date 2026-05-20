@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@theme {
+  --color-obsidian-900: #0B0F19;
+  --color-obsidian-800: #121826;
+  --color-obsidian-700: #1A2234;
+  
+  --color-neon-emerald: #10B981;
+  --color-neon-indigo: #6366F1;
+  --color-neon-violet: #8B5CF6;
+  --color-neon-crimson: #EF4444;
+
+  --color-slate-400: #94A3B8;
+  --color-slate-500: #64748B;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-obsidian-900);
+    color: #F8FAFC;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
