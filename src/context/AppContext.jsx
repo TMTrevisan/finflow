@@ -101,6 +101,29 @@ const decorateData = (rawTxns, rawCats) => {
   return { txns, cats };
 };
 
+// Helper to compress transaction data before writing to localStorage
+const compressTransactions = (txns) => {
+  return (txns || []).map(t => ({
+    id: t.id,
+    date: t.date,
+    description: t.description,
+    category: t.category,
+    amount: t.amount,
+    type: t.type,
+    group: t.group,
+    account: t.account
+  }));
+};
+
+// Helper to write to localStorage safely without crashing the app if browser storage limit is hit
+const safeSetItem = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.warn(`Failed to write cache for key "${key}" (possibly quota exceeded):`, err);
+  }
+};
+
 export const AppProvider = ({ children }) => {
   const [transactions, setTransactions] = useState(() => {
     try {
@@ -168,9 +191,9 @@ export const AppProvider = ({ children }) => {
       setIsMockData(false);
       
       // Save cache
-      localStorage.setItem('finflow_cache_transactions', JSON.stringify(txns));
-      localStorage.setItem('finflow_cache_categories', JSON.stringify(cats));
-      localStorage.setItem('finflow_cache_balances', JSON.stringify(data.balances || []));
+      safeSetItem('finflow_cache_transactions', compressTransactions(txns));
+      safeSetItem('finflow_cache_categories', cats);
+      safeSetItem('finflow_cache_balances', data.balances || []);
       
       const timestamp = new Date().toISOString();
       localStorage.setItem('finflow_last_sync', timestamp);
@@ -207,9 +230,9 @@ export const AppProvider = ({ children }) => {
       setIsMockData(false);
       
       // Save cache
-      localStorage.setItem('finflow_cache_transactions', JSON.stringify(txns));
-      localStorage.setItem('finflow_cache_categories', JSON.stringify(cats));
-      localStorage.setItem('finflow_cache_balances', JSON.stringify(data.balances || []));
+      safeSetItem('finflow_cache_transactions', compressTransactions(txns));
+      safeSetItem('finflow_cache_categories', cats);
+      safeSetItem('finflow_cache_balances', data.balances || []);
       
       const timestamp = new Date().toISOString();
       localStorage.setItem('finflow_last_sync', timestamp);
@@ -247,7 +270,7 @@ export const AppProvider = ({ children }) => {
       const updated = prev.map(txn => 
         txn.id === transactionId ? { ...txn, category: newCategory } : txn
       );
-      localStorage.setItem('finflow_cache_transactions', JSON.stringify(updated));
+      safeSetItem('finflow_cache_transactions', compressTransactions(updated));
       return updated;
     });
 
