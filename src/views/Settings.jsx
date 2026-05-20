@@ -134,10 +134,16 @@ export default function Settings() {
     }
   };
 
+  // Gemini AI model state
+  const [geminiModel, setGeminiModel] = useState(() => {
+    return localStorage.getItem('finflow_gemini_model') || 'gemini-2.5-flash-lite';
+  });
+
   const handleSaveGeminiKey = () => {
+    localStorage.setItem('finflow_gemini_model', geminiModel);
     if (geminiKeyInput.trim()) {
       localStorage.setItem('finflow_gemini_key', geminiKeyInput.trim());
-      setGeminiMessage({ type: 'success', text: 'Gemini API Key saved securely!' });
+      setGeminiMessage({ type: 'success', text: 'Gemini settings saved successfully!' });
     } else {
       localStorage.removeItem('finflow_gemini_key');
       setGeminiMessage({ type: 'info', text: 'Gemini API Key cleared.' });
@@ -381,6 +387,21 @@ export default function Settings() {
               />
             </div>
 
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">AI LLM Model</label>
+              <select
+                value={geminiModel}
+                onChange={(e) => setGeminiModel(e.target.value)}
+                className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow appearance-none"
+              >
+                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Recommended - Fast & Stable)</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Balanced - Stable)</option>
+                <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast)</option>
+                <option value="gemini-flash-lite-latest">Gemini Flash Lite Latest (Alias - Lowest Cost)</option>
+                <option value="gemini-flash-latest">Gemini Flash Latest (Alias - High Performance)</option>
+              </select>
+            </div>
+
             {geminiMessage && (
               <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
                 geminiMessage.type === 'success' 
@@ -398,7 +419,7 @@ export default function Settings() {
               onClick={handleSaveGeminiKey}
               className="px-4 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors shadow-md"
             >
-              Save API Key
+              Save Settings
             </button>
           </div>
         </Card>

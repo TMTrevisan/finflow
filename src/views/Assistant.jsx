@@ -129,8 +129,9 @@ export default function Assistant() {
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
+      const selectedModel = localStorage.getItem('finflow_gemini_model') || 'gemini-2.5-flash-lite';
       const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.0-flash",
+        model: selectedModel,
         systemInstruction: `You are FinFlow Copilot, a brilliant, concise personal financial assistant.
 You have secure access to the user's local financial database. Below is the compressed snapshot of their balances, budgets, and recent transactions.
 
