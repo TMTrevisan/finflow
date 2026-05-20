@@ -4,6 +4,9 @@ import BottomNav from './BottomNav';
 import Header from './Header';
 
 export default function Layout({ currentView, setCurrentView, children }) {
+  // Copilot needs more bottom padding to clear the nav + its own input bar
+  const bottomPadding = currentView === 'assistant' ? 'pb-36 md:pb-8' : 'pb-24 md:pb-8';
+
   return (
     <div className="flex h-screen bg-obsidian-900 overflow-hidden text-slate-200">
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
@@ -15,7 +18,7 @@ export default function Layout({ currentView, setCurrentView, children }) {
           setCurrentView={setCurrentView} 
         />
         
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+        <main className={`flex-1 overflow-y-auto p-4 md:p-8 ${bottomPadding}`}>
           <div className="max-w-7xl mx-auto h-full">
             {children}
           </div>

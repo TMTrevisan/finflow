@@ -1,159 +1,394 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { formatCurrency, formatDate, cleanMerchantName } from '../utils/formatting';
 import { CategoryPill } from '../components/ui/CategoryPill';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, ChevronDown, ChevronUp, X, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import { cn } from '../components/ui/Card';
+
+// Debounce hook
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = React.useState(value);
+  React.useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+const DATE_PRESETS = [
+  { id: 'all', label: 'All Time' },
+  { id: 'this_month', label: 'This Month' },
+  { id: 'last_month', label: 'Last Month' },
+  { id: 'last_3_months', label: '3 Months' },
+  { id: 'last_6_months', label: '6 Months' },
+  { id: 'this_year', label: 'This Year' },
+];
+
+const SORT_OPTIONS = [
+  { id: 'date_desc', label: 'Newest First' },
+  { id: 'date_asc', label: 'Oldest First' },
+  { id: 'amount_desc', label: 'Largest Amount' },
+  { id: 'amount_asc', label: 'Smallest Amount' },
+  { id: 'merchant_asc', label: 'Merchant A→Z' },
+];
+
+function getDateRange(preset) {
+  const now = new Date();
+  const start = new Date();
+  switch (preset) {
+    case 'this_month':
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      return { start, end: now };
+    case 'last_month': {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { start: first, end: last };
+    }
+    case 'last_3_months':
+      start.setMonth(start.getMonth() - 3);
+      return { start, end: now };
+    case 'last_6_months':
+      start.setMonth(start.getMonth() - 6);
+      return { start, end: now };
+    case 'this_year':
+      start.setMonth(0); start.setDate(1); start.setHours(0, 0, 0, 0);
+      return { start, end: now };
+    default:
+      return null;
+  }
+}
 
 export default function Transactions() {
   const { transactions, isLoading, selectedAccount, setSelectedAccount } = useAppContext();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState('All');
+  const [rawSearch, setRawSearch] = useState('');
+  const searchTerm = useDebounce(rawSearch, 300);
+  const [typeFilter, setTypeFilter] = useState('All'); // All | Income | Expense | Uncategorized
+  const [datePreset, setDatePreset] = useState('all');
+  const [accountFilter, setAccountFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
+  const [sortBy, setSortBy] = useState('date_desc');
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Filter transactions based on search and selected filter
+  // Initialize account filter from selectedAccount context
+  React.useEffect(() => {
+    if (selectedAccount) {
+      setAccountFilter(selectedAccount);
+    }
+  }, [selectedAccount]);
+
+  // Unique accounts and categories for dropdowns
+  const { uniqueAccounts, uniqueCategories } = useMemo(() => {
+    const accounts = [...new Set(transactions.map(t => t.account).filter(Boolean))].sort();
+    const cats = [...new Set(transactions.map(t => t.category).filter(Boolean).filter(c => c !== 'Uncategorized'))].sort();
+    return { uniqueAccounts: accounts, uniqueCategories: cats };
+  }, [transactions]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (typeFilter !== 'All') count++;
+    if (datePreset !== 'all') count++;
+    if (accountFilter) count++;
+    if (categoryFilter) count++;
+    if (minAmount || maxAmount) count++;
+    if (sortBy !== 'date_desc') count++;
+    return count;
+  }, [typeFilter, datePreset, accountFilter, categoryFilter, minAmount, maxAmount, sortBy]);
+
+  const clearAllFilters = () => {
+    setTypeFilter('All');
+    setDatePreset('all');
+    setAccountFilter('');
+    setCategoryFilter('');
+    setMinAmount('');
+    setMaxAmount('');
+    setSortBy('date_desc');
+    setSelectedAccount(null);
+    setRawSearch('');
+  };
+
   const { reviewTransactions, filteredTransactions } = useMemo(() => {
+    const dateRange = getDateRange(datePreset);
+
     let latestDate = new Date();
     if (transactions.length > 0) {
-      const dates = transactions
-        .map(t => new Date(t.date))
-        .filter(d => !isNaN(d.getTime()))
-        .sort((a, b) => b - a);
-      if (dates.length > 0) {
-        latestDate = dates[0];
-      }
+      const dates = transactions.map(t => new Date(t.date)).filter(d => !isNaN(d.getTime())).sort((a, b) => b - a);
+      if (dates.length > 0) latestDate = dates[0];
     }
-
     const fortyFiveDaysAgo = new Date(latestDate.getTime());
     fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
+
+    const applyCommonFilters = (txn) => {
+      const date = new Date(txn.date);
+      if (isNaN(date.getTime())) return false;
+
+      // Date range
+      if (dateRange && (date < dateRange.start || date > dateRange.end)) return false;
+
+      // Account filter (from dropdown or context)
+      const effectiveAccount = accountFilter;
+      if (effectiveAccount) {
+        const tAcc = (txn.account || '').toLowerCase().trim();
+        const sAcc = effectiveAccount.toLowerCase().trim();
+        if (tAcc !== sAcc && !tAcc.includes(sAcc) && !sAcc.includes(tAcc)) return false;
+      }
+
+      // Category filter
+      if (categoryFilter && (txn.category || '').toLowerCase() !== categoryFilter.toLowerCase()) return false;
+
+      // Amount range
+      const amt = Math.abs(txn.amount);
+      if (minAmount && amt < parseFloat(minAmount)) return false;
+      if (maxAmount && amt > parseFloat(maxAmount)) return false;
+
+      return true;
+    };
+
+    const applySort = (arr) => {
+      const sorted = [...arr];
+      switch (sortBy) {
+        case 'date_asc': return sorted.sort((a, b) => new Date(a.date) - new Date(b.date));
+        case 'amount_desc': return sorted.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
+        case 'amount_asc': return sorted.sort((a, b) => Math.abs(a.amount) - Math.abs(b.amount));
+        case 'merchant_asc': return sorted.sort((a, b) => (a.description || '').localeCompare(b.description || ''));
+        default: return sorted.sort((a, b) => new Date(b.date) - new Date(a.date));
+      }
+    };
 
     const review = transactions.filter(txn => {
       const isUncategorized = txn.category === 'Uncategorized' || !txn.category;
       if (!isUncategorized) return false;
-
-      // Fuzzy matching selected account
-      if (selectedAccount) {
-        const tAcc = (txn.account || '').toLowerCase().trim();
-        const sAcc = String(selectedAccount).toLowerCase().trim();
-        if (tAcc !== sAcc && !tAcc.includes(sAcc) && !sAcc.includes(tAcc)) {
-          return false;
-        }
-      }
-
+      if (!applyCommonFilters(txn)) return false;
       const date = new Date(txn.date);
-      return !isNaN(date.getTime()) && date >= fortyFiveDaysAgo;
-    }).sort((a, b) => new Date(b.date) - new Date(a.date));
-    
+      return date >= fortyFiveDaysAgo;
+    });
+
     const standard = transactions.filter(txn => {
       const isUncategorized = txn.category === 'Uncategorized' || !txn.category;
       const date = new Date(txn.date);
       const isNewUncategorized = isUncategorized && !isNaN(date.getTime()) && date >= fortyFiveDaysAgo;
 
-      // Exclude uncategorized from standard list only if it's currently showing in the Needs Review section
-      if (filter === 'All' && searchTerm === '' && isNewUncategorized) return false;
-      
-      // Fuzzy matching selected account
-      if (selectedAccount) {
-        const tAcc = (txn.account || '').toLowerCase().trim();
-        const sAcc = String(selectedAccount).toLowerCase().trim();
-        if (tAcc !== sAcc && !tAcc.includes(sAcc) && !sAcc.includes(tAcc)) {
-          return false;
-        }
-      }
+      // Only exclude new uncategorized from standard list when no filters active
+      if (typeFilter === 'All' && !searchTerm && datePreset === 'all' && !accountFilter && !categoryFilter && isNewUncategorized) return false;
+
+      if (!applyCommonFilters(txn)) return false;
 
       const cleanedDesc = cleanMerchantName(txn.description);
-      const matchesSearch = 
+      const matchesSearch = !searchTerm ||
         txn.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
         cleanedDesc.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (txn.account || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (txn.category || '').toLowerCase().includes(searchTerm.toLowerCase());
-      
-      let matchesFilter = true;
-      if (filter === 'Income') matchesFilter = txn.type === 'Income'; // Use category-decorated type
-      if (filter === 'Expenses') matchesFilter = txn.type === 'Expense'; // Use category-decorated type
-      if (filter === 'Uncategorized') matchesFilter = isUncategorized;
 
-      return matchesSearch && matchesFilter;
-    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+      let matchesType = true;
+      if (typeFilter === 'Income') matchesType = txn.type === 'Income';
+      if (typeFilter === 'Expense') matchesType = txn.type === 'Expense';
+      if (typeFilter === 'Uncategorized') matchesType = isUncategorized;
 
-    return { reviewTransactions: review, filteredTransactions: standard };
-  }, [transactions, searchTerm, filter, selectedAccount]);
+      return matchesSearch && matchesType;
+    });
+
+    return { reviewTransactions: applySort(review), filteredTransactions: applySort(standard) };
+  }, [transactions, searchTerm, typeFilter, datePreset, accountFilter, categoryFilter, minAmount, maxAmount, sortBy]);
 
   if (isLoading) {
-    return <div className="animate-pulse">Loading Transactions...</div>;
+    return <div className="animate-pulse text-slate-500 p-8">Loading Transactions...</div>;
   }
 
-  const FILTERS = ['All', 'Income', 'Expenses', 'Uncategorized'];
-
   return (
-    <div className="space-y-6 flex flex-col h-full">
-      {/* Sticky Controls Header */}
-      <div className="sticky top-0 z-30 bg-obsidian-900/95 backdrop-blur pt-2 pb-4 border-b border-obsidian-850 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input 
-            type="text"
-            placeholder="Search transactions..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
-          />
+    <div className="space-y-4">
+      {/* Controls Header */}
+      <div className="sticky top-0 z-30 bg-obsidian-900/97 backdrop-blur-sm pt-2 pb-3 space-y-3">
+        {/* Row 1: Search + Filter Toggle */}
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search merchant, category, account..."
+              value={rawSearch}
+              onChange={(e) => setRawSearch(e.target.value)}
+              className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
+            />
+          </div>
+          <button
+            onClick={() => setShowFilters(f => !f)}
+            className={cn(
+              'flex items-center space-x-1.5 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all',
+              showFilters || activeFilterCount > 0
+                ? 'bg-neon-indigo/15 border-neon-indigo/40 text-neon-indigo'
+                : 'bg-obsidian-800 border-obsidian-700 text-slate-400 hover:text-white'
+            )}
+          >
+            <SlidersHorizontal size={16} />
+            <span className="hidden sm:inline">Filter</span>
+            {activeFilterCount > 0 && (
+              <span className="ml-1 bg-neon-indigo text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
         </div>
-        <div className="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
-          <Filter size={16} className="text-slate-500 mr-1 hidden md:block" />
-          {FILTERS.map((f) => (
+
+        {/* Row 2: Type quick filters */}
+        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
+          {['All', 'Income', 'Expense', 'Uncategorized'].map(f => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => setTypeFilter(f)}
               className={cn(
-                "px-4 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap",
-                filter === f
-                  ? "bg-neon-indigo border-neon-indigo text-white shadow-lg shadow-neon-indigo/20"
-                  : "bg-obsidian-800 border-obsidian-700 text-slate-400 hover:text-white"
+                'px-3.5 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap transition-all',
+                typeFilter === f
+                  ? 'bg-neon-indigo border-neon-indigo text-white'
+                  : 'bg-obsidian-800/60 border-obsidian-700 text-slate-400 hover:text-white'
               )}
             >
               {f}
             </button>
           ))}
+          <div className="w-px" />
+          {DATE_PRESETS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setDatePreset(p.id)}
+              className={cn(
+                'px-3.5 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap transition-all',
+                datePreset === p.id
+                  ? 'bg-obsidian-700 border-obsidian-600 text-white'
+                  : 'bg-obsidian-800/60 border-obsidian-700 text-slate-400 hover:text-white'
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
+
+        {/* Row 3: Collapsible Advanced Filters */}
+        {showFilters && (
+          <div className="bg-obsidian-800/60 border border-obsidian-700/60 rounded-2xl p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Account */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Account</label>
+                <select
+                  value={accountFilter}
+                  onChange={e => { setAccountFilter(e.target.value); setSelectedAccount(e.target.value || null); }}
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50"
+                >
+                  <option value="">All Accounts</option>
+                  {uniqueAccounts.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+
+              {/* Category */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Category</label>
+                <select
+                  value={categoryFilter}
+                  onChange={e => setCategoryFilter(e.target.value)}
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50"
+                >
+                  <option value="">All Categories</option>
+                  {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* Amount Range */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Min Amount ($)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 50"
+                  value={minAmount}
+                  onChange={e => setMinAmount(e.target.value)}
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Max Amount ($)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 500"
+                  value={maxAmount}
+                  onChange={e => setMaxAmount(e.target.value)}
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50"
+                />
+              </div>
+            </div>
+
+            {/* Sort */}
+            <div className="flex items-center gap-3">
+              <div className="space-y-1 flex-1 max-w-xs">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Sort By</label>
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value)}
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50"
+                >
+                  {SORT_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+              </div>
+
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={clearAllFilters}
+                  className="mt-5 flex items-center space-x-1.5 px-3 py-2 bg-neon-crimson/10 hover:bg-neon-crimson/20 border border-neon-crimson/30 text-neon-crimson text-xs font-bold rounded-xl transition-all"
+                >
+                  <X size={12} />
+                  <span>Clear Filters</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Active filter indicators */}
+        {(accountFilter || selectedAccount) && (
+          <div className="flex items-center space-x-2 text-xs">
+            <span className="text-slate-500">Filtered by account:</span>
+            <span className="bg-neon-indigo/20 text-neon-indigo font-bold px-2 py-0.5 rounded-full">
+              {accountFilter || selectedAccount}
+            </span>
+            <button
+              onClick={() => { setAccountFilter(''); setSelectedAccount(null); }}
+              className="text-slate-500 hover:text-neon-crimson"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Selected Account Filter Indicator */}
-      {selectedAccount && (
-        <div className="flex items-center space-x-2 bg-obsidian-800 border border-obsidian-700 px-4 py-2 rounded-xl text-sm text-slate-300 self-start">
-          <span>Account:</span>
-          <span className="font-bold text-white bg-neon-indigo/20 px-2 py-0.5 rounded text-xs">{selectedAccount}</span>
-          <button 
-            onClick={() => setSelectedAccount(null)}
-            className="text-slate-500 hover:text-white transition-colors ml-1 font-bold text-base line-height-1"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      {/* Results count */}
+      <div className="flex items-center justify-between text-xs text-slate-500">
+        <span>{filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}</span>
+        {filteredTransactions.length > 0 && (
+          <span>Total: <strong className="text-slate-300">{formatCurrency(filteredTransactions.reduce((s, t) => s + t.amount, 0))}</strong></span>
+        )}
+      </div>
 
       {/* Needs Review Section */}
-      {searchTerm === '' && filter === 'All' && reviewTransactions.length > 0 && (
+      {!searchTerm && typeFilter === 'All' && datePreset === 'all' && !accountFilter && !categoryFilter && reviewTransactions.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neon-crimson flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-neon-crimson animate-pulse" />
               Needs Review ({reviewTransactions.length})
             </h3>
-            <span className="text-[10px] text-slate-500 font-medium">Uncategorized transactions from last 45 days</span>
+            <span className="text-[10px] text-slate-500">Uncategorized — last 45 days</span>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {reviewTransactions.map((txn) => (
-              <div 
-                key={txn.id} 
-                className="bg-gradient-to-br from-obsidian-800 to-obsidian-850 border border-neon-crimson/20 hover:border-neon-crimson/40 rounded-2xl p-4 flex items-center justify-between shadow-lg transition-all"
-              >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {reviewTransactions.map(txn => (
+              <div key={txn.id} className="bg-obsidian-800 border border-neon-crimson/20 hover:border-neon-crimson/40 rounded-2xl p-4 flex items-center justify-between transition-all">
                 <div className="flex flex-col min-w-0 pr-4">
-                  <span className="text-[10px] text-slate-500 font-medium">{formatDate(txn.date)}</span>
+                  <span className="text-[10px] text-slate-500">{formatDate(txn.date)}</span>
                   <span className="font-bold text-white text-sm truncate mt-0.5">{cleanMerchantName(txn.description)}</span>
                   <span className="text-[10px] text-slate-400 truncate mt-0.5">{txn.account}</span>
                 </div>
                 <div className="flex flex-col items-end space-y-2 shrink-0">
-                  <span className={cn("font-bold text-lg", txn.amount > 0 ? "text-neon-emerald" : "text-white")}>
+                  <span className={cn('font-bold text-lg', txn.amount > 0 ? 'text-neon-emerald' : 'text-white')}>
                     {txn.amount > 0 ? '+' : ''}{formatCurrency(txn.amount)}
                   </span>
                   <CategoryPill transaction={txn} />
@@ -164,41 +399,43 @@ export default function Transactions() {
         </div>
       )}
 
-      {/* Standard Transactions List */}
-      <div className="bg-obsidian-800 border border-obsidian-700 rounded-2xl shadow-xl flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Desktop View Table */}
-        <div className="hidden md:block overflow-y-auto flex-1 min-h-0">
+      {/* Standard Transactions Table */}
+      <div className="bg-obsidian-800 border border-obsidian-700 rounded-2xl shadow-xl overflow-hidden">
+        {/* Desktop View */}
+        <div className="hidden md:block">
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
-              <tr className="border-b border-obsidian-700 bg-obsidian-800/50">
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-32">Date</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-48">Category</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right w-36">Amount</th>
+              <tr className="border-b border-obsidian-700 bg-obsidian-800/80">
+                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-28">Date</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Merchant</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-40">Account</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-40">Category</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right w-32">Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-obsidian-700/50">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center text-slate-500">
-                    No transactions found matching your criteria.
+                  <td colSpan="5" className="px-6 py-12 text-center text-slate-500">
+                    No transactions match your filters.
+                    {activeFilterCount > 0 && (
+                      <button onClick={clearAllFilters} className="ml-2 text-neon-indigo hover:underline">Clear filters</button>
+                    )}
                   </td>
                 </tr>
               ) : (
-                filteredTransactions.map((txn) => (
-                  <tr key={txn.id} className="hover:bg-obsidian-700/30 transition-colors group">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 w-32 truncate">
-                      {formatDate(txn.date)}
-                    </td>
+                filteredTransactions.map(txn => (
+                  <tr key={txn.id} className="hover:bg-obsidian-700/30 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400">{formatDate(txn.date)}</td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-white truncate">{cleanMerchantName(txn.description)}</div>
-                      <div className="text-xs text-slate-500 mt-0.5 truncate">{txn.account}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap w-48">
+                    <td className="px-6 py-4 text-xs text-slate-400 truncate">{txn.account}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <CategoryPill transaction={txn} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium w-36">
-                      <span className={txn.amount > 0 ? "text-neon-emerald" : "text-white"}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold">
+                      <span className={txn.amount > 0 ? 'text-neon-emerald' : 'text-white'}>
                         {txn.amount > 0 ? '+' : ''}{formatCurrency(txn.amount)}
                       </span>
                     </td>
@@ -209,35 +446,34 @@ export default function Transactions() {
           </table>
         </div>
 
-        {/* Mobile View List */}
-        <div className="md:hidden overflow-y-auto flex-1 min-h-0 divide-y divide-obsidian-700/50">
+        {/* Mobile View */}
+        <div className="md:hidden divide-y divide-obsidian-700/50">
           {filteredTransactions.length === 0 ? (
             <div className="p-8 text-center text-slate-500 text-sm">
-              No transactions found matching your criteria.
+              No transactions match your filters.
+              {activeFilterCount > 0 && (
+                <button onClick={clearAllFilters} className="block mx-auto mt-2 text-neon-indigo hover:underline text-xs">Clear filters</button>
+              )}
             </div>
           ) : (
-            filteredTransactions.map((txn) => (
-              <div key={txn.id} className="p-4 flex flex-col justify-between hover:bg-obsidian-770 transition-colors space-y-1">
-                {/* Top Row: Description and Amount */}
-                <div className="flex justify-between items-center w-full">
-                  <span className="font-semibold text-slate-100 text-sm truncate pr-4">
-                    {cleanMerchantName(txn.description)}
-                  </span>
-                  <span className={`text-sm font-bold shrink-0 ${txn.amount > 0 ? "text-neon-emerald" : "text-white"}`}>
-                    {txn.amount > 0 ? '+' : ''}{formatCurrency(txn.amount)}
-                  </span>
-                </div>
-                {/* Bottom Row: Metadata (Date/Account) and Category Pill */}
-                <div className="flex justify-between items-center w-full text-[10px] text-slate-500">
-                  <div className="flex items-center space-x-1.5 truncate pr-4">
-                    <span>{formatDate(txn.date)}</span>
-                    <span>•</span>
-                    <span className="truncate">{txn.account}</span>
+            filteredTransactions.map(txn => (
+              <div key={txn.id} className="p-4 flex items-center justify-between hover:bg-obsidian-770 transition-colors">
+                <div className="flex flex-col min-w-0 pr-3">
+                  <span className="font-semibold text-slate-100 text-sm truncate">{cleanMerchantName(txn.description)}</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] text-slate-500">{formatDate(txn.date)}</span>
+                    <span className="text-[10px] text-slate-600">•</span>
+                    <span className="text-[10px] text-slate-500 truncate max-w-[100px]">{txn.account}</span>
                   </div>
-                  <div className="shrink-0 scale-90 origin-right">
+                  <div className="mt-1 scale-90 origin-left">
                     <CategoryPill transaction={txn} />
                   </div>
                 </div>
+                <span className={`text-sm font-bold shrink-0 ${
+                  txn.amount > 0 ? 'text-neon-emerald' : 'text-white'
+                }`}>
+                  {txn.amount > 0 ? '+' : ''}{formatCurrency(txn.amount)}
+                </span>
               </div>
             ))
           )}

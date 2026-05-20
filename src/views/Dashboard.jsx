@@ -15,7 +15,11 @@ import {
   ArrowUpRight, 
   ArrowDownRight,
   ShieldCheck,
-  TrendingDown
+  TrendingDown,
+  Table,
+  Calendar,
+  CalendarRange,
+  Waves
 } from 'lucide-react';
 
 const GROUP_ICONS = {
@@ -27,7 +31,7 @@ const GROUP_ICONS = {
 };
 
 export default function Dashboard({ setCurrentView }) {
-  const { balances, transactions, categories, isLoading, setSelectedAccount } = useAppContext();
+  const { balances, transactions, categories, isLoading, navigateToTransactions } = useAppContext();
   const [collapsedGroups, setCollapsedGroups] = useState({
     'Cash': false,
     'Credit Cards': false,
@@ -191,10 +195,7 @@ export default function Dashboard({ setCurrentView }) {
   }, [balances]);
 
   const handleAccountClick = (accountName) => {
-    setSelectedAccount(accountName);
-    if (setCurrentView) {
-      setCurrentView('transactions');
-    }
+    navigateToTransactions(accountName);
   };
 
   // Calculate Net Worth change (difference between last month and current)
@@ -373,7 +374,10 @@ export default function Dashboard({ setCurrentView }) {
         {/* Monthly Budget Summary Progress Box */}
         <div className="space-y-4">
           <h3 className="text-lg font-bold text-white tracking-tight">Spending Target</h3>
-          <Card className="bg-gradient-to-b from-obsidian-800/40 to-obsidian-900/40 border-obsidian-800/80">
+          <Card
+            className="bg-gradient-to-b from-obsidian-800/40 to-obsidian-900/40 border-obsidian-800/80 cursor-pointer hover:border-obsidian-600 transition-colors"
+            onClick={() => setCurrentView('budgets')}
+          >
             <CardContent className="pt-6">
               <div className="flex justify-between items-end mb-4">
                 <div>
@@ -408,6 +412,32 @@ export default function Dashboard({ setCurrentView }) {
               </div>
             </CardContent>
           </Card>
+        </div>
+      </div>
+
+      {/* Reports Quick Access */}
+      <div className="space-y-3">
+        <h3 className="text-lg font-bold text-white tracking-tight">Reports & Analytics</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { id: 'cashflow', label: 'Cash Flow', icon: Waves, color: 'text-neon-indigo' },
+            { id: 'spending', label: 'Spending', icon: ArrowDownRight, color: 'text-neon-crimson' },
+            { id: 'income', label: 'Income', icon: ArrowUpRight, color: 'text-neon-emerald' },
+            { id: 'plreport', label: 'P&L Report', icon: Table, color: 'text-amber-400' },
+            { id: 'yearly', label: 'Yearly', icon: Calendar, color: 'text-violet-400' },
+            { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange, color: 'text-sky-400' },
+          ].map(({ id, label, icon: Icon, color }) => (
+            <button
+              key={id}
+              onClick={() => setCurrentView(id)}
+              className="flex flex-col items-center justify-center p-4 bg-obsidian-800/40 hover:bg-obsidian-800/70 border border-obsidian-800/80 hover:border-obsidian-700 rounded-2xl transition-all group active:scale-[0.97] space-y-2"
+            >
+              <div className={`p-2 rounded-xl bg-obsidian-800 ${color}`}>
+                <Icon size={18} />
+              </div>
+              <span className="text-xs font-semibold text-slate-400 group-hover:text-white transition-colors">{label}</span>
+            </button>
+          ))}
         </div>
       </div>
     </div>

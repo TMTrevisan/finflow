@@ -124,7 +124,7 @@ const safeSetItem = (key, value) => {
   }
 };
 
-export const AppProvider = ({ children }) => {
+export const AppProvider = ({ children, setCurrentView }) => {
   const [transactions, setTransactions] = useState(() => {
     try {
       const cached = localStorage.getItem('finflow_cache_transactions');
@@ -153,6 +153,14 @@ export const AppProvider = ({ children }) => {
   });
 
   const [selectedAccount, setSelectedAccount] = useState(null);
+
+  // Navigation helper — atomically set account filter AND navigate to Transactions
+  const navigateToTransactions = (accountName) => {
+    setSelectedAccount(accountName || null);
+    if (setCurrentView) {
+      setCurrentView('transactions');
+    }
+  };
 
   const [isLoading, setIsLoading] = useState(() => {
     try {
@@ -332,6 +340,7 @@ export const AppProvider = ({ children }) => {
       lastSync,
       selectedAccount,
       setSelectedAccount,
+      navigateToTransactions,
       syncData,
       clearCache,
       loadData,

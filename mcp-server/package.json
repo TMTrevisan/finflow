@@ -1,0 +1,18 @@
+{
+  "name": "finflow-mcp-server",
+  "version": "1.0.0",
+  "description": "FinFlow MCP Server — exposes personal financial data from Google Sheets to AI assistants (Claude, Gemini, etc.)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
