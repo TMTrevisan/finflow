@@ -130,7 +130,7 @@ export default function Assistant() {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
+        model: "gemini-2.0-flash",
         systemInstruction: `You are FinFlow Copilot, a brilliant, concise personal financial assistant.
 You have secure access to the user's local financial database. Below is the compressed snapshot of their balances, budgets, and recent transactions.
 
@@ -177,7 +177,11 @@ Rules:
       }
     } catch (err) {
       console.error(err);
-      setErrorMessage(err.message || 'Failed to generate response. Check your API key and connection.');
+      let msg = err.message || 'Failed to generate response. Check your API key and connection.';
+      if (msg.includes('429') || msg.includes('quota') || msg.includes('Quota')) {
+        msg = 'Copilot rate limit exceeded. Please wait 15-20 seconds before asking another question.';
+      }
+      setErrorMessage(msg);
       // Remove empty model placeholder if error occurred
       setChatLog(prev => prev.filter(m => m.content !== ''));
     } finally {
