@@ -50,9 +50,11 @@ export default function Assistant() {
 
   // starter questions
   const SUGGESTIONS = [
+    "Am I on track to save money this month?",
     "How does my grocery spend this month compare to my average?",
     "What are my top 3 largest transactions in the last 30 days?",
-    "Summarize my spending across active budget groups.",
+    "Which of my categories is closest to exceeding its budget limit?",
+    "Analyze my recurring subscription costs.",
     "Do you see any unusual transactions or anomalies recently?"
   ];
 
@@ -150,7 +152,8 @@ Rules:
 2. Format currency nicely using standard dollar signs (e.g. $125.40).
 3. Keep responses highly glanceable and direct. Use markdown tables, bold highlights, and bullet points.
 4. If a user asks about historical trends outside the provided data, specify that your visibility is currently set to recent syncs.
-5. Answer questions with actionable analysis (e.g., if groceries spend is high, note how much budget remains).`
+5. Answer questions with actionable analysis (e.g., if groceries spend is high, note how much budget remains).
+6. CRITICAL: At the very end of your response, always propose 2-3 context-appropriate follow-up questions the user might want to ask next. Format these suggestions exactly like: <suggestions>Question 1|Question 2|Question 3</suggestions>`
       });
 
       // Prepare conversation history for the API
@@ -188,6 +191,20 @@ Rules:
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // Helper to extract custom suggestion tags
+  const parseSuggestions = (content) => {
+    const match = content.match(/<suggestions>([\s\S]*?)<\/suggestions>/);
+    if (!match) return { text: content, suggestions: [] };
+    
+    const textWithoutSuggestions = content.replace(/<suggestions>([\s\S]*?)<\/suggestions>/, '').trim();
+    const suggestionsList = match[1]
+      .split('|')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+      
+    return { text: textWithoutSuggestions, suggestions: suggestionsList };
   };
 
   // Simple client-side markdown formatter
@@ -343,35 +360,57 @@ Rules:
 
       {/* Message Feed */}
       <div className="flex-1 overflow-y-auto py-4 space-y-4 px-1 hide-scrollbar">
-        {chatLog.map((message, index) => (
-          <div 
-            key={index}
-            className={`flex items-start gap-3 ${
-              message.role === 'user' ? 'justify-end' : 'justify-start'
-            }`}
-          >
-            {message.role === 'model' && (
-              <div className="p-1.5 bg-neon-indigo/15 rounded-lg border border-neon-indigo/25 text-neon-indigo shrink-0">
-                <Brain size={14} />
-              </div>
-            )}
+        {chatLog.map((message, index) => {
+          const isModel = message.role === 'model';
+          const { text, suggestions } = isModel ? parseSuggestions(message.content) : { text: message.content, suggestions: [] };
 
-            <div className={`p-4 rounded-2xl max-w-[85%] border shadow-sm ${
-              message.role === 'user'
-                ? 'bg-neon-indigo/15 border-neon-indigo/25 text-slate-200'
-                : 'bg-obsidian-800/40 border-obsidian-800/80 text-slate-300'
-            }`}>
-              <div className="space-y-2">
-                {message.content ? renderMarkdown(message.content) : (
-                  <div className="flex items-center space-x-2 text-xs text-slate-500">
-                    <RefreshCw size={12} className="animate-spin" />
-                    <span>Analyzing database variables...</span>
+          return (
+            <div 
+              key={index}
+              className={`flex items-start gap-3 ${
+                message.role === 'user' ? 'justify-end' : 'justify-start'
+              }`}
+            >
+              {message.role === 'model' && (
+                <div className="p-1.5 bg-neon-indigo/15 rounded-lg border border-neon-indigo/25 text-neon-indigo shrink-0">
+                  <Brain size={14} />
+                </div>
+              )}
+
+              <div className="flex flex-col space-y-2 max-w-[85%]">
+                <div className={`p-4 rounded-2xl border shadow-sm ${
+                  message.role === 'user'
+                    ? 'bg-neon-indigo/15 border-neon-indigo/25 text-slate-200'
+                    : 'bg-obsidian-800/40 border-obsidian-800/80 text-slate-300'
+                }`}>
+                  <div className="space-y-2">
+                    {text ? renderMarkdown(text) : (
+                      <div className="flex items-center space-x-2 text-xs text-slate-500">
+                        <RefreshCw size={12} className="animate-spin" />
+                        <span>Analyzing database variables...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Render inline follow-up suggestion chips */}
+                {isModel && suggestions.length > 0 && !isGenerating && index === chatLog.length - 1 && (
+                  <div className="flex flex-wrap gap-2 pt-1 animate-fade-in">
+                    {suggestions.map((suggestionText, sugIdx) => (
+                      <button
+                        key={sugIdx}
+                        onClick={() => handleSendMessage(suggestionText)}
+                        className="text-left px-3.5 py-1.5 bg-obsidian-800/45 hover:bg-neon-indigo/15 border border-obsidian-750 hover:border-neon-indigo/40 text-[10px] font-semibold text-slate-300 hover:text-white rounded-full transition-all duration-150 active:scale-[0.98] shadow-sm"
+                      >
+                        {suggestionText}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         
         {/* Starter suggestion chips */}
         {chatLog.length === 1 && (
