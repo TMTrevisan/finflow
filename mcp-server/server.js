@@ -27,8 +27,14 @@ app.use(express.json());
 
 // ─── Authentication Middleware ────────────────────────────────────────────────
 function authenticate(req, res, next) {
+  const { secretPrefix } = req.params;
+  if (secretPrefix) {
+    if (MCP_SECRET && secretPrefix === MCP_SECRET) {
+      return next();
+    }
+    return res.status(401).json({ error: 'Unauthorized. Invalid secret prefix in URL.' });
+  }
   if (!MCP_SECRET) {
-    // No secret configured — allow all (dev mode)
     return next();
   }
   const auth = req.headers.authorization || '';
@@ -243,24 +249,35 @@ async function runTool(toolName, args) {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // Health check
-app.get('/', (req, res) => {
+function handleHealthCheck(req, res) {
+  const { secretPrefix } = req.params;
+  if (secretPrefix && MCP_SECRET && secretPrefix !== MCP_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized. Invalid secret prefix in URL.' });
+  }
   res.json({
     service: 'FinFlow MCP Server',
     version: '1.0.0',
     status: 'ok',
     sheets_configured: !!SHEETS_API_URL,
     auth_required: !!MCP_SECRET,
-    tool_count: TOOLS.length
+    tool_count: TOOLS.length,
+    path_auth: secretPrefix ? 'prefix_verified' : 'pending'
   });
-});
+}
+
+app.get('/', handleHealthCheck);
+app.get('/:secretPrefix', handleHealthCheck);
 
 // MCP: List available tools
 app.get('/tools', authenticate, (req, res) => {
   res.json({ tools: TOOLS });
 });
+app.get('/:secretPrefix/tools', authenticate, (req, res) => {
+  res.json({ tools: TOOLS });
+});
 
 // MCP: Call a tool
-app.post('/tools/:toolName', authenticate, async (req, res) => {
+async function handleToolCall(req, res) {
   const { toolName } = req.params;
   const args = req.body || {};
 
@@ -276,7 +293,10 @@ app.post('/tools/:toolName', authenticate, async (req, res) => {
     console.error(`[MCP] Error running tool "${toolName}":`, err.message);
     res.status(500).json({ error: err.message });
   }
-});
+}
+
+app.post('/tools/:toolName', authenticate, handleToolCall);
+app.post('/:secretPrefix/tools/:toolName', authenticate, handleToolCall);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
