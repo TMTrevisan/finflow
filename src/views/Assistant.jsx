@@ -331,7 +331,7 @@ Rules:
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] max-w-4xl mx-auto pb-4">
+    <div className="flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-140px)] max-w-4xl mx-auto pb-4">
       {/* Sticky Assistant Header */}
       <div className="flex items-center justify-between border-b border-obsidian-800/85 pb-4 shrink-0">
         <div className="flex items-center space-x-3">

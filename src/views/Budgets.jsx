@@ -3,10 +3,18 @@ import { useAppContext, resolveBudget } from '../context/AppContext';
 import { Card, CardContent } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { formatCurrency } from '../utils/formatting';
-import { Sparkles, HelpCircle, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Sparkles, HelpCircle, ToggleLeft, ToggleRight, ArrowRight } from 'lucide-react';
 
-export default function Budgets() {
-  const { categories, transactions, isLoading } = useAppContext();
+export default function Budgets({ setCurrentView }) {
+  const { categories, transactions, isLoading, navigateToTransactions } = useAppContext();
+
+  const handleCategoryClick = (categoryName) => {
+    // Navigate to Transactions filtered by this category
+    // We use the category filter by setting selectedAccount=null and navigating,
+    // then the Transactions view will pick up a deeplink category via sessionStorage
+    sessionStorage.setItem('finflow_deep_category', categoryName);
+    if (setCurrentView) setCurrentView('transactions');
+  };
   
   // Keep track of which categories have "Rollover" enabled (persisted in localStorage)
   const [rolloverEnabled, setRolloverEnabled] = useState(() => {
@@ -239,7 +247,9 @@ export default function Budgets() {
       {/* Desktop view: Grid of cards */}
       <div className="hidden md:grid grid-cols-1 md:grid-cols-2 gap-6">
         {budgetItems.map(item => (
-          <Card key={item.id} className="bg-obsidian-800/40 hover:bg-obsidian-800/60 transition-all duration-300 border-obsidian-800/80 hover:shadow-lg">
+          <Card key={item.id} className="bg-obsidian-800/40 hover:bg-obsidian-800/60 transition-all duration-300 border-obsidian-800/80 hover:shadow-lg cursor-pointer group"
+            onClick={() => handleCategoryClick(item.category)}
+          >
             <CardContent className="pt-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
@@ -255,7 +265,7 @@ export default function Budgets() {
                   </h3>
                   <p className="text-xs text-slate-500 uppercase tracking-wider mt-1">{item.group}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end">
                   <p className="text-xl font-extrabold text-white">{formatCurrency(item.spent)}</p>
                   <p className="text-xs text-slate-400 mt-0.5">of {formatCurrency(item.adjustedBudget)}</p>
                 </div>
@@ -269,28 +279,37 @@ export default function Budgets() {
                   <span className="font-bold">{formatCurrency(Math.abs(item.remaining))}</span>
                 </span>
                 
-                {/* Rollover Toggle Control */}
-                <button 
-                  onClick={() => toggleRollover(item.category)}
-                  className="flex items-center space-x-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  <span className="font-medium">Rollover</span>
-                  {item.isRollover ? (
-                    <ToggleRight size={20} className="text-neon-indigo shrink-0" />
-                  ) : (
-                    <ToggleLeft size={20} className="text-slate-600 shrink-0" />
-                  )}
-                </button>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] text-slate-500 group-hover:text-neon-indigo transition-colors flex items-center gap-1">
+                    <ArrowRight size={11} /> View txns
+                  </span>
+                  {/* Rollover Toggle Control — stop propagation so card click doesn't also navigate */}
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); toggleRollover(item.category); }}
+                    className="flex items-center space-x-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    <span className="font-medium">Rollover</span>
+                    {item.isRollover ? (
+                      <ToggleRight size={20} className="text-neon-indigo shrink-0" />
+                    ) : (
+                      <ToggleLeft size={20} className="text-slate-600 shrink-0" />
+                    )}
+                  </button>
+                </div>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Mobile view: Compact List to fit 8+ budgets on screen */}
-      <div className="md:hidden divide-y divide-obsidian-800/50 bg-obsidian-800/20 border border-obsidian-800/80 rounded-2xl p-4 space-y-4">
+      {/* Mobile view: Compact List */}
+      <div className="md:hidden divide-y divide-obsidian-800/50 bg-obsidian-800/20 border border-obsidian-800/80 rounded-2xl overflow-hidden">
         {budgetItems.map(item => (
-          <div key={item.id} className="pt-3 first:pt-0 space-y-1.5">
+          <div
+            key={item.id}
+            className="p-4 space-y-2 active:bg-obsidian-800/60 transition-colors"
+            onClick={() => handleCategoryClick(item.category)}
+          >
             <div className="flex justify-between items-center text-xs">
               <div className="min-w-0 pr-4">
                 <span className="font-semibold text-slate-100 flex items-center gap-1.5 truncate">
@@ -317,7 +336,7 @@ export default function Budgets() {
                 {item.remaining < 0 ? `Over by ${formatCurrency(Math.abs(item.remaining))}` : `${formatCurrency(item.remaining)} left`}
               </span>
               <button 
-                onClick={() => toggleRollover(item.category)}
+                onClick={(e) => { e.stopPropagation(); toggleRollover(item.category); }}
                 className="flex items-center space-x-1 text-slate-500 hover:text-slate-300"
               >
                 <span>Rollover:</span>

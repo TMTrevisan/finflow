@@ -79,6 +79,16 @@ export default function Transactions() {
     }
   }, [selectedAccount]);
 
+  // Pick up deep-link category from Budgets navigation
+  React.useEffect(() => {
+    const deepCat = sessionStorage.getItem('finflow_deep_category');
+    if (deepCat) {
+      setCategoryFilter(deepCat);
+      setShowFilters(true);
+      sessionStorage.removeItem('finflow_deep_category');
+    }
+  }, []);
+
   // Unique accounts and categories for dropdowns
   const { uniqueAccounts, uniqueCategories } = useMemo(() => {
     const accounts = [...new Set(transactions.map(t => t.account).filter(Boolean))].sort();
