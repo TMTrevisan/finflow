@@ -10,6 +10,8 @@ import Settings from './views/Settings';
 import PLReport from './views/PLReport';
 import YearlyInsights from './views/YearlyInsights';
 import Insights from './views/Insights';
+import Assistant from './views/Assistant';
+import Subscriptions from './views/Subscriptions';
 import PasscodeLock from './components/ui/PasscodeLock';
 
 function App() {
@@ -18,10 +20,12 @@ function App() {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <Dashboard />;
+      case 'assistant': return <Assistant />;
       case 'spending': return <Spending />;
       case 'income': return <Income />;
       case 'transactions': return <Transactions />;
       case 'budgets': return <Budgets />;
+      case 'subscriptions': return <Subscriptions />;
       case 'cashflow': return <CashFlow />;
       case 'settings': return <Settings />;
       case 'plreport': return <PLReport />;

@@ -10,7 +10,10 @@ import {
   CheckCircle2, 
   AlertTriangle,
   HardDrive,
-  KeyRound
+  KeyRound,
+  Brain,
+  Fingerprint,
+  Bell
 } from 'lucide-react';
 
 export default function Settings() {
@@ -39,6 +42,34 @@ export default function Settings() {
   const [pinInput, setPinInput] = useState('');
   const [passcodeMessage, setPasscodeMessage] = useState(null);
 
+  // Gemini API key state
+  const [geminiKeyInput, setGeminiKeyInput] = useState(() => {
+    return localStorage.getItem('finflow_gemini_key') || '';
+  });
+  const [geminiMessage, setGeminiMessage] = useState(null);
+
+  // Biometrics state
+  const [biometricsEnabled, setBiometricsEnabled] = useState(() => {
+    return localStorage.getItem('finflow_biometrics_enabled') === 'true';
+  });
+  const [biometricsSupported, setBiometricsSupported] = useState(false);
+  const [biometricsMessage, setBiometricsMessage] = useState(null);
+
+  // Notification state
+  const [notificationStatus, setNotificationStatus] = useState(() => {
+    return typeof Notification !== 'undefined' ? Notification.permission : 'default';
+  });
+  const [notificationMessage, setNotificationMessage] = useState(null);
+
+  // Check if WebAuthn platform authenticator is available
+  useEffect(() => {
+    if (window.PublicKeyCredential) {
+      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        .then(available => setBiometricsSupported(available))
+        .catch(() => setBiometricsSupported(false));
+    }
+  }, []);
+
   // Cache diagnostics
   const transactionCount = transactions.length;
   const categoryCount = categories.length;
@@ -66,7 +97,6 @@ export default function Settings() {
     }
 
     try {
-      // Temporarily store to test the sync
       const previousUrl = localStorage.getItem('finflow_api_url');
       localStorage.setItem('finflow_api_url', apiUrlInput.trim());
       
@@ -74,7 +104,6 @@ export default function Settings() {
       if (success) {
         setUrlMessage({ type: 'success', text: 'Connection verified! Your sheet is successfully connected.' });
       } else {
-        // Revert
         if (previousUrl) {
           localStorage.setItem('finflow_api_url', previousUrl);
         } else {
@@ -90,13 +119,11 @@ export default function Settings() {
   const handleTogglePasscode = () => {
     const isCurrentlyEnabled = !!localStorage.getItem('finflow_passcode');
     if (isCurrentlyEnabled) {
-      // Disable
       localStorage.removeItem('finflow_passcode');
       setPasscodeEnabled(false);
       setPinInput('');
       setPasscodeMessage({ type: 'success', text: 'PIN Passcode disabled successfully.' });
     } else {
-      // Enable PIN
       if (pinInput.length !== 4 || isNaN(Number(pinInput))) {
         setPasscodeMessage({ type: 'error', text: 'Please enter a valid 4-digit numeric PIN.' });
         return;
@@ -104,6 +131,71 @@ export default function Settings() {
       localStorage.setItem('finflow_passcode', pinInput);
       setPasscodeEnabled(true);
       setPasscodeMessage({ type: 'success', text: `PIN Passcode configured! Next time you open the app, you will need this PIN.` });
+    }
+  };
+
+  const handleSaveGeminiKey = () => {
+    if (geminiKeyInput.trim()) {
+      localStorage.setItem('finflow_gemini_key', geminiKeyInput.trim());
+      setGeminiMessage({ type: 'success', text: 'Gemini API Key saved securely!' });
+    } else {
+      localStorage.removeItem('finflow_gemini_key');
+      setGeminiMessage({ type: 'info', text: 'Gemini API Key cleared.' });
+    }
+  };
+
+  const handleToggleBiometrics = async () => {
+    if (biometricsEnabled) {
+      localStorage.removeItem('finflow_biometrics_enabled');
+      setBiometricsEnabled(false);
+      setBiometricsMessage({ type: 'success', text: 'Biometric unlock disabled.' });
+      return;
+    }
+
+    try {
+      setBiometricsMessage({ type: 'info', text: 'Confirming biometric registration...' });
+      const id = Uint8Array.from("finflow-user", c => c.charCodeAt(0));
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      
+      await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: "FinFlow" },
+          user: {
+            id,
+            name: "user@finflow",
+            displayName: "FinFlow User"
+          },
+          pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required"
+          },
+          timeout: 60000
+        }
+      });
+
+      localStorage.setItem('finflow_biometrics_enabled', 'true');
+      setBiometricsEnabled(true);
+      setBiometricsMessage({ type: 'success', text: 'Biometrics registered! You can now unlock with TouchID/FaceID.' });
+    } catch (err) {
+      console.error(err);
+      setBiometricsMessage({ type: 'error', text: `Registration failed: ${err.message}` });
+    }
+  };
+
+  const handleRequestNotifications = async () => {
+    if (!('Notification' in window)) {
+      setNotificationMessage({ type: 'error', text: 'Notifications not supported in this browser.' });
+      return;
+    }
+
+    const res = await Notification.requestPermission();
+    setNotificationStatus(res);
+    if (res === 'granted') {
+      setNotificationMessage({ type: 'success', text: 'Triage notifications allowed! New uncategorized items will alert you.' });
+    } else {
+      setNotificationMessage({ type: 'error', text: 'Permission denied. Clear block settings in your browser address bar to retry.' });
     }
   };
 
@@ -120,10 +212,10 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-4xl pb-12">
       <div className="flex flex-col space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight text-white">Settings</h1>
-        <p className="text-sm text-slate-400">Manage spreadsheet connections, security preferences, and database cache settings.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-white font-display">Settings</h1>
+        <p className="text-sm text-slate-400">Manage spreadsheet connections, security credentials, and local database cache settings.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -260,6 +352,162 @@ export default function Settings() {
               )}
             </button>
           </div>
+        </Card>
+
+        {/* Gemini AI Settings Card */}
+        <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-neon-indigo/10 rounded-xl text-neon-indigo">
+                <Brain size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Gemini AI Assistant</h3>
+                <p className="text-xs text-slate-500">Enable local AI financial insights and transaction analysis.</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+                <span>Gemini API Key</span>
+                <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-neon-indigo hover:underline normal-case font-medium">Get Free Key</a>
+              </label>
+              <input 
+                type="password" 
+                value={geminiKeyInput}
+                onChange={(e) => setGeminiKeyInput(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
+              />
+            </div>
+
+            {geminiMessage && (
+              <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
+                geminiMessage.type === 'success' 
+                  ? 'bg-neon-emerald/10 border-neon-emerald/20 text-neon-emerald'
+                  : 'bg-obsidian-800 border-obsidian-750 text-slate-350'
+              }`}>
+                <CheckCircle2 size={16} className="shrink-0" />
+                <span>{geminiMessage.text}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-6 border-t border-obsidian-800/40 flex justify-end">
+            <button
+              onClick={handleSaveGeminiKey}
+              className="px-4 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors shadow-md"
+            >
+              Save API Key
+            </button>
+          </div>
+        </Card>
+
+        {/* Biometrics Protection Card */}
+        <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-neon-indigo/10 rounded-xl text-neon-indigo">
+                <Fingerprint size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Biometric Unlock</h3>
+                <p className="text-xs text-slate-500">Secure the app using TouchID / FaceID WebAuthn.</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between bg-obsidian-800/40 p-3 rounded-xl border border-obsidian-850">
+                <span className="text-xs font-semibold text-slate-300">Biometrics Status</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                  biometricsEnabled 
+                    ? 'bg-neon-indigo/15 text-neon-indigo border-neon-indigo/25' 
+                    : 'bg-slate-500/10 text-slate-400 border-slate-700/25'
+                }`}>
+                  {biometricsEnabled ? 'Biometrics Enabled' : 'Disabled'}
+                </span>
+              </div>
+              
+              {!biometricsSupported && (
+                <div className="p-2.5 rounded-lg bg-neon-crimson/5 border border-neon-crimson/10 text-[10px] text-neon-crimson flex items-center space-x-1.5">
+                  <AlertTriangle size={12} className="shrink-0" />
+                  <span>FaceID/TouchID is only supported in secure HTTPS contexts or when hosted locally.</span>
+                </div>
+              )}
+            </div>
+
+            {biometricsMessage && (
+              <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
+                biometricsMessage.type === 'success' 
+                  ? 'bg-neon-emerald/10 border-neon-emerald/20 text-neon-emerald'
+                  : biometricsMessage.type === 'info'
+                    ? 'bg-obsidian-800 border-obsidian-750 text-slate-300'
+                    : 'bg-neon-crimson/10 border-neon-crimson/20 text-neon-crimson'
+              }`}>
+                {biometricsMessage.type === 'success' ? (
+                  <CheckCircle2 size={16} className="shrink-0" />
+                ) : biometricsMessage.type === 'info' ? (
+                  <RefreshCw size={16} className="animate-spin shrink-0" />
+                ) : (
+                  <AlertTriangle size={16} className="shrink-0" />
+                )}
+                <span>{biometricsMessage.text}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-6 border-t border-obsidian-800/40 flex justify-end">
+            <button
+              onClick={handleToggleBiometrics}
+              disabled={!biometricsSupported}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all shadow-md flex items-center space-x-2 ${
+                biometricsEnabled 
+                  ? 'bg-neon-crimson/20 hover:bg-neon-crimson/30 text-neon-crimson border border-neon-crimson/35'
+                  : 'bg-neon-indigo hover:bg-neon-indigo-hover text-white disabled:opacity-40 disabled:cursor-not-allowed'
+              }`}
+            >
+              <Fingerprint size={14} />
+              <span>{biometricsEnabled ? 'Disable Biometrics' : 'Enable TouchID / FaceID'}</span>
+            </button>
+          </div>
+        </Card>
+
+        {/* PWA & Notifications Manager */}
+        <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 md:col-span-2 space-y-4">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-neon-indigo/10 rounded-xl text-neon-indigo">
+              <Bell size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-base">Push Notifications</h3>
+              <p className="text-xs text-slate-500">Configure background sync notifications for new uncategorized transactions.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-obsidian-800/40 border border-obsidian-850 rounded-2xl">
+            <div>
+              <p className="text-xs font-semibold text-slate-400">Triage Notification Permission</p>
+              <p className="text-sm font-bold text-slate-100 mt-0.5 capitalize">Permission Status: {notificationStatus}</p>
+            </div>
+            
+            <button
+              onClick={handleRequestNotifications}
+              className="px-4 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-all shadow-md"
+            >
+              Request Alerts Permission
+            </button>
+          </div>
+
+          {notificationMessage && (
+            <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
+              notificationMessage.type === 'success' 
+                ? 'bg-neon-emerald/10 border-neon-emerald/20 text-neon-emerald'
+                : 'bg-neon-crimson/10 border-neon-crimson/20 text-neon-crimson'
+            }`}>
+              <CheckCircle2 size={16} className="shrink-0" />
+              <span>{notificationMessage.text}</span>
+            </div>
+          )}
         </Card>
 
         {/* Database Cache Manager */}

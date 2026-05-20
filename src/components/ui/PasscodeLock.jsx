@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, ShieldCheck, Delete } from 'lucide-react';
+import { Lock, ShieldCheck, Delete, Fingerprint } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function PasscodeLock({ children }) {
@@ -19,6 +19,39 @@ export default function PasscodeLock({ children }) {
       setIsLocked(false);
     }
   }, []);
+
+  const handleBiometricAuth = async () => {
+    if (localStorage.getItem('finflow_biometrics_enabled') !== 'true') return;
+    
+    try {
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          rpId: window.location.hostname,
+          userVerification: "required"
+        }
+      });
+      
+      if (assertion) {
+        setIsLocked(false);
+      }
+    } catch (err) {
+      console.warn("Biometric verification failed or bypassed:", err);
+    }
+  };
+
+  // Trigger biometric unlock automatically when PIN screen is displayed
+  useEffect(() => {
+    if (hasPasscode && isLocked) {
+      // Small timeout to allow component mounting before prompt appears
+      const timer = setTimeout(() => {
+        handleBiometricAuth();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [hasPasscode, isLocked]);
 
   const handleKeyPress = (num) => {
     if (passcode.length >= 4) return;
@@ -40,7 +73,6 @@ export default function PasscodeLock({ children }) {
         setTimeout(() => {
           setIsError(true);
           setPasscode('');
-          // Vibrate if supported
           if (navigator.vibrate) navigator.vibrate(200);
         }, 300);
       }
@@ -66,7 +98,7 @@ export default function PasscodeLock({ children }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-obsidian-950 text-white font-sans">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-obsidian-955 text-white font-sans select-none">
       {/* Visual Accents */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-72 h-72 bg-neon-indigo/10 rounded-full blur-3xl pointer-events-none"></div>
       
@@ -76,8 +108,8 @@ export default function PasscodeLock({ children }) {
           <div className="bg-obsidian-800 p-4 rounded-3xl border border-obsidian-700/80 mb-4 shadow-xl">
             <Lock size={32} className="text-neon-indigo animate-pulse" />
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-white mb-2">FinFlow Guard</h1>
-          <p className="text-sm text-slate-400">Enter your 4-digit PIN to access your vault</p>
+          <h1 className="text-3xl font-black tracking-tight text-white mb-2 font-display">FinFlow Guard</h1>
+          <p className="text-sm text-slate-400">Enter your PIN or use biometrics to continue</p>
         </div>
 
         {/* 4 dots entry visualization */}
@@ -108,9 +140,9 @@ export default function PasscodeLock({ children }) {
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="text-xs font-semibold text-neon-crimson uppercase tracking-wider"
+                className="text-xs font-semibold text-neon-crimson uppercase tracking-wider animate-bounce"
               >
-                Incorrect Passcode. Try again.
+                Incorrect PIN. Try again.
               </motion.span>
             )}
           </AnimatePresence>
@@ -128,8 +160,17 @@ export default function PasscodeLock({ children }) {
             </button>
           ))}
           
-          {/* Spacer / Unused key */}
-          <div className="aspect-square flex items-center justify-center" />
+          {/* Biometric trigger on the bottom-left button */}
+          {localStorage.getItem('finflow_biometrics_enabled') === 'true' ? (
+            <button
+              onClick={handleBiometricAuth}
+              className="aspect-square flex items-center justify-center bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-800/80 active:border-neon-indigo/50 text-neon-indigo rounded-2xl transition-all active:scale-95 shadow-md"
+            >
+              <Fingerprint size={24} />
+            </button>
+          ) : (
+            <div className="aspect-square flex items-center justify-center" />
+          )}
 
           <button
             onClick={() => handleKeyPress(0)}

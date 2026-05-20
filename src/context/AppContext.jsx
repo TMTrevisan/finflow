@@ -284,6 +284,38 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Post API URL to Service Worker for background notifications sync
+  useEffect(() => {
+    const url = localStorage.getItem('finflow_api_url');
+    if (url && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        if (registration.active) {
+          registration.active.postMessage({
+            type: 'SET_API_URL',
+            url: `${url}?action=getData`
+          });
+        }
+      });
+    }
+  }, [lastSync]);
+
+  // Register Periodic Sync for background updates
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(async (reg) => {
+        if ('periodicSync' in reg) {
+          try {
+            await reg.periodicSync.register('check-transactions', {
+              minInterval: 24 * 60 * 60 * 1000 // 24 hours
+            });
+          } catch (e) {
+            console.warn('Failed to register periodicSync:', e);
+          }
+        }
+      });
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
   }, []);

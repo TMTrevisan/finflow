@@ -1,14 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, ReceiptText, PieChart, Waves, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, PieChart, Sparkles, Settings } from 'lucide-react';
 import { haptics } from '../../utils/haptics';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dash', icon: LayoutDashboard },
+  { id: 'assistant', label: 'Copilot', icon: Sparkles },
   { id: 'budgets', label: 'Budgets', icon: PieChart },
   { id: 'transactions', label: 'Txns', icon: ReceiptText },
-  { id: 'cashflow', label: 'Flow', icon: Waves },
-  { id: 'insights', label: 'Insights', icon: TrendingUp },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
 export default function BottomNav({ currentView, setCurrentView }) {

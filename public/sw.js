@@ -1,4 +1,5 @@
 const CACHE_NAME = 'finflow-cache-v1';
+const CONFIG_CACHE = 'finflow-config';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -19,7 +20,7 @@ self.addEventListener('activate', (e) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
+          if (key !== CACHE_NAME && key !== CONFIG_CACHE) {
             return caches.delete(key);
           }
         })
@@ -29,7 +30,6 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Let the browser handle chrome-extension or external queries natively
   if (!e.request.url.startsWith(self.location.origin)) {
     return;
   }
@@ -37,7 +37,6 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch fresh in background
         fetch(e.request).then((networkResponse) => {
           if (networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => cache.put(e.request, networkResponse));
@@ -46,6 +45,91 @@ self.addEventListener('fetch', (e) => {
         return cachedResponse;
       }
       return fetch(e.request);
+    })
+  );
+});
+
+// Helpers to save and retrieve settings in Cache Storage (localStorage equivalent for SW)
+const saveApiUrl = async (url) => {
+  const cache = await caches.open(CONFIG_CACHE);
+  await cache.put('/api-url', new Response(url));
+};
+
+const getApiUrl = async () => {
+  const cache = await caches.open(CONFIG_CACHE);
+  const response = await cache.match('/api-url');
+  return response ? response.text() : '';
+};
+
+// Listen for settings synchronization messages from the client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SET_API_URL') {
+    event.waitUntil(saveApiUrl(event.data.url));
+  }
+});
+
+// Background sync execution
+const checkNewTransactionsAndNotify = async () => {
+  const url = await getApiUrl();
+  if (!url) return;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return;
+
+    const data = await res.json();
+    const transactions = data.transactions || [];
+
+    // Filter uncategorized expenses/income
+    const uncategorized = transactions.filter(t => 
+      !t.category || t.category.toLowerCase().trim() === 'uncategorized'
+    );
+
+    if (uncategorized.length > 0) {
+      const configCache = await caches.open(CONFIG_CACHE);
+      const lastTxnIdRes = await configCache.match('/last-notified-id');
+      const lastTxnId = lastTxnIdRes ? await lastTxnIdRes.text() : '';
+
+      // Check if the latest uncategorized transaction is new
+      const latestTxn = uncategorized[0];
+      if (latestTxn.id !== lastTxnId) {
+        await configCache.put('/last-notified-id', new Response(latestTxn.id));
+
+        self.registration.showNotification('Uncategorized Transactions', {
+          body: `You have ${uncategorized.length} transaction(s) requiring category triage.`,
+          icon: '/pwa-icon.png',
+          badge: '/pwa-icon.png',
+          vibrate: [200, 100, 200],
+          tag: 'uncategorized-triage',
+          data: { url: self.location.origin + '/#transactions' }
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Service worker background check failed:', err);
+  }
+};
+
+// Register background periodic sync event listener
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'check-transactions') {
+    event.waitUntil(checkNewTransactionsAndNotify());
+  }
+});
+
+// Handle notification click redirects
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === event.notification.data.url && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(event.notification.data.url || '/');
+      }
     })
   );
 });

@@ -1,15 +1,17 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, ReceiptText, PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings, Table, Calendar } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings, Table, Calendar, Sparkles, CalendarRange } from 'lucide-react';
 import { haptics } from '../../utils/haptics';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'spending', label: 'Spending', icon: ArrowDownRight },
-  { id: 'income', label: 'Income', icon: ArrowUpRight },
+  { id: 'assistant', label: 'Copilot AI', icon: Sparkles },
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
   { id: 'budgets', label: 'Budgets', icon: PieChart },
+  { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange },
   { id: 'cashflow', label: 'Cash Flow', icon: Waves },
+  { id: 'spending', label: 'Spending', icon: ArrowDownRight },
+  { id: 'income', label: 'Income', icon: ArrowUpRight },
   { id: 'plreport', label: 'P&L Report', icon: Table },
   { id: 'yearly', label: 'Yearly Insights', icon: Calendar },
   { id: 'settings', label: 'Settings', icon: Settings },
