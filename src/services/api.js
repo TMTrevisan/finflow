@@ -3,7 +3,7 @@ import { MOCK_TRANSACTIONS, MOCK_CATEGORIES, MOCK_BALANCES } from './mockData';
 const getApiUrl = (action) => {
   const envUrl = import.meta.env.VITE_API_URL;
   const localUrl = localStorage.getItem('finflow_api_url');
-  const apiUrl = envUrl || localUrl || null;
+  const apiUrl = localUrl || envUrl || null;
   if (!apiUrl) return null;
   return `${apiUrl}?action=${action}`;
 };
