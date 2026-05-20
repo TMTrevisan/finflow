@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, ReceiptText, PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings, Table, Calendar } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -9,6 +9,8 @@ const NAV_ITEMS = [
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
   { id: 'budgets', label: 'Budgets', icon: PieChart },
   { id: 'cashflow', label: 'Cash Flow', icon: Waves },
+  { id: 'plreport', label: 'P&L Report', icon: Table },
+  { id: 'yearly', label: 'Yearly Insights', icon: Calendar },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 

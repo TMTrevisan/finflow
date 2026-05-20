@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Bell, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Bell, AlertTriangle, Settings } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function Header({ title }) {
+export default function Header({ title, currentView, setCurrentView }) {
   const { syncData, isSyncing, error, isMockData } = useAppContext();
   const [showToast, setShowToast] = useState(false);
   const [showErrorToast, setShowErrorToast] = useState(false);
@@ -43,6 +43,16 @@ export default function Header({ title }) {
           }`}></span>
           <span>{isMockData ? 'Demo Mode' : 'Live Synced'}</span>
         </div>
+
+        <button 
+          onClick={() => setCurrentView('settings')}
+          className={`p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
+            currentView === 'settings' ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
+          }`}
+          title="Settings"
+        >
+          <Settings size={20} />
+        </button>
 
         <button 
           className="p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"

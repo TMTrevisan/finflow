@@ -9,7 +9,11 @@ export default function Layout({ currentView, setCurrentView, children }) {
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
       
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <Header title={currentView} />
+        <Header 
+          title={currentView === 'plreport' ? 'P&L Report' : currentView === 'yearly' ? 'Yearly Insights' : currentView} 
+          currentView={currentView} 
+          setCurrentView={setCurrentView} 
+        />
         
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
           <div className="max-w-7xl mx-auto h-full">

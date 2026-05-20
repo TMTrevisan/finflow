@@ -1,15 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, ReceiptText, PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings } from 'lucide-react';
+import { LayoutDashboard, ReceiptText, PieChart, Waves, TrendingUp } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dash', icon: LayoutDashboard },
-  { id: 'spending', label: 'Spend', icon: ArrowDownRight },
-  { id: 'income', label: 'Income', icon: ArrowUpRight },
-  { id: 'transactions', label: 'Txns', icon: ReceiptText },
   { id: 'budgets', label: 'Budgets', icon: PieChart },
+  { id: 'transactions', label: 'Txns', icon: ReceiptText },
   { id: 'cashflow', label: 'Flow', icon: Waves },
-  { id: 'settings', label: 'Set', icon: Settings },
+  { id: 'insights', label: 'Insights', icon: TrendingUp },
 ];
 
 export default function BottomNav({ currentView, setCurrentView }) {

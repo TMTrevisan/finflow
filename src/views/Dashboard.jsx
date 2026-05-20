@@ -26,8 +26,8 @@ const GROUP_ICONS = {
   'Loans': Scale
 };
 
-export default function Dashboard() {
-  const { balances, transactions, categories, isLoading } = useAppContext();
+export default function Dashboard({ setCurrentView }) {
+  const { balances, transactions, categories, isLoading, setSelectedAccount } = useAppContext();
   const [collapsedGroups, setCollapsedGroups] = useState({
     'Cash': false,
     'Credit Cards': false,
@@ -105,25 +105,66 @@ export default function Dashboard() {
     return groups;
   }, [latestBalances]);
 
-  // Compute Net Worth History for line chart
+  // Compute Net Worth History for line chart (Grouped by Month for a smooth trend)
   const netWorthHistory = useMemo(() => {
     if (!balances || balances.length === 0) return [];
     
-    // Group balance history rows by exact Date
-    const byDate = {};
+    // Determine how many unique months of history exist
+    const uniqueMonths = new Set(balances.map(b => b.date ? b.date.substring(0, 7) : ''));
+    uniqueMonths.delete('');
+    
+    if (uniqueMonths.size <= 1) {
+      // Less than 2 months: Fall back to daily view to show recent progress
+      const byDate = {};
+      balances.forEach(b => {
+        const date = b.date;
+        if (!date) return;
+        if (!byDate[date]) byDate[date] = [];
+        byDate[date].push(b);
+      });
+      return Object.entries(byDate).map(([date, records]) => {
+        let assetsSum = 0;
+        let liabilitiesSum = 0;
+        records.forEach(r => {
+          const val = Number(r.balance) || 0;
+          if (r.class === 'Asset') assetsSum += val;
+          else if (r.class === 'Liability') liabilitiesSum += Math.abs(val);
+        });
+        const dObj = new Date(date);
+        const label = isNaN(dObj.getTime()) ? date : dObj.toLocaleString('default', { month: 'short', day: 'numeric' });
+        return {
+          date: label,
+          rawDate: date,
+          netWorth: assetsSum - liabilitiesSum
+        };
+      }).sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
+    }
+
+    // 2+ months: Group balances by Year-Month (e.g., "2026-05") for a smooth trend line
+    const byMonth = {};
     balances.forEach(b => {
-      const date = b.date;
-      if (!byDate[date]) {
-        byDate[date] = [];
+      if (!b.date) return;
+      const dateObj = new Date(b.date);
+      if (isNaN(dateObj.getTime())) return;
+      const yyyymm = b.date.substring(0, 7); // "YYYY-MM"
+      
+      if (!byMonth[yyyymm]) {
+        byMonth[yyyymm] = {};
       }
-      byDate[date].push(b);
+      
+      // Keep only the latest entry per unique account in that month
+      const accountKey = `${b.institution}_${b.account}_${b.account_id}`;
+      const existing = byMonth[yyyymm][accountKey];
+      if (!existing || new Date(b.date) > new Date(existing.date)) {
+        byMonth[yyyymm][accountKey] = b;
+      }
     });
 
-    // Sum assets and liabilities for each date to find history points
-    const history = Object.entries(byDate).map(([date, records]) => {
+    const history = Object.entries(byMonth).map(([yyyymm, accountBalancesMap]) => {
       let assetsSum = 0;
       let liabilitiesSum = 0;
-      records.forEach(r => {
+      
+      Object.values(accountBalancesMap).forEach(r => {
         const val = Number(r.balance) || 0;
         if (r.class === 'Asset') {
           assetsSum += val;
@@ -131,17 +172,26 @@ export default function Dashboard() {
           liabilitiesSum += Math.abs(val);
         }
       });
+      
+      const [year, month] = yyyymm.split('-');
+      const dateLabel = new Date(year, month - 1).toLocaleString('default', { month: 'short', year: 'numeric' });
+      
       return {
-        date,
-        assets: assetsSum,
-        liabilities: liabilitiesSum,
+        date: dateLabel,
+        rawDate: yyyymm,
         netWorth: assetsSum - liabilitiesSum
       };
     });
 
-    // Sort chronologically so chart draws left-to-right
-    return history.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return history.sort((a, b) => a.rawDate.localeCompare(b.rawDate));
   }, [balances]);
+
+  const handleAccountClick = (accountName) => {
+    setSelectedAccount(accountName);
+    if (setCurrentView) {
+      setCurrentView('transactions');
+    }
+  };
 
   // Calculate Net Worth change (difference between last month and current)
   const netWorthChange = useMemo(() => {
@@ -294,7 +344,11 @@ export default function Dashboard() {
                   {!isCollapsed && (
                     <div className="border-t border-obsidian-800/50 divide-y divide-obsidian-800/30 px-4 pb-2">
                       {accounts.map(account => (
-                        <div key={account.id} className="flex justify-between items-center py-3 group">
+                        <div 
+                          key={account.id} 
+                          onClick={() => handleAccountClick(account.account)}
+                          className="flex justify-between items-center py-3 group cursor-pointer hover:bg-obsidian-800/40 px-2 -mx-2 rounded-lg transition-colors"
+                        >
                           <div>
                             <p className="text-sm font-medium text-slate-300 group-hover:text-neon-indigo transition-colors">{account.account}</p>
                             <p className="text-[10px] text-slate-500">{account.institution} • {account.account_id}</p>

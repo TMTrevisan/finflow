@@ -5,7 +5,7 @@ import { MOCK_TRANSACTIONS, MOCK_CATEGORIES, MOCK_BALANCES } from '../services/m
 const AppContext = createContext();
 
 // Helper to resolve budget from category object dynamically
-const resolveBudget = (categoryObj, targetMonth, targetYear) => {
+export const resolveBudget = (categoryObj, targetMonth, targetYear) => {
   const keys = Object.keys(categoryObj);
   
   // 1. Try exact month and year match (e.g. "dec" and "2023")
@@ -152,6 +152,8 @@ export const AppProvider = ({ children }) => {
     }
   });
 
+  const [selectedAccount, setSelectedAccount] = useState(null);
+
   const [isLoading, setIsLoading] = useState(() => {
     try {
       const cached = localStorage.getItem('finflow_cache_transactions');
@@ -296,6 +298,8 @@ export const AppProvider = ({ children }) => {
       error,
       isMockData,
       lastSync,
+      selectedAccount,
+      setSelectedAccount,
       syncData,
       clearCache,
       loadData,

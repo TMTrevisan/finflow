@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, resolveBudget } from '../context/AppContext';
 import { Card, CardContent } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { formatCurrency } from '../utils/formatting';
@@ -8,19 +8,35 @@ import { Sparkles, HelpCircle, ArrowRightLeft, Percent, ToggleLeft, ToggleRight 
 export default function Budgets() {
   const { categories, transactions, isLoading } = useAppContext();
   
-  // Keep track of which categories have "Rollover" enabled (persisted in local state for mock toggle)
-  const [rolloverEnabled, setRolloverEnabled] = useState({
-    'Groceries': true,
-    'Dining': false,
-    'Subscriptions': true,
-    'Utilities': false
+  // Keep track of which categories have "Rollover" enabled (persisted in localStorage)
+  const [rolloverEnabled, setRolloverEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem('finflow_rollover_categories');
+      return saved ? JSON.parse(saved) : {
+        'Groceries': true,
+        'Dining': false,
+        'Subscriptions': true,
+        'Utilities': false
+      };
+    } catch {
+      return {
+        'Groceries': true,
+        'Dining': false,
+        'Subscriptions': true,
+        'Utilities': false
+      };
+    }
   });
 
   const toggleRollover = (category) => {
-    setRolloverEnabled(prev => ({
-      ...prev,
-      [category]: !prev[category]
-    }));
+    setRolloverEnabled(prev => {
+      const updated = {
+        ...prev,
+        [category]: !prev[category]
+      };
+      localStorage.setItem('finflow_rollover_categories', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   // 1. Calculate Safe-to-Spend and budget summaries
@@ -57,6 +73,34 @@ export default function Budgets() {
   const budgetItems = useMemo(() => {
     const expenses = categories.filter(c => c.type === 'Expense' && c.budget > 0);
     
+    // Find the active month date
+    let activeDate = new Date();
+    if (transactions.length > 0) {
+      const sorted = [...transactions]
+        .map(t => new Date(t.date))
+        .filter(d => !isNaN(d.getTime()))
+        .sort((a, b) => b - a);
+      if (sorted.length > 0) {
+        activeDate = sorted[0];
+      }
+    }
+    
+    // Previous month details
+    const prevMonthDate = new Date(activeDate.getFullYear(), activeDate.getMonth() - 1, 1);
+    const prevMonthLabel = prevMonthDate.toLocaleString('default', { month: 'short' }) + " '" + String(prevMonthDate.getFullYear()).slice(-2);
+    
+    // Calculate previous month's transactions per category
+    const prevSpentMap = {};
+    transactions.forEach(t => {
+      const date = new Date(t.date);
+      if (isNaN(date.getTime())) return;
+      const key = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
+      if (key === prevMonthLabel && t.type === 'Expense') {
+        const catName = t.category || '';
+        prevSpentMap[catName] = (prevSpentMap[catName] || 0) + Math.abs(t.amount);
+      }
+    });
+
     return expenses.map(cat => {
       const spent = transactions
         .filter(t => t.category === cat.category && (() => {
@@ -68,8 +112,19 @@ export default function Budgets() {
         .reduce((sum, t) => sum + Math.abs(t.amount), 0);
       
       const isRollover = !!rolloverEnabled[cat.category];
-      // Generate a mock rollover offset from previous month (e.g. positive unspent or negative overspend)
-      const rolloverOffset = isRollover ? (cat.category === 'Groceries' ? 45.20 : cat.category === 'Subscriptions' ? -8.50 : 15.00) : 0;
+      
+      // Calculate dynamic rollover offset
+      let rolloverOffset = 0;
+      if (isRollover) {
+        // Look up previous month's budget
+        const prevMonthName = prevMonthDate.toLocaleString('default', { month: 'short' }).toLowerCase();
+        const prevYear = prevMonthDate.getFullYear();
+        const prevBudget = resolveBudget(cat, prevMonthName, prevYear);
+        const prevSpent = prevSpentMap[cat.category] || 0;
+        
+        // Rollover = budget - spent
+        rolloverOffset = prevBudget - prevSpent;
+      }
       
       const adjustedBudget = cat.budget + rolloverOffset;
 
@@ -80,7 +135,7 @@ export default function Budgets() {
         isRollover,
         adjustedBudget,
         remaining: adjustedBudget - spent,
-        percentage: (spent / adjustedBudget) * 100
+        percentage: adjustedBudget > 0 ? (spent / adjustedBudget) * 100 : 0
       };
     }).sort((a, b) => b.percentage - a.percentage);
   }, [categories, transactions, rolloverEnabled, budgetSummary.activeMonthKey]);
@@ -145,7 +200,8 @@ export default function Budgets() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Desktop view: Grid of cards */}
+      <div className="hidden md:grid grid-cols-1 md:grid-cols-2 gap-6">
         {budgetItems.map(item => (
           <Card key={item.id} className="bg-obsidian-800/40 hover:bg-obsidian-800/60 transition-all duration-300 border-obsidian-800/80 hover:shadow-lg">
             <CardContent className="pt-6">
@@ -192,6 +248,49 @@ export default function Budgets() {
               </div>
             </CardContent>
           </Card>
+        ))}
+      </div>
+
+      {/* Mobile view: Compact List to fit 8+ budgets on screen */}
+      <div className="md:hidden divide-y divide-obsidian-800/50 bg-obsidian-800/20 border border-obsidian-800/80 rounded-2xl p-4 space-y-4">
+        {budgetItems.map(item => (
+          <div key={item.id} className="pt-3 first:pt-0 space-y-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <div className="min-w-0 pr-4">
+                <span className="font-semibold text-slate-100 flex items-center gap-1.5 truncate">
+                  {item.category}
+                  {item.isRollover && (
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
+                      item.rolloverOffset > 0 ? 'bg-neon-emerald/10 text-neon-emerald' : 'bg-neon-crimson/10 text-neon-crimson'
+                    }`}>
+                      {item.rolloverOffset > 0 ? `+${formatCurrency(item.rolloverOffset)}` : `${formatCurrency(item.rolloverOffset)}`}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="font-bold text-slate-200">{formatCurrency(item.spent)}</span>
+                <span className="text-slate-500 font-medium"> / {formatCurrency(item.adjustedBudget)}</span>
+              </div>
+            </div>
+            
+            <ProgressBar value={item.spent} max={item.adjustedBudget} className="h-1.5" />
+            
+            <div className="flex justify-between items-center text-[10px]">
+              <span className={`font-semibold ${item.remaining < 0 ? 'text-neon-crimson' : 'text-slate-400'}`}>
+                {item.remaining < 0 ? `Over by ${formatCurrency(Math.abs(item.remaining))}` : `${formatCurrency(item.remaining)} left`}
+              </span>
+              <button 
+                onClick={() => toggleRollover(item.category)}
+                className="flex items-center space-x-1 text-slate-500 hover:text-slate-300"
+              >
+                <span>Rollover:</span>
+                <span className={`font-bold uppercase ${item.isRollover ? 'text-neon-indigo' : 'text-slate-600'}`}>
+                  {item.isRollover ? 'ON' : 'OFF'}
+                </span>
+              </button>
+            </div>
+          </div>
         ))}
       </div>
     </div>

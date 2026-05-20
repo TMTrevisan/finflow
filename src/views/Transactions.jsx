@@ -6,7 +6,7 @@ import { Search, Filter, Inbox } from 'lucide-react';
 import { cn } from '../components/ui/Card';
 
 export default function Transactions() {
-  const { transactions, isLoading } = useAppContext();
+  const { transactions, isLoading, selectedAccount, setSelectedAccount } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('All'); 
 
@@ -29,6 +29,7 @@ export default function Transactions() {
     const review = transactions.filter(txn => {
       const isUncategorized = txn.category === 'Uncategorized' || !txn.category;
       if (!isUncategorized) return false;
+      if (selectedAccount && txn.account !== selectedAccount) return false;
       const date = new Date(txn.date);
       return !isNaN(date.getTime()) && date >= fortyFiveDaysAgo;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -40,6 +41,8 @@ export default function Transactions() {
 
       // Exclude uncategorized from standard list only if it's currently showing in the Needs Review section
       if (filter === 'All' && searchTerm === '' && isNewUncategorized) return false;
+      
+      if (selectedAccount && txn.account !== selectedAccount) return false;
 
       const cleanedDesc = cleanMerchantName(txn.description);
       const matchesSearch = 
@@ -97,6 +100,22 @@ export default function Transactions() {
         </div>
       </div>
 
+      {/* Account filter banner */}
+      {selectedAccount && (
+        <div className="flex items-center justify-between bg-neon-indigo/10 border border-neon-indigo/20 rounded-xl px-4 py-2.5">
+          <div className="flex items-center space-x-2 text-sm text-neon-indigo">
+            <span className="font-semibold text-slate-400">Account:</span>
+            <span className="font-bold text-white bg-neon-indigo/20 px-2 py-0.5 rounded text-xs">{selectedAccount}</span>
+          </div>
+          <button 
+            onClick={() => setSelectedAccount(null)}
+            className="text-xs text-neon-indigo hover:text-white underline transition-colors"
+          >
+            Clear Filter
+          </button>
+        </div>
+      )}
+
       {/* Needs Review Inbox */}
       {reviewTransactions.length > 0 && filter === 'All' && searchTerm === '' && (
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
@@ -131,7 +150,8 @@ export default function Transactions() {
 
       {/* Standard Transactions List */}
       <div className="bg-obsidian-800 border border-obsidian-700 rounded-2xl shadow-xl overflow-hidden flex-1">
-        <div className="overflow-x-auto">
+        {/* Desktop View Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-obsidian-700 bg-obsidian-800/50">
@@ -171,6 +191,31 @@ export default function Transactions() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile View List */}
+        <div className="md:hidden divide-y divide-obsidian-700/50">
+          {filteredTransactions.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 text-sm">
+              No transactions found matching your criteria.
+            </div>
+          ) : (
+            filteredTransactions.map((txn) => (
+              <div key={txn.id} className="p-4 flex items-center justify-between hover:bg-obsidian-700/30 transition-colors">
+                <div className="flex flex-col min-w-0 pr-4">
+                  <span className="text-[10px] text-slate-400 font-medium">{formatDate(txn.date)}</span>
+                  <span className="font-semibold text-white text-sm truncate mt-0.5">{cleanMerchantName(txn.description)}</span>
+                  <span className="text-[10px] text-slate-500 truncate mt-0.5">{txn.account}</span>
+                </div>
+                <div className="flex items-center space-x-3 shrink-0">
+                  <CategoryPill transaction={txn} />
+                  <span className={`text-sm font-bold ${txn.amount > 0 ? "text-neon-emerald" : "text-white"}`}>
+                    {txn.amount > 0 ? '+' : ''}{formatCurrency(txn.amount)}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

@@ -7,6 +7,9 @@ import Transactions from './views/Transactions';
 import Budgets from './views/Budgets';
 import CashFlow from './views/CashFlow';
 import Settings from './views/Settings';
+import PLReport from './views/PLReport';
+import YearlyInsights from './views/YearlyInsights';
+import Insights from './views/Insights';
 import PasscodeLock from './components/ui/PasscodeLock';
 
 function App() {
@@ -21,6 +24,9 @@ function App() {
       case 'budgets': return <Budgets />;
       case 'cashflow': return <CashFlow />;
       case 'settings': return <Settings />;
+      case 'plreport': return <PLReport />;
+      case 'yearly': return <YearlyInsights />;
+      case 'insights': return <Insights />;
       default: return <Dashboard />;
     }
   };
