@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { LayoutDashboard, ReceiptText, PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings, Table, Calendar } from 'lucide-react';
+import { haptics } from '../../utils/haptics';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -31,7 +32,10 @@ export default function Sidebar({ currentView, setCurrentView }) {
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentView(item.id)}
+              onClick={() => {
+                haptics.light();
+                setCurrentView(item.id);
+              }}
               className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 relative
                 ${isActive ? 'text-white' : 'text-slate-400 hover:text-white hover:bg-obsidian-700/50'}
               `}

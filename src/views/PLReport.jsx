@@ -1,13 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { formatCurrency } from '../utils/formatting';
+import { formatCurrency, getCategoryEmoji } from '../utils/formatting';
 import { Card, CardContent } from '../components/ui/Card';
-import { Table, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function PLReport() {
   const { transactions, categories, isLoading } = useAppContext();
   
-  // 1. Get the list of last 6 months chronologically based on transactions
+  const [timeframe, setTimeframe] = useState('6M');
+  const [rowSortOrder, setRowSortOrder] = useState('alphabetical');
+  const [mobileMonthIndex, setMobileMonthIndex] = useState(0);
+
+  // 1. Get the list of months chronologically based on transactions and timeframe
   const months = useMemo(() => {
     if (transactions.length === 0) return [];
     
@@ -17,20 +21,26 @@ export default function PLReport() {
       if (isNaN(date.getTime())) return;
       const key = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
       const sortVal = date.getFullYear() * 12 + date.getMonth();
-      monthKeysMap.set(key, sortVal);
+      monthKeysMap.set(key, { label: key, sortVal, year: date.getFullYear() });
     });
 
-    // Sort chronologically and take the last 6 months
-    return Array.from(monthKeysMap.entries())
-      .sort((a, b) => a[1] - b[1])
-      .map(entry => entry[0])
-      .slice(-6);
-  }, [transactions]);
+    let list = Array.from(monthKeysMap.values()).sort((a, b) => a.sortVal - b.sortVal);
 
-  // Selected month for mobile view
-  const [mobileMonthIndex, setMobileMonthIndex] = useState(0);
+    if (timeframe === '3M') {
+      list = list.slice(-3);
+    } else if (timeframe === '6M') {
+      list = list.slice(-6);
+    } else if (timeframe === '12M') {
+      list = list.slice(-12);
+    } else if (timeframe === 'YTD') {
+      const latestYear = list.length > 0 ? list[list.length - 1].year : new Date().getFullYear();
+      list = list.filter(item => item.year === latestYear);
+    }
+    
+    return list.map(item => item.label);
+  }, [transactions, timeframe]);
 
-  // Auto-set latest month for mobile index when months load
+  // Auto-set latest month for mobile index when months load/change
   React.useEffect(() => {
     if (months.length > 0) {
       setMobileMonthIndex(months.length - 1);
@@ -78,7 +88,7 @@ export default function PLReport() {
       const isIncome = t.type === 'Income';
       const targetMap = isIncome ? incomeGroups : expenseGroups;
 
-      // Ensure the key path exists (for uncategorized or dynamic transactions not in category list)
+      // Ensure the key path exists
       if (!targetMap[groupName]) {
         targetMap[groupName] = {};
       }
@@ -125,19 +135,60 @@ export default function PLReport() {
     );
   }
 
-  const activeMobileMonth = months[mobileMonthIndex];
+  const activeMobileMonth = months[mobileMonthIndex] || months[months.length - 1];
 
-  // Helper to check if a category has any non-zero values across the 6 months (to hide unused categories)
+  // Helper to check if a category has any non-zero values across the months
   const isCategoryUsed = (catMap) => {
     return Object.values(catMap).some(val => val > 0);
   };
 
+  // Helper to sort categories inside a group
+  const sortCategories = (categoriesList) => {
+    if (rowSortOrder === 'amount') {
+      return [...categoriesList].sort((a, b) => {
+        const sumA = Object.values(a[1] || {}).reduce((s, v) => s + v, 0);
+        const sumB = Object.values(b[1] || {}).reduce((s, v) => s + v, 0);
+        return sumB - sumA;
+      });
+    }
+    return [...categoriesList].sort((a, b) => a[0].localeCompare(b[0]));
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white tracking-tight">Profit & Loss Report</h2>
-          <p className="text-xs text-slate-500 mt-1">Monthly cash flow statement (last 6 months)</p>
+          <p className="text-xs text-slate-500 mt-1">Monthly cash flow statement</p>
+        </div>
+        
+        {/* Controls */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Timeframe Selector */}
+          <div className="flex bg-obsidian-850 p-1 rounded-xl border border-obsidian-750 text-xs">
+            {['3M', '6M', '12M', 'YTD', 'All'].map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                  timeframe === tf
+                    ? 'bg-neon-indigo text-white shadow-lg shadow-neon-indigo/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+
+          {/* Row Sorting Button */}
+          <button
+            onClick={() => setRowSortOrder(prev => prev === 'alphabetical' ? 'amount' : 'alphabetical')}
+            className="flex items-center space-x-1.5 px-3 py-2 bg-obsidian-850 border border-obsidian-750 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all"
+          >
+            <span className="text-slate-500">Sort:</span>
+            <span className="text-neon-indigo font-extrabold capitalize">{rowSortOrder}</span>
+          </button>
         </div>
       </div>
 
@@ -205,12 +256,15 @@ export default function PLReport() {
                       <span>{formatCurrency(groupTotal)}</span>
                     </div>
                     <div className="space-y-1 pl-3 border-l border-obsidian-700/50">
-                      {Object.entries(categoriesMap).map(([category, monthsMap]) => {
+                      {sortCategories(Object.entries(categoriesMap)).map(([category, monthsMap]) => {
                         const val = monthsMap[activeMobileMonth] || 0;
                         if (val === 0) return null;
                         return (
                           <div key={category} className="flex justify-between items-center text-[11px] text-slate-400">
-                            <span>{category}</span>
+                            <span className="flex items-center space-x-1.5">
+                              <span>{getCategoryEmoji(category)}</span>
+                              <span>{category}</span>
+                            </span>
                             <span>{formatCurrency(val)}</span>
                           </div>
                         );
@@ -236,12 +290,15 @@ export default function PLReport() {
                       <span>{formatCurrency(groupTotal)}</span>
                     </div>
                     <div className="space-y-1 pl-3 border-l border-obsidian-700/50">
-                      {Object.entries(categoriesMap).map(([category, monthsMap]) => {
+                      {sortCategories(Object.entries(categoriesMap)).map(([category, monthsMap]) => {
                         const val = monthsMap[activeMobileMonth] || 0;
                         if (val === 0) return null;
                         return (
                           <div key={category} className="flex justify-between items-center text-[11px] text-slate-400">
-                            <span>{category}</span>
+                            <span className="flex items-center space-x-1.5">
+                              <span>{getCategoryEmoji(category)}</span>
+                              <span>{category}</span>
+                            </span>
                             <span>{formatCurrency(val)}</span>
                           </div>
                         );
@@ -298,11 +355,14 @@ export default function PLReport() {
                       })}
                     </tr>
                     {/* Category Detail Rows */}
-                    {Object.entries(categoriesMap).map(([category, monthsMap]) => {
+                    {sortCategories(Object.entries(categoriesMap)).map(([category, monthsMap]) => {
                       if (!isCategoryUsed(monthsMap)) return null;
                       return (
                         <tr key={category} className="hover:bg-obsidian-750/30 text-slate-400 text-xs transition-colors">
-                          <td className="px-12 py-2 font-medium">{category}</td>
+                          <td className="px-12 py-2 font-medium flex items-center space-x-2">
+                            <span className="text-sm shrink-0">{getCategoryEmoji(category)}</span>
+                            <span className="truncate">{category}</span>
+                          </td>
                           {months.map(m => (
                             <td key={m} className="px-4 py-2 text-right">
                               {monthsMap[m] > 0 ? formatCurrency(monthsMap[m]) : '—'}
@@ -344,11 +404,14 @@ export default function PLReport() {
                       })}
                     </tr>
                     {/* Category Detail Rows */}
-                    {Object.entries(categoriesMap).map(([category, monthsMap]) => {
+                    {sortCategories(Object.entries(categoriesMap)).map(([category, monthsMap]) => {
                       if (!isCategoryUsed(monthsMap)) return null;
                       return (
                         <tr key={category} className="hover:bg-obsidian-750/30 text-slate-400 text-xs transition-colors">
-                          <td className="px-12 py-2 font-medium">{category}</td>
+                          <td className="px-12 py-2 font-medium flex items-center space-x-2">
+                            <span className="text-sm shrink-0">{getCategoryEmoji(category)}</span>
+                            <span className="truncate">{category}</span>
+                          </td>
                           {months.map(m => (
                             <td key={m} className="px-4 py-2 text-right">
                               {monthsMap[m] > 0 ? formatCurrency(monthsMap[m]) : '—'}

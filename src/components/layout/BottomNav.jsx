@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { LayoutDashboard, ReceiptText, PieChart, Waves, TrendingUp } from 'lucide-react';
+import { haptics } from '../../utils/haptics';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dash', icon: LayoutDashboard },
@@ -21,7 +22,10 @@ export default function BottomNav({ currentView, setCurrentView }) {
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentView(item.id)}
+              onClick={() => {
+                haptics.light();
+                setCurrentView(item.id);
+              }}
               className={`relative flex flex-col items-center justify-center w-16 h-14 rounded-xl transition-colors
                 ${isActive ? 'text-white' : 'text-slate-400'}
               `}

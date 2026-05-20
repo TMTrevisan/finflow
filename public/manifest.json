@@ -1,0 +1,17 @@
+{
+  "short_name": "FinFlow",
+  "name": "FinFlow Personal Finance",
+  "icons": [
+    {
+      "src": "pwa-icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#090A0F",
+  "theme_color": "#6366F1",
+  "display": "standalone",
+  "orientation": "portrait"
+}

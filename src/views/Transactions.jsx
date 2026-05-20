@@ -1,17 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { formatCurrency, formatDate, cleanMerchantName } from '../utils/formatting';
 import { CategoryPill } from '../components/ui/CategoryPill';
-import { Search, Filter, Inbox } from 'lucide-react';
+import { Search, Filter } from 'lucide-react';
 import { cn } from '../components/ui/Card';
 
 export default function Transactions() {
   const { transactions, isLoading, selectedAccount, setSelectedAccount } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState('All'); 
+  const [filter, setFilter] = useState('All');
 
+  // Filter transactions based on search and selected filter
   const { reviewTransactions, filteredTransactions } = useMemo(() => {
-    // Find the latest transaction date in the entire dataset
     let latestDate = new Date();
     if (transactions.length > 0) {
       const dates = transactions
@@ -29,7 +29,16 @@ export default function Transactions() {
     const review = transactions.filter(txn => {
       const isUncategorized = txn.category === 'Uncategorized' || !txn.category;
       if (!isUncategorized) return false;
-      if (selectedAccount && txn.account !== selectedAccount) return false;
+
+      // Fuzzy matching selected account
+      if (selectedAccount) {
+        const tAcc = (txn.account || '').toLowerCase().trim();
+        const sAcc = String(selectedAccount).toLowerCase().trim();
+        if (tAcc !== sAcc && !tAcc.includes(sAcc) && !sAcc.includes(tAcc)) {
+          return false;
+        }
+      }
+
       const date = new Date(txn.date);
       return !isNaN(date.getTime()) && date >= fortyFiveDaysAgo;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -42,7 +51,14 @@ export default function Transactions() {
       // Exclude uncategorized from standard list only if it's currently showing in the Needs Review section
       if (filter === 'All' && searchTerm === '' && isNewUncategorized) return false;
       
-      if (selectedAccount && txn.account !== selectedAccount) return false;
+      // Fuzzy matching selected account
+      if (selectedAccount) {
+        const tAcc = (txn.account || '').toLowerCase().trim();
+        const sAcc = String(selectedAccount).toLowerCase().trim();
+        if (tAcc !== sAcc && !tAcc.includes(sAcc) && !sAcc.includes(tAcc)) {
+          return false;
+        }
+      }
 
       const cleanedDesc = cleanMerchantName(txn.description);
       const matchesSearch = 
@@ -59,7 +75,7 @@ export default function Transactions() {
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
     return { reviewTransactions: review, filteredTransactions: standard };
-  }, [transactions, searchTerm, filter]);
+  }, [transactions, searchTerm, filter, selectedAccount]);
 
   if (isLoading) {
     return <div className="animate-pulse">Loading Transactions...</div>;
@@ -70,7 +86,7 @@ export default function Transactions() {
   return (
     <div className="space-y-6 flex flex-col h-full">
       {/* Sticky Controls Header */}
-      <div className="sticky top-0 z-30 bg-obsidian-900/95 backdrop-blur pt-2 pb-4 border-b border-obsidian-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="sticky top-0 z-30 bg-obsidian-900/95 backdrop-blur pt-2 pb-4 border-b border-obsidian-850 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-md">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input 
@@ -83,15 +99,15 @@ export default function Transactions() {
         </div>
         <div className="flex items-center space-x-2 overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
           <Filter size={16} className="text-slate-500 mr-1 hidden md:block" />
-          {FILTERS.map(f => (
+          {FILTERS.map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={cn(
-                "whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-colors",
-                filter === f 
-                  ? "bg-neon-indigo/20 text-neon-indigo border border-neon-indigo/30"
-                  : "bg-obsidian-800 text-slate-400 border border-obsidian-700 hover:text-white hover:bg-obsidian-700"
+                "px-4 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap",
+                filter === f
+                  ? "bg-neon-indigo border-neon-indigo text-white shadow-lg shadow-neon-indigo/20"
+                  : "bg-obsidian-800 border-obsidian-700 text-slate-400 hover:text-white"
               )}
             >
               {f}
@@ -100,43 +116,43 @@ export default function Transactions() {
         </div>
       </div>
 
-      {/* Account filter banner */}
+      {/* Selected Account Filter Indicator */}
       {selectedAccount && (
-        <div className="flex items-center justify-between bg-neon-indigo/10 border border-neon-indigo/20 rounded-xl px-4 py-2.5">
-          <div className="flex items-center space-x-2 text-sm text-neon-indigo">
-            <span className="font-semibold text-slate-400">Account:</span>
-            <span className="font-bold text-white bg-neon-indigo/20 px-2 py-0.5 rounded text-xs">{selectedAccount}</span>
-          </div>
+        <div className="flex items-center space-x-2 bg-obsidian-800 border border-obsidian-700 px-4 py-2 rounded-xl text-sm text-slate-300 self-start">
+          <span>Account:</span>
+          <span className="font-bold text-white bg-neon-indigo/20 px-2 py-0.5 rounded text-xs">{selectedAccount}</span>
           <button 
             onClick={() => setSelectedAccount(null)}
-            className="text-xs text-neon-indigo hover:text-white underline transition-colors"
+            className="text-slate-500 hover:text-white transition-colors ml-1 font-bold text-base line-height-1"
           >
-            Clear Filter
+            ×
           </button>
         </div>
       )}
 
-      {/* Needs Review Inbox */}
-      {reviewTransactions.length > 0 && filter === 'All' && searchTerm === '' && (
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="bg-amber-500/20 p-2 rounded-lg">
-              <Inbox size={20} className="text-amber-400" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-amber-400">Needs Review</h3>
-              <p className="text-sm text-amber-500/70">{reviewTransactions.length} transaction{reviewTransactions.length > 1 ? 's' : ''} to categorize</p>
-            </div>
+      {/* Needs Review Section */}
+      {searchTerm === '' && filter === 'All' && reviewTransactions.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neon-crimson flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-neon-crimson animate-pulse" />
+              Needs Review ({reviewTransactions.length})
+            </h3>
+            <span className="text-[10px] text-slate-500 font-medium">Uncategorized transactions from last 45 days</span>
           </div>
-          <div className="space-y-2">
-            {reviewTransactions.map(txn => (
-              <div key={txn.id} className="flex flex-col md:flex-row md:items-center justify-between bg-obsidian-900/50 rounded-xl p-4 border border-obsidian-700/50 hover:bg-obsidian-800 transition-colors">
-                <div className="flex flex-col mb-3 md:mb-0">
-                  <span className="text-sm text-slate-400">{formatDate(txn.date)}</span>
-                  <span className="font-medium text-white text-lg">{cleanMerchantName(txn.description)}</span>
-                  <span className="text-sm text-slate-500">{txn.account}</span>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {reviewTransactions.map((txn) => (
+              <div 
+                key={txn.id} 
+                className="bg-gradient-to-br from-obsidian-800 to-obsidian-850 border border-neon-crimson/20 hover:border-neon-crimson/40 rounded-2xl p-4 flex items-center justify-between shadow-lg transition-all"
+              >
+                <div className="flex flex-col min-w-0 pr-4">
+                  <span className="text-[10px] text-slate-500 font-medium">{formatDate(txn.date)}</span>
+                  <span className="font-bold text-white text-sm truncate mt-0.5">{cleanMerchantName(txn.description)}</span>
+                  <span className="text-[10px] text-slate-400 truncate mt-0.5">{txn.account}</span>
                 </div>
-                <div className="flex items-center justify-between md:justify-end space-x-6">
+                <div className="flex flex-col items-end space-y-2 shrink-0">
                   <span className={cn("font-bold text-lg", txn.amount > 0 ? "text-neon-emerald" : "text-white")}>
                     {txn.amount > 0 ? '+' : ''}{formatCurrency(txn.amount)}
                   </span>
@@ -149,16 +165,16 @@ export default function Transactions() {
       )}
 
       {/* Standard Transactions List */}
-      <div className="bg-obsidian-800 border border-obsidian-700 rounded-2xl shadow-xl overflow-hidden flex-1">
+      <div className="bg-obsidian-800 border border-obsidian-700 rounded-2xl shadow-xl flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Desktop View Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="hidden md:block overflow-y-auto flex-1 min-h-0">
+          <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-obsidian-700 bg-obsidian-800/50">
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-32">Date</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Category</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right">Amount</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-48">Category</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right w-36">Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-obsidian-700/50">
@@ -171,17 +187,17 @@ export default function Transactions() {
               ) : (
                 filteredTransactions.map((txn) => (
                   <tr key={txn.id} className="hover:bg-obsidian-700/30 transition-colors group">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 w-32 truncate">
                       {formatDate(txn.date)}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-white">{cleanMerchantName(txn.description)}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{txn.account}</div>
+                      <div className="text-sm font-medium text-white truncate">{cleanMerchantName(txn.description)}</div>
+                      <div className="text-xs text-slate-500 mt-0.5 truncate">{txn.account}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap w-48">
                       <CategoryPill transaction={txn} />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium w-36">
                       <span className={txn.amount > 0 ? "text-neon-emerald" : "text-white"}>
                         {txn.amount > 0 ? '+' : ''}{formatCurrency(txn.amount)}
                       </span>
@@ -194,24 +210,33 @@ export default function Transactions() {
         </div>
 
         {/* Mobile View List */}
-        <div className="md:hidden divide-y divide-obsidian-700/50">
+        <div className="md:hidden overflow-y-auto flex-1 min-h-0 divide-y divide-obsidian-700/50">
           {filteredTransactions.length === 0 ? (
             <div className="p-8 text-center text-slate-500 text-sm">
               No transactions found matching your criteria.
             </div>
           ) : (
             filteredTransactions.map((txn) => (
-              <div key={txn.id} className="p-4 flex items-center justify-between hover:bg-obsidian-700/30 transition-colors">
-                <div className="flex flex-col min-w-0 pr-4">
-                  <span className="text-[10px] text-slate-400 font-medium">{formatDate(txn.date)}</span>
-                  <span className="font-semibold text-white text-sm truncate mt-0.5">{cleanMerchantName(txn.description)}</span>
-                  <span className="text-[10px] text-slate-500 truncate mt-0.5">{txn.account}</span>
-                </div>
-                <div className="flex items-center space-x-3 shrink-0">
-                  <CategoryPill transaction={txn} />
-                  <span className={`text-sm font-bold ${txn.amount > 0 ? "text-neon-emerald" : "text-white"}`}>
+              <div key={txn.id} className="p-4 flex flex-col justify-between hover:bg-obsidian-770 transition-colors space-y-1">
+                {/* Top Row: Description and Amount */}
+                <div className="flex justify-between items-center w-full">
+                  <span className="font-semibold text-slate-100 text-sm truncate pr-4">
+                    {cleanMerchantName(txn.description)}
+                  </span>
+                  <span className={`text-sm font-bold shrink-0 ${txn.amount > 0 ? "text-neon-emerald" : "text-white"}`}>
                     {txn.amount > 0 ? '+' : ''}{formatCurrency(txn.amount)}
                   </span>
+                </div>
+                {/* Bottom Row: Metadata (Date/Account) and Category Pill */}
+                <div className="flex justify-between items-center w-full text-[10px] text-slate-500">
+                  <div className="flex items-center space-x-1.5 truncate pr-4">
+                    <span>{formatDate(txn.date)}</span>
+                    <span>•</span>
+                    <span className="truncate">{txn.account}</span>
+                  </div>
+                  <div className="shrink-0 scale-90 origin-right">
+                    <CategoryPill transaction={txn} />
+                  </div>
                 </div>
               </div>
             ))

@@ -244,7 +244,7 @@ export default function Spending() {
                 
                 return (
                   <div key={m.month} className="flex-1 flex flex-col items-center group h-full justify-end">
-                    <div className="relative w-full flex justify-center mb-2">
+                    <div className="relative w-full flex items-end justify-center h-32 mb-2">
                       <span className="absolute bottom-full bg-obsidian-800 border border-obsidian-750 text-white font-bold text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none mb-1 shadow-xl">
                         {formatCurrency(m.total)}
                       </span>

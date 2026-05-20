@@ -3,7 +3,7 @@ import { useAppContext, resolveBudget } from '../context/AppContext';
 import { Card, CardContent } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { formatCurrency } from '../utils/formatting';
-import { Sparkles, HelpCircle, ArrowRightLeft, Percent, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Sparkles, HelpCircle, ToggleLeft, ToggleRight } from 'lucide-react';
 
 export default function Budgets() {
   const { categories, transactions, isLoading } = useAppContext();
@@ -39,20 +39,45 @@ export default function Budgets() {
     });
   };
 
+  // Get all unique months from transactions for selection
+  const months = useMemo(() => {
+    if (transactions.length === 0) return [];
+    const monthKeysMap = new Map();
+    transactions.forEach(t => {
+      const date = new Date(t.date);
+      if (isNaN(date.getTime())) return;
+      const key = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
+      const sortVal = date.getFullYear() * 12 + date.getMonth();
+      monthKeysMap.set(key, { 
+        label: key, 
+        sortVal, 
+        yearFull: date.getFullYear(),
+        monthName: date.toLocaleString('default', { month: 'short' }).toLowerCase()
+      });
+    });
+    return Array.from(monthKeysMap.values()).sort((a, b) => a.sortVal - b.sortVal);
+  }, [transactions]);
+
+  const [selectedMonthKey, setSelectedMonthKey] = useState(null);
+
+  // Set default month to latest month in dataset
+  React.useEffect(() => {
+    if (months.length > 0 && !selectedMonthKey) {
+      setSelectedMonthKey(months[months.length - 1].label);
+    }
+  }, [months, selectedMonthKey]);
+
+  const activeMonthInfo = useMemo(() => {
+    if (months.length === 0) return null;
+    if (!selectedMonthKey) return months[months.length - 1];
+    return months.find(m => m.label === selectedMonthKey) || months[months.length - 1];
+  }, [selectedMonthKey, months]);
+
   // 1. Calculate Safe-to-Spend and budget summaries
   const budgetSummary = useMemo(() => {
-    let activeMonthKey = '';
-    if (transactions.length > 0) {
-      const validDates = transactions
-        .map(t => new Date(t.date))
-        .filter(d => !isNaN(d.getTime()))
-        .sort((a, b) => b - a);
-      if (validDates.length > 0) {
-        const latestDate = validDates[0];
-        activeMonthKey = latestDate.toLocaleString('default', { month: 'short' }) + " '" + String(latestDate.getFullYear()).slice(-2);
-      }
-    }
+    if (!activeMonthInfo) return { income: 0, spent: 0, budgetedTotal: 0, safeToSpend: 0, activeMonthKey: '' };
 
+    const activeMonthKey = activeMonthInfo.label;
     const currentMonthTxns = transactions.filter(t => {
       const date = new Date(t.date);
       if (isNaN(date.getTime())) return false;
@@ -63,45 +88,41 @@ export default function Budgets() {
     const income = currentMonthTxns.filter(t => t.type === 'Income').reduce((sum, t) => sum + t.amount, 0);
     const spent = currentMonthTxns.filter(t => t.type === 'Expense').reduce((sum, t) => sum + Math.abs(t.amount), 0);
     
-    // safe-to-spend = total income - fixed bills - budgeted allocations
-    const budgetedTotal = categories.filter(c => c.type === 'Expense').reduce((sum, c) => sum + c.budget, 0);
+    // safe-to-spend = total income - budgeted allocations (fixed and variable)
+    const budgetedTotal = categories
+      .filter(c => c.type === 'Expense')
+      .reduce((sum, c) => sum + resolveBudget(c, activeMonthInfo.monthName, activeMonthInfo.yearFull), 0);
+      
     const safeToSpend = Math.max(0, income - spent);
 
     return { income, spent, budgetedTotal, safeToSpend, activeMonthKey };
-  }, [transactions, categories]);
+  }, [transactions, categories, activeMonthInfo]);
 
   const budgetItems = useMemo(() => {
-    const expenses = categories.filter(c => c.type === 'Expense' && c.budget > 0);
+    if (!activeMonthInfo) return [];
+
+    const expenses = categories.filter(c => c.type === 'Expense' && resolveBudget(c, activeMonthInfo.monthName, activeMonthInfo.yearFull) > 0);
     
-    // Find the active month date
-    let activeDate = new Date();
-    if (transactions.length > 0) {
-      const sorted = [...transactions]
-        .map(t => new Date(t.date))
-        .filter(d => !isNaN(d.getTime()))
-        .sort((a, b) => b - a);
-      if (sorted.length > 0) {
-        activeDate = sorted[0];
-      }
-    }
-    
-    // Previous month details
-    const prevMonthDate = new Date(activeDate.getFullYear(), activeDate.getMonth() - 1, 1);
-    const prevMonthLabel = prevMonthDate.toLocaleString('default', { month: 'short' }) + " '" + String(prevMonthDate.getFullYear()).slice(-2);
+    // Previous month details from chronological months list
+    const activeIndex = months.findIndex(m => m.label === activeMonthInfo.label);
+    const prevMonthInfo = activeIndex > 0 ? months[activeIndex - 1] : null;
     
     // Calculate previous month's transactions per category
     const prevSpentMap = {};
-    transactions.forEach(t => {
-      const date = new Date(t.date);
-      if (isNaN(date.getTime())) return;
-      const key = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
-      if (key === prevMonthLabel && t.type === 'Expense') {
-        const catName = t.category || '';
-        prevSpentMap[catName] = (prevSpentMap[catName] || 0) + Math.abs(t.amount);
-      }
-    });
+    if (prevMonthInfo) {
+      transactions.forEach(t => {
+        const date = new Date(t.date);
+        if (isNaN(date.getTime())) return;
+        const key = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
+        if (key === prevMonthInfo.label && t.type === 'Expense') {
+          const catName = t.category || '';
+          prevSpentMap[catName] = (prevSpentMap[catName] || 0) + Math.abs(t.amount);
+        }
+      });
+    }
 
     return expenses.map(cat => {
+      const catBudget = resolveBudget(cat, activeMonthInfo.monthName, activeMonthInfo.yearFull);
       const spent = transactions
         .filter(t => t.category === cat.category && (() => {
           const date = new Date(t.date);
@@ -115,21 +136,19 @@ export default function Budgets() {
       
       // Calculate dynamic rollover offset
       let rolloverOffset = 0;
-      if (isRollover) {
-        // Look up previous month's budget
-        const prevMonthName = prevMonthDate.toLocaleString('default', { month: 'short' }).toLowerCase();
-        const prevYear = prevMonthDate.getFullYear();
-        const prevBudget = resolveBudget(cat, prevMonthName, prevYear);
+      if (isRollover && prevMonthInfo) {
+        const prevBudget = resolveBudget(cat, prevMonthInfo.monthName, prevMonthInfo.yearFull);
         const prevSpent = prevSpentMap[cat.category] || 0;
         
         // Rollover = budget - spent
         rolloverOffset = prevBudget - prevSpent;
       }
       
-      const adjustedBudget = cat.budget + rolloverOffset;
+      const adjustedBudget = catBudget + rolloverOffset;
 
       return {
         ...cat,
+        budget: catBudget,
         spent,
         rolloverOffset,
         isRollover,
@@ -138,7 +157,7 @@ export default function Budgets() {
         percentage: adjustedBudget > 0 ? (spent / adjustedBudget) * 100 : 0
       };
     }).sort((a, b) => b.percentage - a.percentage);
-  }, [categories, transactions, rolloverEnabled, budgetSummary.activeMonthKey]);
+  }, [categories, transactions, rolloverEnabled, budgetSummary.activeMonthKey, activeMonthInfo, months]);
 
   if (isLoading) {
     return (
@@ -154,6 +173,23 @@ export default function Budgets() {
 
   return (
     <div className="space-y-6">
+      {/* Month Selector */}
+      <div className="flex items-center space-x-2 overflow-x-auto pb-2 -mx-4 px-4 md:-mx-0 md:px-0 hide-scrollbar">
+        {months.map((m) => (
+          <button
+            key={m.label}
+            onClick={() => setSelectedMonthKey(m.label)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all shrink-0 ${
+              selectedMonthKey === m.label
+                ? 'bg-neon-indigo border-neon-indigo text-white shadow-lg shadow-neon-indigo/20'
+                : 'bg-obsidian-850 hover:bg-obsidian-750 border-obsidian-750 text-slate-400 hover:text-white'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
       {/* Premium Safe to Spend Panel */}
       <div className="bg-gradient-to-br from-obsidian-800 to-obsidian-900 border border-obsidian-700/80 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-neon-emerald/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
@@ -196,7 +232,7 @@ export default function Budgets() {
         <h3 className="text-lg font-bold text-white tracking-tight">Active Budgets for {budgetSummary.activeMonthKey || 'this month'}</h3>
         <div className="flex items-center space-x-1 text-slate-500 text-xs font-medium">
           <HelpCircle size={14} />
-          <span>Budgets are synced with your Tiller Sheets spreadsheet.</span>
+          <span>Budgets are synced with your Tiller Sheets.</span>
         </div>
       </div>
 

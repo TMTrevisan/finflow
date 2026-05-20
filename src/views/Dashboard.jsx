@@ -135,7 +135,9 @@ export default function Dashboard({ setCurrentView }) {
         return {
           date: label,
           rawDate: date,
-          netWorth: assetsSum - liabilitiesSum
+          netWorth: assetsSum - liabilitiesSum,
+          assets: assetsSum,
+          liabilities: liabilitiesSum
         };
       }).sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
     }
@@ -179,7 +181,9 @@ export default function Dashboard({ setCurrentView }) {
       return {
         date: dateLabel,
         rawDate: yyyymm,
-        netWorth: assetsSum - liabilitiesSum
+        netWorth: assetsSum - liabilitiesSum,
+        assets: assetsSum,
+        liabilities: liabilitiesSum
       };
     });
 
@@ -349,9 +353,9 @@ export default function Dashboard({ setCurrentView }) {
                           onClick={() => handleAccountClick(account.account)}
                           className="flex justify-between items-center py-3 group cursor-pointer hover:bg-obsidian-800/40 px-2 -mx-2 rounded-lg transition-colors"
                         >
-                          <div>
-                            <p className="text-sm font-medium text-slate-300 group-hover:text-neon-indigo transition-colors">{account.account}</p>
-                            <p className="text-[10px] text-slate-500">{account.institution} • {account.account_id}</p>
+                          <div className="flex-1 min-w-0 pr-3">
+                            <p className="text-sm font-medium text-slate-300 group-hover:text-neon-indigo transition-colors truncate">{account.account}</p>
+                            <p className="text-[10px] text-slate-500 truncate">{account.institution} • {account.account_id}</p>
                           </div>
                           <span className={`text-sm font-bold ${account.class === 'Asset' ? 'text-slate-100' : 'text-slate-400'}`}>
                             {formatCurrency(account.balance)}
