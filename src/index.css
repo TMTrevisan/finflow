@@ -16,7 +16,7 @@
 
 @layer base {
   body {
-    background-color: var(--color-obsidian-900);
+    background-color: #000000;
     color: #F8FAFC;
     font-family: 'Inter', system-ui, sans-serif;
   }

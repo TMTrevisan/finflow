@@ -27,48 +27,76 @@ export const MOCK_CATEGORIES = [
 
 // Rich balance history representing snapshots over time for Net Worth tracking
 export const MOCK_BALANCES = [
-  // Current Snapshots (May 19, 2026)
-  { id: 'bal_001', date: '2026-05-19', account: 'Chase Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 5240.50, class: 'Asset', type: 'Cash' },
-  { id: 'bal_002', date: '2026-05-19', account: 'Ally Savings', account_id: 'XXXX-9911', institution: 'Ally', balance: 25450.00, class: 'Asset', type: 'Cash' },
-  { id: 'bal_003', date: '2026-05-19', account: 'Chase Sapphire Reserve', account_id: 'XXXX-1234', institution: 'Chase', balance: -1250.45, class: 'Liability', type: 'Credit Card' },
-  { id: 'bal_004', date: '2026-05-19', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 145000.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_005', date: '2026-05-19', account: 'Principal 401k', account_id: 'XXXX-4422', institution: 'Principal', balance: 88500.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_006', date: '2026-05-19', account: 'Primary Residence', account_id: 'XXXX-HOME', institution: 'Manual Asset', balance: 450000.00, class: 'Asset', type: 'Real Estate' },
-  { id: 'bal_007', date: '2026-05-19', account: 'Chase Mortgage', account_id: 'XXXX-9988', institution: 'Chase Mortgages', balance: -285000.00, class: 'Liability', type: 'Loan' },
+  // Current Snapshots (May 23, 2026) - Net Worth = $41,955.00
+  { id: 'bal_001', date: '2026-05-23', account: 'Marcus Online Savings', account_id: 'XXXX-8822', institution: 'Marcus', balance: 12850.00, class: 'Asset', type: 'Savings', sidebarColor: 'border-amber-500' },
+  { id: 'bal_002', date: '2026-05-23', account: 'Chase Total Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 3832.44, class: 'Asset', type: 'Checking', sidebarColor: 'border-emerald-500', note: 'Linked to Robinhood' },
+  { id: 'bal_003', date: '2026-05-23', account: 'Emirates NBD', account_id: 'XXXX-1122', institution: 'Emirates NBD', balance: 2435.65, class: 'Asset', type: 'Checking', sidebarColor: 'border-cyan-500', currency: 'AED', foreignBalance: 8935.52 },
+  { id: 'bal_004', date: '2026-05-23', account: 'Wise EUR', account_id: 'XXXX-3344', institution: 'Wise', balance: 2173.91, class: 'Asset', type: 'Checking', sidebarColor: 'border-blue-500', currency: 'EUR', foreignBalance: 1950.00 },
+  { id: 'bal_005', date: '2026-05-23', account: 'Revolut GBP', account_id: 'XXXX-5566', institution: 'Revolut', balance: 1169.10, class: 'Asset', type: 'Checking', sidebarColor: 'border-purple-500', currency: 'GBP', foreignBalance: 920.00 },
+  { id: 'bal_006', date: '2026-05-23', account: 'Venmo', account_id: 'XXXX-7788', institution: 'Venmo', balance: 68.50, class: 'Asset', type: 'Cash', sidebarColor: 'border-slate-500' },
+  { id: 'bal_007', date: '2026-05-23', account: 'Cash Wallet', account_id: 'XXXX-CASH', institution: 'Manual Asset', balance: 24.00, class: 'Asset', type: 'Cash', sidebarColor: 'border-pink-500' },
+  { id: 'bal_008', date: '2026-05-23', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 23559.32, class: 'Asset', type: 'Investment', sidebarColor: 'border-indigo-500' },
+  
+  // Debt Liabilities (May 23, 2026) - Total = -$4,157.92
+  { id: 'bal_009', date: '2026-05-23', account: 'Apple Card', account_id: 'XXXX-1111', institution: 'Apple Card', balance: -421.50, class: 'Liability', type: 'Credit Card', apr: '4.XX', interestPaid: 18.00, status: 'UNPAID', dueDate: '7D' },
+  { id: 'bal_010', date: '2026-05-23', account: 'Amex Gold', account_id: 'XXXX-2222', institution: 'Amex', balance: -782.30, class: 'Liability', type: 'Credit Card', apr: '2.XX', interestPaid: 22.00, status: 'PAID', dueDate: '3D' },
+  { id: 'bal_011', date: '2026-05-23', account: 'Chase Sapphire Preferred', account_id: 'XXXX-3333', institution: 'Chase', balance: -1864.20, class: 'Liability', type: 'Credit Card', apr: '1.XX', interestPaid: 31.00, status: 'PAID', dueDate: '7D' },
+  { id: 'bal_012', date: '2026-05-23', account: 'ADCB Traveller Card', account_id: 'XXXX-4444', institution: 'ADCB', balance: -1089.92, class: 'Liability', type: 'Credit Card', apr: '0.XX', interestPaid: 9.00, status: 'PAID', dueDate: '15D', currency: 'AED', foreignBalance: 4000.00 },
 
-  // April 30, 2026 Snapshots
-  { id: 'bal_008', date: '2026-04-30', account: 'Chase Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 4800.00, class: 'Asset', type: 'Cash' },
-  { id: 'bal_009', date: '2026-04-30', account: 'Ally Savings', account_id: 'XXXX-9911', institution: 'Ally', balance: 24300.00, class: 'Asset', type: 'Cash' },
-  { id: 'bal_010', date: '2026-04-30', account: 'Chase Sapphire Reserve', account_id: 'XXXX-1234', institution: 'Chase', balance: -890.00, class: 'Liability', type: 'Credit Card' },
-  { id: 'bal_011', date: '2026-04-30', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 141200.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_012', date: '2026-04-30', account: 'Principal 401k', account_id: 'XXXX-4422', institution: 'Principal', balance: 86100.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_013', date: '2026-04-30', account: 'Primary Residence', account_id: 'XXXX-HOME', institution: 'Manual Asset', balance: 450000.00, class: 'Asset', type: 'Real Estate' },
-  { id: 'bal_014', date: '2026-04-30', account: 'Chase Mortgage', account_id: 'XXXX-9988', institution: 'Chase Mortgages', balance: -286200.00, class: 'Liability', type: 'Loan' },
+  // May 15, 2026 Snapshots - Net Worth = $39,800.00
+  { id: 'bal_013', date: '2026-05-15', account: 'Marcus Online Savings', account_id: 'XXXX-8822', institution: 'Marcus', balance: 12000.00, class: 'Asset', type: 'Savings' },
+  { id: 'bal_014', date: '2026-05-15', account: 'Chase Total Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 3500.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_015', date: '2026-05-15', account: 'Emirates NBD', account_id: 'XXXX-1122', institution: 'Emirates NBD', balance: 2200.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_016', date: '2026-05-15', account: 'Wise EUR', account_id: 'XXXX-3344', institution: 'Wise', balance: 2000.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_017', date: '2026-05-15', account: 'Revolut GBP', account_id: 'XXXX-5566', institution: 'Revolut', balance: 1000.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_018', date: '2026-05-15', account: 'Venmo', account_id: 'XXXX-7788', institution: 'Venmo', balance: 100.00, class: 'Asset', type: 'Cash' },
+  { id: 'bal_019', date: '2026-05-15', account: 'Cash Wallet', account_id: 'XXXX-CASH', institution: 'Manual Asset', balance: 30.00, class: 'Asset', type: 'Cash' },
+  { id: 'bal_020', date: '2026-05-15', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 23200.00, class: 'Asset', type: 'Investment' },
+  { id: 'bal_021', date: '2026-05-15', account: 'Apple Card', account_id: 'XXXX-1111', institution: 'Apple Card', balance: -350.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_022', date: '2026-05-15', account: 'Amex Gold', account_id: 'XXXX-2222', institution: 'Amex', balance: -980.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_023', date: '2026-05-15', account: 'Chase Sapphire Preferred', account_id: 'XXXX-3333', institution: 'Chase', balance: -1900.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_024', date: '2026-05-15', account: 'ADCB Traveller Card', account_id: 'XXXX-4444', institution: 'ADCB', balance: -1000.00, class: 'Liability', type: 'Credit Card' },
 
-  // March 31, 2026 Snapshots
-  { id: 'bal_015', date: '2026-03-31', account: 'Chase Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 6100.00, class: 'Asset', type: 'Cash' },
-  { id: 'bal_016', date: '2026-03-31', account: 'Ally Savings', account_id: 'XXXX-9911', institution: 'Ally', balance: 23150.00, class: 'Asset', type: 'Cash' },
-  { id: 'bal_017', date: '2026-03-31', account: 'Chase Sapphire Reserve', account_id: 'XXXX-1234', institution: 'Chase', balance: -2100.00, class: 'Liability', type: 'Credit Card' },
-  { id: 'bal_018', date: '2026-03-31', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 137500.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_019', date: '2026-03-31', account: 'Principal 401k', account_id: 'XXXX-4422', institution: 'Principal', balance: 84000.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_020', date: '2026-03-31', account: 'Primary Residence', account_id: 'XXXX-HOME', institution: 'Manual Asset', balance: 445000.00, class: 'Asset', type: 'Real Estate' },
-  { id: 'bal_021', date: '2026-03-31', account: 'Chase Mortgage', account_id: 'XXXX-9988', institution: 'Chase Mortgages', balance: -287400.00, class: 'Liability', type: 'Loan' },
+  // May 5, 2026 Snapshots - Net Worth = $41,200.00
+  { id: 'bal_025', date: '2026-05-05', account: 'Marcus Online Savings', account_id: 'XXXX-8822', institution: 'Marcus', balance: 12500.00, class: 'Asset', type: 'Savings' },
+  { id: 'bal_026', date: '2026-05-05', account: 'Chase Total Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 4100.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_027', date: '2026-05-05', account: 'Emirates NBD', account_id: 'XXXX-1122', institution: 'Emirates NBD', balance: 2500.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_028', date: '2026-05-05', account: 'Wise EUR', account_id: 'XXXX-3344', institution: 'Wise', balance: 2200.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_029', date: '2026-05-05', account: 'Revolut GBP', account_id: 'XXXX-5566', institution: 'Revolut', balance: 1200.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_030', date: '2026-05-05', account: 'Venmo', account_id: 'XXXX-7788', institution: 'Venmo', balance: 50.00, class: 'Asset', type: 'Cash' },
+  { id: 'bal_031', date: '2026-05-05', account: 'Cash Wallet', account_id: 'XXXX-CASH', institution: 'Manual Asset', balance: 50.00, class: 'Asset', type: 'Cash' },
+  { id: 'bal_032', date: '2026-05-05', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 22800.00, class: 'Asset', type: 'Investment' },
+  { id: 'bal_033', date: '2026-05-05', account: 'Apple Card', account_id: 'XXXX-1111', institution: 'Apple Card', balance: -500.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_034', date: '2026-05-05', account: 'Amex Gold', account_id: 'XXXX-2222', institution: 'Amex', balance: -1000.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_035', date: '2026-05-05', account: 'Chase Sapphire Preferred', account_id: 'XXXX-3333', institution: 'Chase', balance: -1600.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_036', date: '2026-05-05', account: 'ADCB Traveller Card', account_id: 'XXXX-4444', institution: 'ADCB', balance: -1100.00, class: 'Liability', type: 'Credit Card' },
 
-  // February 28, 2026 Snapshots
-  { id: 'bal_022', date: '2026-02-28', account: 'Chase Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 3900.00, class: 'Asset', type: 'Cash' },
-  { id: 'bal_023', date: '2026-02-28', account: 'Ally Savings', account_id: 'XXXX-9911', institution: 'Ally', balance: 22000.00, class: 'Asset', type: 'Cash' },
-  { id: 'bal_024', date: '2026-02-28', account: 'Chase Sapphire Reserve', account_id: 'XXXX-1234', institution: 'Chase', balance: -1450.00, class: 'Liability', type: 'Credit Card' },
-  { id: 'bal_025', date: '2026-02-28', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 132400.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_026', date: '2026-02-28', account: 'Principal 401k', account_id: 'XXXX-4422', institution: 'Principal', balance: 81200.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_027', date: '2026-02-28', account: 'Primary Residence', account_id: 'XXXX-HOME', institution: 'Manual Asset', balance: 445000.00, class: 'Asset', type: 'Real Estate' },
-  { id: 'bal_028', date: '2026-02-28', account: 'Chase Mortgage', account_id: 'XXXX-9988', institution: 'Chase Mortgages', balance: -288600.00, class: 'Liability', type: 'Loan' },
+  // April 28, 2026 Snapshots - Net Worth = $36,500.00
+  { id: 'bal_037', date: '2026-04-28', account: 'Marcus Online Savings', account_id: 'XXXX-8822', institution: 'Marcus', balance: 10000.00, class: 'Asset', type: 'Savings' },
+  { id: 'bal_038', date: '2026-04-28', account: 'Chase Total Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 3200.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_039', date: '2026-04-28', account: 'Emirates NBD', account_id: 'XXXX-1122', institution: 'Emirates NBD', balance: 1800.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_040', date: '2026-04-28', account: 'Wise EUR', account_id: 'XXXX-3344', institution: 'Wise', balance: 1500.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_041', date: '2026-04-28', account: 'Revolut GBP', account_id: 'XXXX-5566', institution: 'Revolut', balance: 800.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_042', date: '2026-04-28', account: 'Venmo', account_id: 'XXXX-7788', institution: 'Venmo', balance: 120.00, class: 'Asset', type: 'Cash' },
+  { id: 'bal_043', date: '2026-04-28', account: 'Cash Wallet', account_id: 'XXXX-CASH', institution: 'Manual Asset', balance: 80.00, class: 'Asset', type: 'Cash' },
+  { id: 'bal_044', date: '2026-04-28', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 22000.00, class: 'Asset', type: 'Investment' },
+  { id: 'bal_045', date: '2026-04-28', account: 'Apple Card', account_id: 'XXXX-1111', institution: 'Apple Card', balance: -200.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_046', date: '2026-04-28', account: 'Amex Gold', account_id: 'XXXX-2222', institution: 'Amex', balance: -700.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_047', date: '2026-04-28', account: 'Chase Sapphire Preferred', account_id: 'XXXX-3333', institution: 'Chase', balance: -1200.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_048', date: '2026-04-28', account: 'ADCB Traveller Card', account_id: 'XXXX-4444', institution: 'ADCB', balance: -900.00, class: 'Liability', type: 'Credit Card' },
 
-  // January 31, 2026 Snapshots
-  { id: 'bal_029', date: '2026-01-31', account: 'Chase Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 4200.00, class: 'Asset', type: 'Cash' },
-  { id: 'bal_030', date: '2026-01-31', account: 'Ally Savings', account_id: 'XXXX-9911', institution: 'Ally', balance: 22000.00, class: 'Asset', type: 'Cash' },
-  { id: 'bal_031', date: '2026-01-31', account: 'Chase Sapphire Reserve', account_id: 'XXXX-1234', institution: 'Chase', balance: -980.00, class: 'Liability', type: 'Credit Card' },
-  { id: 'bal_032', date: '2026-01-31', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 128900.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_033', date: '2026-01-31', account: 'Principal 401k', account_id: 'XXXX-4422', institution: 'Principal', balance: 79500.00, class: 'Asset', type: 'Investment' },
-  { id: 'bal_034', date: '2026-01-31', account: 'Primary Residence', account_id: 'XXXX-HOME', institution: 'Manual Asset', balance: 440000.00, class: 'Asset', type: 'Real Estate' },
-  { id: 'bal_035', date: '2026-01-31', account: 'Chase Mortgage', account_id: 'XXXX-9988', institution: 'Chase Mortgages', balance: -289800.00, class: 'Liability', type: 'Loan' }
+  // April 21, 2026 Snapshots - Net Worth = $35,200.00
+  { id: 'bal_049', date: '2026-04-21', account: 'Marcus Online Savings', account_id: 'XXXX-8822', institution: 'Marcus', balance: 10000.00, class: 'Asset', type: 'Savings' },
+  { id: 'bal_050', date: '2026-04-21', account: 'Chase Total Checking', account_id: 'XXXX-5678', institution: 'Chase', balance: 3000.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_051', date: '2026-04-21', account: 'Emirates NBD', account_id: 'XXXX-1122', institution: 'Emirates NBD', balance: 1500.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_052', date: '2026-04-21', account: 'Wise EUR', account_id: 'XXXX-3344', institution: 'Wise', balance: 1500.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_053', date: '2026-04-21', account: 'Revolut GBP', account_id: 'XXXX-5566', institution: 'Revolut', balance: 800.00, class: 'Asset', type: 'Checking' },
+  { id: 'bal_054', date: '2026-04-21', account: 'Venmo', account_id: 'XXXX-7788', institution: 'Venmo', balance: 100.00, class: 'Asset', type: 'Cash' },
+  { id: 'bal_055', date: '2026-04-21', account: 'Cash Wallet', account_id: 'XXXX-CASH', institution: 'Manual Asset', balance: 100.00, class: 'Asset', type: 'Cash' },
+  { id: 'bal_056', date: '2026-04-21', account: 'Vanguard Brokerage', account_id: 'XXXX-9012', institution: 'Vanguard', balance: 21000.00, class: 'Asset', type: 'Investment' },
+  { id: 'bal_057', date: '2026-04-21', account: 'Apple Card', account_id: 'XXXX-1111', institution: 'Apple Card', balance: -300.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_058', date: '2026-04-21', account: 'Amex Gold', account_id: 'XXXX-2222', institution: 'Amex', balance: -600.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_059', date: '2026-04-21', account: 'Chase Sapphire Preferred', account_id: 'XXXX-3333', institution: 'Chase', balance: -1100.00, class: 'Liability', type: 'Credit Card' },
+  { id: 'bal_060', date: '2026-04-21', account: 'ADCB Traveller Card', account_id: 'XXXX-4444', institution: 'ADCB', balance: -800.00, class: 'Liability', type: 'Credit Card' }
 ];
+

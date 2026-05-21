@@ -8,7 +8,7 @@ export default function Layout({ currentView, setCurrentView, children }) {
   const bottomPadding = currentView === 'assistant' ? 'pb-36 md:pb-8' : 'pb-24 md:pb-8';
 
   return (
-    <div className="flex h-screen bg-obsidian-900 overflow-hidden text-slate-200">
+    <div className="flex h-screen bg-black overflow-hidden text-slate-200">
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
       
       <div className="flex-1 flex flex-col h-screen overflow-hidden">

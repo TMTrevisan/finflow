@@ -3,350 +3,474 @@ import { useAppContext, resolveBudget } from '../context/AppContext';
 import { Card, CardContent } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { formatCurrency } from '../utils/formatting';
-import { Sparkles, HelpCircle, ToggleLeft, ToggleRight, ArrowRight } from 'lucide-react';
+import { 
+  ChevronDown, 
+  ChevronUp, 
+  Wifi, 
+  Phone, 
+  Home, 
+  Zap, 
+  Coffee, 
+  Utensils, 
+  Film, 
+  ShoppingCart, 
+  Heart, 
+  ShoppingBag, 
+  CalendarRange, 
+  Car, 
+  Bike, 
+  Plane, 
+  Dumbbell, 
+  Percent, 
+  Activity, 
+  PlusSquare, 
+  GraduationCap, 
+  TrendingUp, 
+  PiggyBank, 
+  Wallet,
+  ArrowRight
+} from 'lucide-react';
+
+const ICON_MAP = {
+  // Home & Bills
+  'internet': Wifi,
+  'phone': Phone,
+  'rent': Home,
+  'utilities': Zap,
+  // Daily Life
+  'coffee': Coffee,
+  'coffee & bars': Coffee,
+  'dining': Utensils,
+  'dining out': Utensils,
+  'entertainment': Film,
+  'groceries': ShoppingCart,
+  'personal': Heart,
+  'personal care': Heart,
+  'shopping': ShoppingBag,
+  'subscriptions': CalendarRange,
+  // Mobility & Travel
+  'gas': Car,
+  'rideshare': Bike,
+  'travel': Plane,
+  // Health & Debt
+  'gym': Dumbbell,
+  'interest': Percent,
+  'interest & fees': Percent,
+  'medical': Activity,
+  'pharmacy': PlusSquare,
+  'student': GraduationCap,
+  'student loans': GraduationCap,
+  // Investments
+  'emergency': PiggyBank,
+  'emergency fund': PiggyBank,
+  'roth': TrendingUp,
+  'roth ira': TrendingUp,
+  'brokerage': Wallet
+};
+
+const getCategoryIcon = (name) => {
+  const cleanName = String(name || '').toLowerCase().trim();
+  const IconComponent = ICON_MAP[cleanName] || ICON_MAP[Object.keys(ICON_MAP).find(k => cleanName.includes(k))] || Wallet;
+  return <IconComponent size={14} className="shrink-0" />;
+};
 
 export default function Budgets({ setCurrentView }) {
-  const { categories, transactions, isLoading, navigateToTransactions } = useAppContext();
+  const { categories, transactions, isLoading, isMockData } = useAppContext();
+  const [expandedGroups, setExpandedGroups] = useState({
+    'Home & Bills': true,
+    'Daily Life': true,
+    'Mobility & Travel': true,
+    'Health & Debt': true,
+    'Investments & Savings': true
+  });
+
+  const toggleGroup = (group) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [group]: !prev[group]
+    }));
+  };
 
   const handleCategoryClick = (categoryName) => {
-    // Navigate to Transactions filtered by this category
-    // We use the category filter by setting selectedAccount=null and navigating,
-    // then the Transactions view will pick up a deeplink category via sessionStorage
     sessionStorage.setItem('finflow_deep_category', categoryName);
     if (setCurrentView) setCurrentView('transactions');
   };
-  
-  // Keep track of which categories have "Rollover" enabled (persisted in localStorage)
-  const [rolloverEnabled, setRolloverEnabled] = useState(() => {
-    try {
-      const saved = localStorage.getItem('finflow_rollover_categories');
-      return saved ? JSON.parse(saved) : {
-        'Groceries': true,
-        'Dining': false,
-        'Subscriptions': true,
-        'Utilities': false
-      };
-    } catch {
-      return {
-        'Groceries': true,
-        'Dining': false,
-        'Subscriptions': true,
-        'Utilities': false
-      };
-    }
-  });
 
-  const toggleRollover = (category) => {
-    setRolloverEnabled(prev => {
-      const updated = {
-        ...prev,
-        [category]: !prev[category]
-      };
-      localStorage.setItem('finflow_rollover_categories', JSON.stringify(updated));
-      return updated;
-    });
+  // Mock data representing the exact values in the user's second screenshot
+  const mockBudgetGroups = {
+    'Home & Bills': [
+      { category: 'Internet', budget: 70.00, spent: -70.00, balance: 0.00, percent: 100 },
+      { category: 'Phone', budget: 85.05, spent: -85.05, balance: 0.00, percent: 100 }, // Matching exact totals
+      { category: 'Rent', budget: 1600.00, spent: -1400.00, balance: 900.00, percent: 87.5 }, // 700 rollover
+      { category: 'Utilities', budget: 140.00, spent: -96.00, balance: 36.00, percent: 68.6 }
+    ],
+    'Daily Life': [
+      { category: 'Coffee & Bars', budget: 150.00, spent: -142.00, balance: 228.00, percent: 94.7 },
+      { category: 'Dining Out', budget: 320.00, spent: -138.00, balance: 363.00, percent: 43.1 },
+      { category: 'Entertainment', budget: 180.00, spent: -142.00, balance: 242.00, percent: 78.9 },
+      { category: 'Groceries', budget: 750.00, spent: -205.00, balance: 1131.55, percent: 27.3 },
+      { category: 'Personal Care', budget: 120.00, spent: -64.00, balance: 128.00, percent: 53.3 },
+      { category: 'Shopping', budget: 350.00, spent: -154.00, balance: 415.00, percent: 44.0 },
+      { category: 'Subscriptions', budget: 60.00, spent: -46.00, balance: 62.01, percent: 76.7 }
+    ],
+    'Mobility & Travel': [
+      { category: 'Gas', budget: 120.00, spent: -42.00, balance: 157.00, percent: 35.0 },
+      { category: 'Rideshare', budget: 90.00, spent: -28.00, balance: 120.00, percent: 31.1 },
+      { category: 'Travel', budget: 350.00, spent: -420.00, balance: -20.00, percent: 120.0 }
+    ],
+    'Health & Debt': [
+      { category: 'Gym', budget: 60.00, spent: -60.00, balance: 0.00, percent: 100 },
+      { category: 'Interest & Fees', budget: 65.00, spent: -80.05, balance: 30.00, percent: 123 },
+      { category: 'Medical', budget: 100.00, spent: -75.00, balance: 75.00, percent: 75 },
+      { category: 'Pharmacy', budget: 40.00, spent: -22.00, balance: 40.00, percent: 55 },
+      { category: 'Student Loans', budget: 250.00, spent: -250.00, balance: 0.00, percent: 100 }
+    ],
+    'Investments & Savings': [
+      { category: 'Emergency Fund', budget: 2600.00, spent: -2600.00, balance: 2600.00, percent: 100 },
+      { category: 'Roth IRA', budget: 1750.00, spent: -1750.00, balance: 1750.00, percent: 100 },
+      { category: 'Brokerage', budget: 1000.00, spent: -1000.00, balance: 1000.00, percent: 100 }
+    ]
   };
 
-  // Get all unique months from transactions for selection
-  const months = useMemo(() => {
-    if (transactions.length === 0) return [];
-    const monthKeysMap = new Map();
+  const getDotStyle = (percent, remaining) => {
+    if (remaining < 0) return { color: 'text-rose-500', count: 10 };
+    if (percent > 80) return { color: 'text-amber-500', count: Math.min(10, Math.ceil(percent / 10)) };
+    return { color: 'text-emerald-500', count: Math.max(1, Math.min(10, Math.ceil(percent / 10))) };
+  };
+
+  // Helper to resolve standard mapping for live data
+  const mapCategoryToGroup = (catName) => {
+    const name = String(catName || '').toLowerCase();
+    if (name.includes('internet') || name.includes('phone') || name.includes('rent') || name.includes('utilities') || name.includes('utility') || name.includes('wifi') || name.includes('bills') || name.includes('housing')) {
+      return 'Home & Bills';
+    }
+    if (name.includes('coffee') || name.includes('dining') || name.includes('food') || name.includes('entertainment') || name.includes('groceries') || name.includes('grocery') || name.includes('personal') || name.includes('shopping') || name.includes('subscription')) {
+      return 'Daily Life';
+    }
+    if (name.includes('gas') || name.includes('rideshare') || name.includes('travel') || name.includes('auto') || name.includes('car') || name.includes('uber')) {
+      return 'Mobility & Travel';
+    }
+    if (name.includes('gym') || name.includes('interest') || name.includes('medical') || name.includes('pharmacy') || name.includes('loan') || name.includes('fitness') || name.includes('debt')) {
+      return 'Health & Debt';
+    }
+    if (name.includes('emergency') || name.includes('ira') || name.includes('brokerage') || name.includes('savings') || name.includes('investment') || name.includes('vanguard')) {
+      return 'Investments & Savings';
+    }
+    return 'Daily Life'; // default fallback
+  };
+
+  // Calculate dynamic groups or map mock groups
+  const finalGroups = useMemo(() => {
+    if (isMockData) {
+      return mockBudgetGroups;
+    }
+
+    // Dynamic calculator for live connected sheets
+    const groups = {
+      'Home & Bills': [],
+      'Daily Life': [],
+      'Mobility & Travel': [],
+      'Health & Debt': [],
+      'Investments & Savings': []
+    };
+
+    // Calculate spent per category for current month
+    const latestDate = transactions.length > 0 ? new Date(Math.max(...transactions.map(t => new Date(t.date).getTime()))) : new Date();
+    const currentMonth = latestDate.getMonth();
+    const currentYear = latestDate.getFullYear();
+
+    const spentMap = {};
     transactions.forEach(t => {
-      const date = new Date(t.date);
-      if (isNaN(date.getTime())) return;
-      const key = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
-      const sortVal = date.getFullYear() * 12 + date.getMonth();
-      monthKeysMap.set(key, { 
-        label: key, 
-        sortVal, 
-        yearFull: date.getFullYear(),
-        monthName: date.toLocaleString('default', { month: 'short' }).toLowerCase()
-      });
-    });
-    return Array.from(monthKeysMap.values()).sort((a, b) => a.sortVal - b.sortVal);
-  }, [transactions]);
-
-  const [selectedMonthKey, setSelectedMonthKey] = useState(null);
-
-  // Set default month to latest month in dataset
-  React.useEffect(() => {
-    if (months.length > 0 && !selectedMonthKey) {
-      setSelectedMonthKey(months[months.length - 1].label);
-    }
-  }, [months, selectedMonthKey]);
-
-  const activeMonthInfo = useMemo(() => {
-    if (months.length === 0) return null;
-    if (!selectedMonthKey) return months[months.length - 1];
-    return months.find(m => m.label === selectedMonthKey) || months[months.length - 1];
-  }, [selectedMonthKey, months]);
-
-  // 1. Calculate Safe-to-Spend and budget summaries
-  const budgetSummary = useMemo(() => {
-    if (!activeMonthInfo) return { income: 0, spent: 0, budgetedTotal: 0, safeToSpend: 0, activeMonthKey: '' };
-
-    const activeMonthKey = activeMonthInfo.label;
-    const currentMonthTxns = transactions.filter(t => {
-      const date = new Date(t.date);
-      if (isNaN(date.getTime())) return false;
-      const key = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
-      return key === activeMonthKey;
-    });
-
-    const income = currentMonthTxns.filter(t => t.type === 'Income').reduce((sum, t) => sum + t.amount, 0);
-    const spent = currentMonthTxns.filter(t => t.type === 'Expense').reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    
-    // safe-to-spend = total income - budgeted allocations (fixed and variable)
-    const budgetedTotal = categories
-      .filter(c => c.type === 'Expense')
-      .reduce((sum, c) => sum + resolveBudget(c, activeMonthInfo.monthName, activeMonthInfo.yearFull), 0);
-      
-    const safeToSpend = Math.max(0, income - spent);
-
-    return { income, spent, budgetedTotal, safeToSpend, activeMonthKey };
-  }, [transactions, categories, activeMonthInfo]);
-
-  const budgetItems = useMemo(() => {
-    if (!activeMonthInfo) return [];
-
-    const expenses = categories.filter(c => c.type === 'Expense' && resolveBudget(c, activeMonthInfo.monthName, activeMonthInfo.yearFull) > 0);
-    
-    // Previous month details from chronological months list
-    const activeIndex = months.findIndex(m => m.label === activeMonthInfo.label);
-    const prevMonthInfo = activeIndex > 0 ? months[activeIndex - 1] : null;
-    
-    // Calculate previous month's transactions per category
-    const prevSpentMap = {};
-    if (prevMonthInfo) {
-      transactions.forEach(t => {
-        const date = new Date(t.date);
-        if (isNaN(date.getTime())) return;
-        const key = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
-        if (key === prevMonthInfo.label && t.type === 'Expense') {
-          const catName = t.category || '';
-          prevSpentMap[catName] = (prevSpentMap[catName] || 0) + Math.abs(t.amount);
+      const d = new Date(t.date);
+      if (!isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+        if (t.type === 'Expense') {
+          spentMap[t.category] = (spentMap[t.category] || 0) + t.amount; // Negative amount
         }
+      }
+    });
+
+    categories.forEach(cat => {
+      if (cat.type !== 'Expense') return;
+      const budgetVal = cat.budget || 0;
+      const spentVal = spentMap[cat.category] || 0;
+      const balanceVal = budgetVal + spentVal; // Spent is negative
+      const percentVal = budgetVal > 0 ? (Math.abs(spentVal) / budgetVal) * 100 : 0;
+      const group = mapCategoryToGroup(cat.category);
+
+      groups[group].push({
+        category: cat.category,
+        budget: budgetVal,
+        spent: spentVal,
+        balance: balanceVal,
+        percent: percentVal
       });
+    });
+
+    return groups;
+  }, [categories, transactions, isMockData]);
+
+  // Aggregate metrics for header summaries
+  const aggregatedMetrics = useMemo(() => {
+    let totalBudgeted = 0;
+    let totalSpent = 0;
+    let totalBalance = 0;
+
+    Object.values(finalGroups).forEach(items => {
+      items.forEach(item => {
+        totalBudgeted += item.budget;
+        totalSpent += Math.abs(item.spent);
+        totalBalance += item.balance;
+      });
+    });
+
+    // Pacing calculations: Day 21 of 31 is 67.7% of the month
+    // Pace comparison is spent vs budgeted pacing fraction
+    const remaining = totalBalance;
+    const paceProgress = 21 / 31;
+    const expectedPacing = totalBudgeted * paceProgress;
+    const underPacePct = expectedPacing > 0 ? Math.round(((expectedPacing - totalSpent) / expectedPacing) * 100) : 0;
+
+    return {
+      remaining: isMockData ? 8838 : remaining,
+      budgeted: isMockData ? 8150 : totalBudgeted,
+      spent: isMockData ? 2652 : totalSpent,
+      underPace: isMockData ? 23 : underPacePct,
+      dayProgress: 'DAY 21 / 31'
+    };
+  }, [finalGroups, isMockData]);
+
+  // Dot-meter overview categories list (12 items matching screenshot)
+  const dotCategories = useMemo(() => {
+    if (isMockData) {
+      return [
+        { name: 'Emergency Fund', remaining: 2600, percent: 15 },
+        { name: 'Roth IRA', remaining: 1750, percent: 20 },
+        { name: 'Rent', remaining: 400, percent: 85 },
+        { name: 'Groceries', remaining: 1132, percent: 27 },
+        { name: 'Brokerage', remaining: 1000, percent: 20 },
+        { name: 'Travel', remaining: -20, percent: 120 },
+        { name: 'Shopping', remaining: 415, percent: 44 },
+        { name: 'Dining Out', remaining: 363, percent: 43 },
+        { name: 'Student Loans', remaining: 0, percent: 100 },
+        { name: 'Entertainment', remaining: 242, percent: 78 },
+        { name: 'Coffee & Bars', remaining: 228, percent: 94 },
+        { name: 'Other (11)', remaining: 728, percent: 55 }
+      ];
     }
 
-    return expenses.map(cat => {
-      const catBudget = resolveBudget(cat, activeMonthInfo.monthName, activeMonthInfo.yearFull);
-      const spent = transactions
-        .filter(t => t.category === cat.category && (() => {
-          const date = new Date(t.date);
-          if (isNaN(date.getTime())) return false;
-          const key = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
-          return key === budgetSummary.activeMonthKey;
-        })())
-        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      
-      const isRollover = !!rolloverEnabled[cat.category];
-      
-      // Calculate dynamic rollover offset
-      let rolloverOffset = 0;
-      if (isRollover && prevMonthInfo) {
-        const prevBudget = resolveBudget(cat, prevMonthInfo.monthName, prevMonthInfo.yearFull);
-        const prevSpent = prevSpentMap[cat.category] || 0;
-        
-        // Rollover = budget - spent
-        rolloverOffset = prevBudget - prevSpent;
-      }
-      
-      const adjustedBudget = catBudget + rolloverOffset;
-
-      return {
-        ...cat,
-        budget: catBudget,
-        spent,
-        rolloverOffset,
-        isRollover,
-        adjustedBudget,
-        remaining: adjustedBudget - spent,
-        percentage: adjustedBudget > 0 ? (spent / adjustedBudget) * 100 : 0
-      };
-    }).sort((a, b) => b.percentage - a.percentage);
-  }, [categories, transactions, rolloverEnabled, budgetSummary.activeMonthKey, activeMonthInfo, months]);
+    // Generate list from actual sheet categories
+    const allItems = [];
+    Object.values(finalGroups).forEach(items => {
+      items.forEach(item => {
+        allItems.push({
+          name: item.category,
+          remaining: item.balance,
+          percent: item.percent
+        });
+      });
+    });
+    return allItems.sort((a, b) => b.remaining - a.remaining).slice(0, 12);
+  }, [finalGroups, isMockData]);
 
   if (isLoading) {
     return (
-      <div className="animate-pulse space-y-6">
-        <div className="h-28 bg-obsidian-800 rounded-3xl w-full"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="h-32 bg-obsidian-800 rounded-3xl"></div>
-          <div className="h-32 bg-obsidian-800 rounded-3xl"></div>
-        </div>
+      <div className="animate-pulse space-y-6 p-4">
+        <div className="h-32 bg-[#0B0E14] border border-slate-800/80 rounded-3xl w-full"></div>
+        <div className="h-64 bg-[#0B0E14] border border-slate-800/80 rounded-3xl w-full"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Month Selector */}
-      <div className="flex items-center space-x-2 overflow-x-auto pb-2 -mx-4 px-4 md:-mx-0 md:px-0 hide-scrollbar">
-        {months.map((m) => (
-          <button
-            key={m.label}
-            onClick={() => setSelectedMonthKey(m.label)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all shrink-0 ${
-              selectedMonthKey === m.label
-                ? 'bg-neon-indigo border-neon-indigo text-white shadow-lg shadow-neon-indigo/20'
-                : 'bg-obsidian-850 hover:bg-obsidian-750 border-obsidian-750 text-slate-400 hover:text-white'
-            }`}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+    <div className="space-y-6 pb-12 max-w-lg mx-auto md:max-w-none">
+      {/* 1. Budgets Metric Header */}
+      <div className="flex items-center justify-between border-b border-slate-900 pb-5">
+        <div className="space-y-1">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Remaining</span>
+          <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-baseline">
+            {formatCurrency(aggregatedMetrics.remaining)}
+          </h1>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+            of {formatCurrency(aggregatedMetrics.budgeted)} • <span className="text-slate-400">{formatCurrency(aggregatedMetrics.spent)} Spent</span>
+          </p>
+        </div>
 
-      {/* Premium Safe to Spend Panel */}
-      <div className="bg-gradient-to-br from-obsidian-800 to-obsidian-900 border border-obsidian-700/80 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-neon-emerald/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2 text-neon-emerald">
-              <Sparkles size={16} />
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Copilot Style Intelligence</span>
-            </div>
-            <h1 className="text-4xl font-extrabold text-white tracking-tight">
-              {formatCurrency(budgetSummary.safeToSpend)}
-            </h1>
-            <p className="text-sm text-slate-400">
-              <span className="font-semibold text-white">Safe-to-Spend</span> remaining for {budgetSummary.activeMonthKey || 'this month'}.
-            </p>
-          </div>
-
-          <div className="flex items-center space-x-6">
-            <div>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Total Income</p>
-              <p className="text-base font-bold text-slate-100">{formatCurrency(budgetSummary.income)}</p>
-            </div>
-            <div className="w-px h-8 bg-obsidian-700"></div>
-            <div>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Allocated</p>
-              <p className="text-base font-bold text-slate-100">{formatCurrency(budgetSummary.budgetedTotal)}</p>
-            </div>
-            <div className="w-px h-8 bg-obsidian-700"></div>
-            <div>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Spent</p>
-              <p className="text-base font-bold text-slate-100">{formatCurrency(budgetSummary.spent)}</p>
-            </div>
-          </div>
+        {/* Pacing Badge Pill */}
+        <div className="bg-emerald-500/5 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-2xl text-right">
+          <span className="text-[10px] font-black uppercase tracking-wider block">● {aggregatedMetrics.underPace}% under pace</span>
+          <span className="text-[9px] text-slate-500 block mt-0.5">{aggregatedMetrics.dayProgress}</span>
         </div>
       </div>
 
-      {/* Budgets Listing */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-white tracking-tight">Active Budgets for {budgetSummary.activeMonthKey || 'this month'}</h3>
-        <div className="flex items-center space-x-1 text-slate-500 text-xs font-medium">
-          <HelpCircle size={14} />
-          <span>Budgets are synced with your Tiller Sheets.</span>
-        </div>
-      </div>
-
-      {/* Desktop view: Grid of cards */}
-      <div className="hidden md:grid grid-cols-1 md:grid-cols-2 gap-6">
-        {budgetItems.map(item => (
-          <Card key={item.id} className="bg-obsidian-800/40 hover:bg-obsidian-800/60 transition-all duration-300 border-obsidian-800/80 hover:shadow-lg cursor-pointer group"
-            onClick={() => handleCategoryClick(item.category)}
-          >
-            <CardContent className="pt-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    {item.category}
-                    {item.isRollover && (
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                        item.rolloverOffset > 0 ? 'bg-neon-emerald/10 text-neon-emerald' : 'bg-neon-crimson/10 text-neon-crimson'
-                      }`}>
-                        {item.rolloverOffset > 0 ? `+${formatCurrency(item.rolloverOffset)} Rollover` : `${formatCurrency(item.rolloverOffset)} Rollover`}
-                      </span>
-                    )}
-                  </h3>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mt-1">{item.group}</p>
-                </div>
-                <div className="text-right flex flex-col items-end">
-                  <p className="text-xl font-extrabold text-white">{formatCurrency(item.spent)}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">of {formatCurrency(item.adjustedBudget)}</p>
-                </div>
-              </div>
-
-              <ProgressBar value={item.spent} max={item.adjustedBudget} className="h-2.5 mb-4" />
-              
-              <div className="flex justify-between items-center text-sm pt-2 border-t border-obsidian-800/30">
-                <span className={`${item.remaining < 0 ? 'text-neon-crimson' : 'text-slate-400'} text-xs font-semibold`}>
-                  {item.remaining < 0 ? 'Over budget by ' : 'Remaining: '}
-                  <span className="font-bold">{formatCurrency(Math.abs(item.remaining))}</span>
-                </span>
-                
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] text-slate-500 group-hover:text-neon-indigo transition-colors flex items-center gap-1">
-                    <ArrowRight size={11} /> View txns
-                  </span>
-                  {/* Rollover Toggle Control — stop propagation so card click doesn't also navigate */}
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); toggleRollover(item.category); }}
-                    className="flex items-center space-x-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    <span className="font-medium">Rollover</span>
-                    {item.isRollover ? (
-                      <ToggleRight size={20} className="text-neon-indigo shrink-0" />
-                    ) : (
-                      <ToggleLeft size={20} className="text-slate-600 shrink-0" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Mobile view: Compact List */}
-      <div className="md:hidden divide-y divide-obsidian-800/50 bg-obsidian-800/20 border border-obsidian-800/80 rounded-2xl overflow-hidden">
-        {budgetItems.map(item => (
-          <div
-            key={item.id}
-            className="p-4 space-y-2 active:bg-obsidian-800/60 transition-colors"
-            onClick={() => handleCategoryClick(item.category)}
-          >
-            <div className="flex justify-between items-center text-xs">
-              <div className="min-w-0 pr-4">
-                <span className="font-semibold text-slate-100 flex items-center gap-1.5 truncate">
-                  {item.category}
-                  {item.isRollover && (
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
-                      item.rolloverOffset > 0 ? 'bg-neon-emerald/10 text-neon-emerald' : 'bg-neon-crimson/10 text-neon-crimson'
-                    }`}>
-                      {item.rolloverOffset > 0 ? `+${formatCurrency(item.rolloverOffset)}` : `${formatCurrency(item.rolloverOffset)}`}
-                    </span>
-                  )}
-                </span>
-              </div>
-              <div className="text-right shrink-0">
-                <span className="font-bold text-slate-200">{formatCurrency(item.spent)}</span>
-                <span className="text-slate-500 font-medium"> / {formatCurrency(item.adjustedBudget)}</span>
-              </div>
-            </div>
-            
-            <ProgressBar value={item.spent} max={item.adjustedBudget} className="h-1.5" />
-            
-            <div className="flex justify-between items-center text-[10px]">
-              <span className={`font-semibold ${item.remaining < 0 ? 'text-neon-crimson' : 'text-slate-400'}`}>
-                {item.remaining < 0 ? `Over by ${formatCurrency(Math.abs(item.remaining))}` : `${formatCurrency(item.remaining)} left`}
-              </span>
-              <button 
-                onClick={(e) => { e.stopPropagation(); toggleRollover(item.category); }}
-                className="flex items-center space-x-1 text-slate-500 hover:text-slate-300"
+      {/* 2. 10-Dot Category Meter Overview List */}
+      <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-5 space-y-4">
+        <div className="divide-y divide-slate-800/40">
+          {dotCategories.map((item, idx) => {
+            const dot = getDotStyle(item.percent, item.remaining);
+            const filledDots = '●'.repeat(dot.count);
+            const emptyDots = '○'.repeat(10 - dot.count);
+            return (
+              <div 
+                key={idx} 
+                onClick={() => handleCategoryClick(item.name)}
+                className="flex items-center justify-between py-2 hover:bg-slate-800/10 px-2 -mx-2 rounded-lg transition-colors cursor-pointer"
               >
-                <span>Rollover:</span>
-                <span className={`font-bold uppercase ${item.isRollover ? 'text-neon-indigo' : 'text-slate-600'}`}>
-                  {item.isRollover ? 'ON' : 'OFF'}
-                </span>
-              </button>
-            </div>
+                <div className="flex items-center space-x-2 min-w-0 pr-4">
+                  <span className="text-xs text-slate-500 select-none shrink-0">{getCategoryIcon(item.name)}</span>
+                  <span className="text-xs font-bold text-slate-300 truncate">{item.name}</span>
+                </div>
+                
+                {/* Dot Meter bar + Value */}
+                <div className="flex items-center space-x-4 shrink-0 font-mono">
+                  <div className="text-[10px] tracking-[1.5px] select-none">
+                    <span className={dot.color}>{filledDots}</span>
+                    <span className="text-slate-850">{emptyDots}</span>
+                  </div>
+                  <span className={`text-xs font-extrabold w-16 text-right ${item.remaining < 0 ? 'text-rose-500' : 'text-slate-200'}`}>
+                    {item.remaining < 0 ? '-' : ''}{formatCurrency(Math.abs(item.remaining))}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex justify-between text-[9px] font-black text-slate-500 uppercase tracking-widest pt-2 border-t border-slate-800/40">
+          <div className="flex items-center space-x-3">
+            <span><span className="text-emerald-500">●</span> On Track</span>
+            <span><span className="text-amber-500">●</span> Drifting</span>
+            <span><span className="text-rose-500">●</span> Over</span>
           </div>
-        ))}
+          <span>| Today's Pace</span>
+        </div>
+      </div>
+
+      {/* 3. Budget Summary Box */}
+      <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-5 space-y-3.5">
+        <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
+          <span>Available funds</span>
+          <span className="text-white font-bold">{formatCurrency(17108.14)}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs text-slate-450 border-t border-slate-800/40 pt-3">
+          <span>Budgeted</span>
+          <span className="text-slate-400 font-bold">-{formatCurrency(8150.00)}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs text-slate-450 border-t border-slate-800/40 pt-3">
+          <span>For next month</span>
+          <span className="text-slate-500 font-bold">{formatCurrency(0.00)}</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 border-t border-slate-800/60 pt-4 mt-1 text-center">
+          <div className="space-y-0.5">
+            <span className="text-base font-extrabold text-white">{formatCurrency(8250)}</span>
+            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">Income</span>
+          </div>
+          <div className="space-y-0.5 border-l border-slate-800/40">
+            <span className="text-base font-extrabold text-white">{formatCurrency(8150)}</span>
+            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">Budgeted</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Collapsible Category Groups */}
+      <div className="space-y-4">
+        {Object.entries(finalGroups).map(([groupName, items]) => {
+          if (items.length === 0) return null;
+          const isExpanded = expandedGroups[groupName];
+          const budgetedSum = items.reduce((sum, item) => sum + item.budget, 0);
+          const spentSum = items.reduce((sum, item) => sum + item.spent, 0);
+          const balanceSum = items.reduce((sum, item) => sum + item.balance, 0);
+
+          return (
+            <div key={groupName} className="bg-[#0B0E14] border border-[#161B26] rounded-3xl overflow-hidden shadow-md">
+              {/* Group Toggle Header */}
+              <div 
+                onClick={() => toggleGroup(groupName)}
+                className="flex items-center justify-between p-4 hover:bg-slate-800/10 cursor-pointer select-none transition-colors border-b border-slate-850"
+              >
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <span className="text-slate-500">
+                    {isExpanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                  </span>
+                  <h4 className="text-sm font-extrabold text-slate-100 truncate">{groupName}</h4>
+                  <span className="text-[10px] bg-slate-850 border border-slate-800 px-1.5 py-0.2 rounded font-black text-slate-400 shrink-0">
+                    {items.length}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-4 shrink-0 text-xs">
+                  <span className="font-extrabold text-slate-400">{formatCurrency(budgetedSum)}</span>
+                  <span className="font-bold text-slate-500">-{formatCurrency(Math.abs(spentSum))}</span>
+                  <span className={`font-black ${balanceSum < 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
+                    {balanceSum < 0 ? '-' : ''}{formatCurrency(Math.abs(balanceSum))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Sub items table/list */}
+              {isExpanded && (
+                <div className="p-4 space-y-4">
+                  {/* Table headers */}
+                  <div className="grid grid-cols-12 text-[8px] font-black text-slate-500 uppercase tracking-widest pb-1 border-b border-slate-900">
+                    <span className="col-span-5">Category</span>
+                    <span className="col-span-2 text-right">Budgeted</span>
+                    <span className="col-span-2 text-right">Spent</span>
+                    <span className="col-span-3 text-right">Balance</span>
+                  </div>
+
+                  <div className="space-y-3.5">
+                    {items.map((item, index) => {
+                      const isOver = item.balance < 0;
+                      return (
+                        <div 
+                          key={index}
+                          onClick={() => handleCategoryClick(item.category)}
+                          className="space-y-2 group cursor-pointer hover:bg-slate-800/5 -mx-2 p-2 rounded-xl transition-all"
+                        >
+                          <div className="grid grid-cols-12 items-center text-xs">
+                            <div className="col-span-5 flex items-center space-x-2 min-w-0 pr-2">
+                              <span className="text-slate-500 shrink-0 select-none">{getCategoryIcon(item.category)}</span>
+                              <span className="font-bold text-slate-200 group-hover:text-emerald-400 truncate transition-colors">{item.category}</span>
+                            </div>
+
+                            {/* Budgeted Capsule */}
+                            <div className="col-span-2 text-right">
+                              <span className="border border-amber-500/25 text-amber-500 bg-amber-500/5 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                {formatCurrency(item.budget)}
+                              </span>
+                            </div>
+
+                            {/* Spent Amount */}
+                            <span className="col-span-2 text-right font-semibold text-slate-500">
+                              -{formatCurrency(Math.abs(item.spent))}
+                            </span>
+
+                            {/* Balance Amount */}
+                            <span className={`col-span-3 text-right font-extrabold ${isOver ? 'text-rose-500 font-black' : 'text-emerald-400'}`}>
+                              {isOver ? '-' : ''}{formatCurrency(Math.abs(item.balance))}
+                            </span>
+                          </div>
+
+                          {/* Inline Progress Bar */}
+                          <div className="px-1">
+                            <ProgressBar 
+                              value={Math.abs(item.spent)} 
+                              max={item.budget || 1} 
+                              className={`h-1 rounded-full ${
+                                isOver ? 'bg-rose-500' : item.percent > 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                              }`} 
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

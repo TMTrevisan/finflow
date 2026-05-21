@@ -1,7 +1,16 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { formatCurrency, formatDate } from '../../utils/formatting';
 
-export default function LineChart({ data, height = 240 }) {
+export default function LineChart({ 
+  data, 
+  height = 240,
+  lineColor = '#6366F1',
+  glowColor = '#6366F1',
+  gradientColor = '#6366F1',
+  fillOpacity = 0.2,
+  strokeWidth = 3,
+  showGrid = false
+}) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const containerRef = useRef(null);
 
@@ -94,18 +103,21 @@ export default function LineChart({ data, height = 240 }) {
 
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center bg-obsidian-800/20 rounded-2xl border border-obsidian-700/50" style={{ height }}>
-        <p className="text-slate-500 text-sm">No historical data available</p>
+      <div className="flex items-center justify-center bg-obsidian-800/10 rounded-2xl border border-obsidian-800/40" style={{ height }}>
+        <p className="text-slate-500 text-sm font-semibold">No data available</p>
       </div>
     );
   }
+
+  // Unique ID for gradient/glow so multiple charts don't conflict
+  const chartId = useMemo(() => Math.random().toString(36).substr(2, 9), []);
 
   return (
     <div className="relative w-full">
       {/* Tooltip Hover Overlay */}
       {hoveredPoint && (
         <div 
-          className="absolute z-10 bg-obsidian-800/95 backdrop-blur border border-obsidian-700 rounded-xl p-3 shadow-2xl pointer-events-none transition-all duration-150"
+          className="absolute z-10 bg-black/95 backdrop-blur border border-slate-800 rounded-2xl p-3 shadow-2xl pointer-events-none transition-all duration-150"
           style={{
             left: `${((hoveredPoint.x - 30) / 800) * 100}%`,
             top: `${Math.max(10, hoveredPoint.y - 100)}px`,
@@ -113,15 +125,17 @@ export default function LineChart({ data, height = 240 }) {
           }}
         >
           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">
-            {formatDate(hoveredPoint.date)}
+            {hoveredPoint.date}
           </div>
           <div className="text-base font-bold text-white mb-0.5">
             {formatCurrency(hoveredPoint.value)}
           </div>
-          <div className="flex space-x-3 text-xs text-slate-400">
-            <span>Assets: <span className="text-neon-emerald font-medium">{formatCurrency(hoveredPoint.assets)}</span></span>
-            <span>Liabs: <span className="text-neon-crimson font-medium">{formatCurrency(hoveredPoint.liabilities)}</span></span>
-          </div>
+          {hoveredPoint.assets !== undefined && hoveredPoint.liabilities !== undefined && (
+            <div className="flex space-x-3 text-[10px] text-slate-400">
+              <span>Assets: <span className="text-neon-emerald font-semibold">{formatCurrency(hoveredPoint.assets)}</span></span>
+              <span>Debts: <span className="text-neon-crimson font-semibold">{formatCurrency(hoveredPoint.liabilities)}</span></span>
+            </div>
+          )}
         </div>
       )}
 
@@ -135,19 +149,19 @@ export default function LineChart({ data, height = 240 }) {
       >
         <defs>
           {/* Main line glow */}
-          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="#6366F1" floodOpacity="0.4" />
+          <filter id={`glow-${chartId}`} x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor={glowColor} floodOpacity="0.35" />
           </filter>
           
           {/* Fill gradient under line */}
-          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6366F1" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0" />
+          <linearGradient id={`areaGrad-${chartId}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={gradientColor} stopOpacity={fillOpacity} />
+            <stop offset="100%" stopColor={gradientColor} stopOpacity="0.0" />
           </linearGradient>
         </defs>
 
         {/* Horizontal gridlines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((r, i) => {
+        {showGrid && [0, 0.25, 0.5, 0.75, 1].map((r, i) => {
           const y = 20 + r * (height - 50);
           return (
             <line
@@ -156,7 +170,7 @@ export default function LineChart({ data, height = 240 }) {
               y1={y}
               x2="770"
               y2={y}
-              stroke="#1E293B"
+              stroke="#121826"
               strokeDasharray="4 4"
               strokeWidth="1"
             />
@@ -164,16 +178,15 @@ export default function LineChart({ data, height = 240 }) {
         })}
 
         {/* Shaded Area under the line */}
-        <path d={areaD} fill="url(#areaGrad)" />
+        <path d={areaD} fill={`url(#areaGrad-${chartId})`} />
 
         {/* Smooth Curved Line */}
         <path
           d={pathD}
           fill="none"
-          stroke="url(#lineGrad)"
-          strokeWidth="3.5"
-          filter="url(#glow)"
-          className="stroke-neon-indigo"
+          stroke={lineColor}
+          strokeWidth={strokeWidth}
+          filter={`url(#glow-${chartId})`}
         />
 
         {/* Hover vertical line tracker */}
@@ -183,7 +196,7 @@ export default function LineChart({ data, height = 240 }) {
             y1="20"
             x2={hoveredPoint.x}
             y2={height - 30}
-            stroke="#475569"
+            stroke="#1E293B"
             strokeWidth="1.5"
             strokeDasharray="2 2"
           />
@@ -194,25 +207,23 @@ export default function LineChart({ data, height = 240 }) {
           <circle
             cx={hoveredPoint.x}
             cy={hoveredPoint.y}
-            r="6"
-            fill="#8B5CF6"
-            stroke="#F8FAFC"
+            r="5"
+            fill={lineColor}
+            stroke="#FFFFFF"
             strokeWidth="2"
-            style={{ filter: 'drop-shadow(0px 0px 4px rgba(139, 92, 246, 0.8))' }}
           />
         )}
 
-        {/* Chart Dots */}
-        {points.map((p, i) => (
+        {/* Chart Dots - only display on hover to keep trend ultra clean */}
+        {!hoveredPoint && points.map((p, i) => (
           <circle
             key={i}
             cx={p.x}
             cy={p.y}
-            r="4"
-            fill="#1E293B"
-            stroke="#6366F1"
-            strokeWidth="1.5"
-            className="hover:scale-150 transition-transform duration-100"
+            r="3"
+            fill="#090D14"
+            stroke={lineColor}
+            strokeWidth="2"
           />
         ))}
 
@@ -226,13 +237,13 @@ export default function LineChart({ data, height = 240 }) {
             <text
               key={i}
               x={p.x}
-              y={height - 10}
-              fill="#64748B"
-              fontSize="10"
-              fontWeight="bold"
+              y={height - 8}
+              fill="#475569"
+              fontSize="9"
+              fontWeight="600"
               textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
             >
-              {formatDate(p.date)}
+              {p.date}
             </text>
           );
         })}
