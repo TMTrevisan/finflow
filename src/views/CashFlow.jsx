@@ -69,7 +69,7 @@ export default function CashFlow() {
   }
 
   return (
-    <div className="space-y-6 flex flex-col h-full">
+    <div className="space-y-6">
       {/* Filters & Control bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-obsidian-850 p-4 rounded-2xl border border-obsidian-800">
         <div className="flex items-center space-x-3">

@@ -74,12 +74,19 @@ export default function SankeyDiagram({ transactions, selectedMonth }) {
 
   const { incomeMap, groupMap, categoryMap, totalIncome, totalExpense, totalSavings } = flowData;
 
+  // Dynamically compute counts to scale layout height and prevent text/bottom cutoff
+  const sourceCount = Object.keys(incomeMap).length;
+  const groupCount = Object.keys(groupMap).length + (totalSavings > 0 ? 1 : 0);
+  const categoryCount = Object.values(categoryMap).reduce((sum, cats) => sum + Object.keys(cats).length, 0) + (totalSavings > 0 ? 1 : 0);
+  
+  const maxNodes = Math.max(sourceCount, groupCount, categoryCount, 8);
+  const height = Math.max(540, maxNodes * 32 + 100);
+
   // Layout configuration
-  const width = 1000;
-  const height = 480;
+  const width = 1200;
   const nodeWidth = 18;
-  const columnGap = 230; // space between columns
-  const margin = { top: 30, right: 30, bottom: 30, left: 30 };
+  const columnGap = 210; // space between columns
+  const margin = { top: 30, right: 260, bottom: 30, left: 280 };
 
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
@@ -90,13 +97,16 @@ export default function SankeyDiagram({ transactions, selectedMonth }) {
   const col3X = margin.left + 2 * columnGap;
   const col4X = margin.left + 3 * columnGap;
 
-  const maxFlow = totalIncome || 1;
-  const heightScale = chartHeight * 0.82;
+  const maxFlow = Math.max(totalIncome, totalExpense) || 1;
+  
+  // Calculate spacing and dynamically clip heightScale to prevent vertical container overflow
+  const totalSpacing = (categoryCount - 1) * 8 + (groupCount - 1) * 6;
+  const heightScale = Math.min(chartHeight * 0.82, chartHeight - totalSpacing - (categoryCount * 6) - 10);
 
   // Column 1: Income Sources
   const col1Nodes = useMemo(() => {
     const incomeSources = Object.entries(incomeMap).sort((a, b) => b[1] - a[1]);
-    const totalNodesHeight = incomeSources.reduce((sum, [_, val]) => sum + (val / maxFlow) * heightScale, 0) + (incomeSources.length - 1) * 12;
+    const totalNodesHeight = incomeSources.reduce((sum, [_, val]) => sum + Math.max(8, (val / maxFlow) * heightScale), 0) + (incomeSources.length - 1) * 12;
     let currentY = margin.top + (chartHeight - totalNodesHeight) / 2;
     
     return incomeSources.map(([name, val]) => {
@@ -139,7 +149,7 @@ export default function SankeyDiagram({ transactions, selectedMonth }) {
       groupsList.push(['Net Savings', totalSavings]);
     }
     
-    const totalNodesHeight = groupsList.reduce((sum, [_, val]) => sum + (val / maxFlow) * heightScale, 0) + (groupsList.length - 1) * 12;
+    const totalNodesHeight = groupsList.reduce((sum, [_, val]) => sum + Math.max(8, (val / maxFlow) * heightScale), 0) + (groupsList.length - 1) * 12;
     let currentY = margin.top + (chartHeight - totalNodesHeight) / 2;
 
     return groupsList.map(([name, val]) => {
@@ -202,7 +212,8 @@ export default function SankeyDiagram({ transactions, selectedMonth }) {
       const cats = categoryNodesMap[groupNode.name] || [];
       totalCats += cats.length;
       cats.forEach(c => {
-        totalHeight += (c.value / maxFlow) * heightScale;
+        const nodeHeight = (c.value / maxFlow) * heightScale;
+        totalHeight += Math.max(6, nodeHeight);
       });
     });
 
@@ -235,9 +246,10 @@ export default function SankeyDiagram({ transactions, selectedMonth }) {
     if (totalIncome === 0) return [];
 
     // 1. Column 1 (Sources) -> Column 2 (Total Income Pool)
-    let poolLeftY = col2Node.y;
+    const incomingOffset = (col2Node.h - (totalIncome / maxFlow) * heightScale) / 2;
+    let poolLeftY = col2Node.y + incomingOffset;
     col1Nodes.forEach(source => {
-      const linkH = (source.value / totalIncome) * col2Node.h;
+      const linkH = (source.value / maxFlow) * heightScale;
       results.push({
         id: `link_${source.id}_to_pool`,
         sourceId: source.id,
@@ -259,7 +271,7 @@ export default function SankeyDiagram({ transactions, selectedMonth }) {
     // 2. Column 2 (Total Income Pool) -> Column 3 (Groups)
     let poolRightY = col2Node.y;
     col3Nodes.forEach(group => {
-      const linkH = (group.value / totalIncome) * col2Node.h;
+      const linkH = (group.value / maxFlow) * heightScale;
       results.push({
         id: `link_pool_to_${group.id}`,
         sourceId: col2Node.id,
@@ -327,7 +339,7 @@ export default function SankeyDiagram({ transactions, selectedMonth }) {
   return (
     <div className="bg-obsidian-800/40 border border-obsidian-700/60 rounded-3xl p-6 shadow-xl overflow-hidden relative">
       <div className="w-full overflow-x-auto hide-scrollbar">
-        <div className="min-w-[960px] relative">
+        <div className="min-w-[1050px] relative">
           <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none">
             <defs>
               {/* Gradients for ribbons */}

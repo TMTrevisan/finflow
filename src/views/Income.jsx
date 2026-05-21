@@ -1,14 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Card, CardContent } from '../components/ui/Card';
+import DonutChart from '../components/ui/DonutChart';
 import DateRangeSelector from '../components/ui/DateRangeSelector';
 import { filterTransactionsByDateRange } from '../utils/dateFilters';
 import { formatCurrency, cleanMerchantName } from '../utils/formatting';
+import { getCategoryConfig } from '../utils/categoryHelpers';
 import { 
   TrendingUp, 
   Landmark, 
   CalendarCheck,
-  FileDown
+  FileDown,
+  History
 } from 'lucide-react';
 
 export default function Income() {
@@ -32,7 +35,7 @@ export default function Income() {
     return incomeTransactions.reduce((sum, t) => sum + t.amount, 0);
   }, [incomeTransactions]);
 
-  // Group by Category for Ranked Income Sources
+  // Group by Category for Donut Chart
   const categoryData = useMemo(() => {
     const categoriesMap = {};
     incomeTransactions.forEach(t => {
@@ -41,7 +44,14 @@ export default function Income() {
     });
 
     return Object.entries(categoriesMap)
-      .map(([name, value]) => ({ name, value }))
+      .map(([name, value]) => {
+        const config = getCategoryConfig(name);
+        return {
+          name,
+          value,
+          color: config.color
+        };
+      })
       .sort((a, b) => b.value - a.value);
   }, [incomeTransactions]);
 
@@ -56,6 +66,34 @@ export default function Income() {
     const largest = Math.max(...incomeTransactions.map(t => t.amount));
     return { total, largest, average, count };
   }, [incomeTransactions, totalIncome]);
+
+  // Group income transactions by Date for Recent Activity
+  const groupedTransactionsByDate = useMemo(() => {
+    const sorted = [...incomeTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    const groups = {};
+    sorted.forEach(t => {
+      const dateStr = t.date;
+      const dateObj = new Date(dateStr);
+      // Format as "May 10" or invalid fallback
+      const formattedDate = !isNaN(dateObj.getTime())
+        ? dateObj.toLocaleDateString('default', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+        : 'Unknown Date';
+      
+      if (!groups[dateStr]) {
+        groups[dateStr] = {
+          dateLabel: formattedDate,
+          rawDate: dateStr,
+          transactions: [],
+          totalAmount: 0
+        };
+      }
+      groups[dateStr].transactions.push(t);
+      groups[dateStr].totalAmount += t.amount;
+    });
+    
+    return Object.values(groups).sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+  }, [incomeTransactions]);
 
   // Group by Month to show historical income comparisons (uses all transactions for proper scale, not filtered by this month)
   const monthlyIncome = useMemo(() => {
@@ -113,7 +151,7 @@ export default function Income() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       {/* Date selector header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-obsidian-850 p-4 rounded-2xl border border-obsidian-800">
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Filtered View</h3>
@@ -169,35 +207,18 @@ export default function Income() {
 
       {/* Main Income Breakdown Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Ranked Income Categories */}
+        {/* Segmented Donut Chart */}
         <Card className="lg:col-span-2 bg-obsidian-800/40 border-obsidian-800/80">
-          <div className="p-6 border-b border-obsidian-800/80">
-            <h3 className="text-lg font-bold text-white">Income by Category</h3>
+          <div className="p-6 border-b border-obsidian-800/80 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white">Income Distribution</h3>
           </div>
-          <CardContent className="pt-6 space-y-4">
-            {categoryData.length === 0 ? (
-              <p className="text-slate-500 text-sm text-center py-8">No income category data</p>
-            ) : (
-              categoryData.map((cat, index) => {
-                const maxVal = categoryData[0]?.value || 1;
-                const percent = (cat.value / maxVal) * 100;
-                
-                return (
-                  <div key={cat.name} className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-semibold text-slate-200">{cat.name}</span>
-                      <span className="font-bold text-white">{formatCurrency(cat.value)}</span>
-                    </div>
-                    <div className="w-full bg-obsidian-800 h-2 rounded-full overflow-hidden">
-                      <div 
-                        style={{ width: `${percent}%` }}
-                        className="h-full bg-neon-emerald rounded-full"
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            )}
+          <CardContent className="pt-6">
+            <DonutChart 
+              data={categoryData} 
+              size={220} 
+              centerLabel="Total Income"
+              centerSublabel="This period"
+            />
           </CardContent>
         </Card>
 
@@ -236,37 +257,105 @@ export default function Income() {
         </Card>
       </div>
 
-      {/* Monthly income bar charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-3 bg-obsidian-800/40 border-obsidian-800/80 p-6">
-          <h3 className="text-lg font-bold text-white mb-6">Historical Income Trends</h3>
-          <div className="flex items-end justify-between gap-4 h-48 pt-6">
-            {monthlyIncome.length === 0 ? (
-              <p className="text-slate-500 text-sm text-center w-full">No historical income data</p>
-            ) : (
-              monthlyIncome.map((m) => {
-                const maxMonth = Math.max(...monthlyIncome.map(x => x.total)) || 1;
-                const heightPct = (m.total / maxMonth) * 100;
-                
-                return (
-                  <div key={m.month} className="flex-1 flex flex-col items-center group h-full justify-end">
-                    <div className="relative w-full flex items-end justify-center h-32 mb-2">
-                      <span className="absolute bottom-full bg-obsidian-800 border border-obsidian-750 text-white font-bold text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none mb-1 shadow-xl">
-                        {formatCurrency(m.total)}
-                      </span>
-                      <div 
-                        style={{ height: `${heightPct}%`, minHeight: '8%' }}
-                        className="w-8 sm:w-16 bg-neon-emerald/25 hover:bg-neon-emerald/55 border border-neon-emerald/35 hover:border-neon-emerald rounded-t-lg transition-all duration-300 relative shadow-[0_0_12px_rgba(16,185,129,0.05)] hover:shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">{m.month}</span>
+      {/* Monthly income trends */}
+      <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6">
+        <h3 className="text-lg font-bold text-white mb-6">Historical Income Trends</h3>
+        <div className="flex items-end justify-between gap-4 h-48 pt-6">
+          {monthlyIncome.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center w-full">No historical income data</p>
+          ) : (
+            monthlyIncome.map((m) => {
+              const maxMonth = Math.max(...monthlyIncome.map(x => x.total)) || 1;
+              const heightPct = (m.total / maxMonth) * 100;
+              
+              return (
+                <div key={m.month} className="flex-1 flex flex-col items-center group h-full justify-end">
+                  <div className="relative w-full flex items-end justify-center h-32 mb-2">
+                    <span className="absolute bottom-full bg-obsidian-800 border border-obsidian-750 text-white font-bold text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none mb-1 shadow-xl z-10">
+                      {formatCurrency(m.total)}
+                    </span>
+                    <div 
+                      style={{ height: `${heightPct}%`, minHeight: '8%' }}
+                      className="w-8 sm:w-16 bg-neon-emerald/25 hover:bg-neon-emerald/55 border border-neon-emerald/35 hover:border-neon-emerald rounded-t-lg transition-all duration-300 relative shadow-[0_0_12px_rgba(16,185,129,0.05)] hover:shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                    />
                   </div>
-                );
-              })
-            )}
+                  <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">{m.month}</span>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </Card>
+
+      {/* Recent Activity Section */}
+      <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6">
+        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+          <History size={20} className="text-neon-indigo" />
+          <span>Recent Activity</span>
+        </h3>
+        
+        {groupedTransactionsByDate.length === 0 ? (
+          <p className="text-slate-500 text-sm text-center py-6">No recent deposits found</p>
+        ) : (
+          <div className="space-y-6">
+            {groupedTransactionsByDate.slice(0, 15).map(group => (
+              <div key={group.rawDate} className="space-y-2.5">
+                {/* Date Header with Daily Total */}
+                <div className="flex justify-between items-center px-1 border-b border-obsidian-800/40 pb-1.5">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{group.dateLabel}</span>
+                  <span className="text-xs font-bold text-neon-emerald">{formatCurrency(group.totalAmount)}</span>
+                </div>
+                
+                {/* Transactions under this date */}
+                <div className="space-y-2">
+                  {group.transactions.map(t => {
+                    const config = getCategoryConfig(t.category);
+                    const IconComponent = config.icon;
+                    
+                    return (
+                      <div 
+                        key={t.id} 
+                        className="flex items-center justify-between p-3 bg-obsidian-850/30 hover:bg-obsidian-800/45 border border-obsidian-800/60 hover:border-obsidian-750 rounded-2xl transition-all duration-200 group"
+                      >
+                        <div className="flex items-center space-x-3.5">
+                          {/* Category Icon Circle */}
+                          <div 
+                            className="w-10 h-10 rounded-full flex items-center justify-center bg-obsidian-900 border transition-all duration-200 group-hover:border-opacity-100"
+                            style={{ 
+                              borderColor: `${config.color}25`,
+                              boxShadow: `0 0 8px ${config.color}10`
+                            }}
+                          >
+                            {IconComponent && <IconComponent size={18} style={{ color: config.color }} />}
+                          </div>
+                          
+                          <div>
+                            <p className="text-sm font-semibold text-white tracking-tight group-hover:text-neon-indigo transition-colors duration-200">
+                              {cleanMerchantName(t.description)}
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                              <span style={{ color: config.color }} className="font-semibold">{t.category}</span>
+                              <span className="mx-1.5">•</span>
+                              <span>{t.account}</span>
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <span className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors duration-200">
+                            {formatCurrency(t.amount)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        </Card>
-      </div>
+        )}
+      </Card>
     </div>
   );
 }
+

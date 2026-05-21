@@ -5,24 +5,14 @@ import DonutChart from '../components/ui/DonutChart';
 import DateRangeSelector from '../components/ui/DateRangeSelector';
 import { filterTransactionsByDateRange } from '../utils/dateFilters';
 import { formatCurrency, cleanMerchantName } from '../utils/formatting';
+import { getCategoryConfig } from '../utils/categoryHelpers';
 import { 
   TrendingDown, 
   ShoppingBag, 
   CalendarDays,
-  FileDown
+  FileDown,
+  History
 } from 'lucide-react';
-
-const CATEGORY_COLORS = {
-  'Rent': '#6366F1',         // Indigo
-  'Housing': '#3B82F6',      // Blue
-  'Groceries': '#10B981',    // Emerald
-  'Dining': '#EC4899',       // Pink
-  'Auto': '#F59E0B',         // Amber
-  'Subscriptions': '#8B5CF6', // Violet
-  'Fitness': '#06B6D4',      // Cyan
-  'Utilities': '#06B6D4',    // Cyan
-  'Default': '#94A3B8'       // Slate
-};
 
 export default function Spending() {
   const { transactions, isLoading } = useAppContext();
@@ -54,11 +44,14 @@ export default function Spending() {
     });
 
     return Object.entries(categoriesMap)
-      .map(([name, value]) => ({
-        name,
-        value,
-        color: CATEGORY_COLORS[name] || CATEGORY_COLORS['Default']
-      }))
+      .map(([name, value]) => {
+        const config = getCategoryConfig(name);
+        return {
+          name,
+          value,
+          color: config.color
+        };
+      })
       .sort((a, b) => b.value - a.value);
   }, [expenseTransactions]);
 
@@ -73,6 +66,34 @@ export default function Spending() {
     const largest = Math.max(...expenseTransactions.map(t => Math.abs(t.amount)));
     return { total, largest, average, count };
   }, [expenseTransactions, totalSpent]);
+
+  // Group expense transactions by Date for Recent Activity
+  const groupedTransactionsByDate = useMemo(() => {
+    const sorted = [...expenseTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    const groups = {};
+    sorted.forEach(t => {
+      const dateStr = t.date;
+      const dateObj = new Date(dateStr);
+      // Format as "May 10" or invalid fallback
+      const formattedDate = !isNaN(dateObj.getTime())
+        ? dateObj.toLocaleDateString('default', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+        : 'Unknown Date';
+      
+      if (!groups[dateStr]) {
+        groups[dateStr] = {
+          dateLabel: formattedDate,
+          rawDate: dateStr,
+          transactions: [],
+          totalAmount: 0
+        };
+      }
+      groups[dateStr].transactions.push(t);
+      groups[dateStr].totalAmount += Math.abs(t.amount);
+    });
+    
+    return Object.values(groups).sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+  }, [expenseTransactions]);
 
   // Group by Month for historical chart (uses all transactions for proper scale, not filtered by this month)
   const monthlySpending = useMemo(() => {
@@ -129,7 +150,7 @@ export default function Spending() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       {/* Date selector header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-obsidian-850 p-4 rounded-2xl border border-obsidian-800">
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Filtered View</h3>
@@ -191,7 +212,12 @@ export default function Spending() {
             <h3 className="text-lg font-bold text-white">Category Distribution</h3>
           </div>
           <CardContent className="pt-6">
-            <DonutChart data={categoryData.slice(0, 7)} size={220} />
+            <DonutChart 
+              data={categoryData} 
+              size={220} 
+              centerLabel="Total Spending"
+              centerSublabel="This period"
+            />
           </CardContent>
         </Card>
 
@@ -231,36 +257,104 @@ export default function Spending() {
       </div>
 
       {/* Monthly spending progress/trends */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-3 bg-obsidian-800/40 border-obsidian-800/80 p-6">
-          <h3 className="text-lg font-bold text-white mb-6">Historical Monthly Trends</h3>
-          <div className="flex items-end justify-between gap-4 h-48 pt-6">
-            {monthlySpending.length === 0 ? (
-              <p className="text-slate-500 text-sm text-center w-full">No historical data available</p>
-            ) : (
-              monthlySpending.map((m) => {
-                const maxMonth = Math.max(...monthlySpending.map(x => x.total)) || 1;
-                const heightPct = (m.total / maxMonth) * 100;
-                
-                return (
-                  <div key={m.month} className="flex-1 flex flex-col items-center group h-full justify-end">
-                    <div className="relative w-full flex items-end justify-center h-32 mb-2">
-                      <span className="absolute bottom-full bg-obsidian-800 border border-obsidian-750 text-white font-bold text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none mb-1 shadow-xl">
-                        {formatCurrency(m.total)}
-                      </span>
-                      <div 
-                        style={{ height: `${heightPct}%`, minHeight: '8%' }}
-                        className="w-8 sm:w-16 bg-neon-indigo/25 hover:bg-neon-indigo/55 border border-neon-indigo/35 hover:border-neon-indigo rounded-t-lg transition-all duration-300 relative shadow-[0_0_12px_rgba(99,102,241,0.05)] hover:shadow-[0_0_12px_rgba(99,102,241,0.2)]"
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">{m.month}</span>
+      <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6">
+        <h3 className="text-lg font-bold text-white mb-6">Historical Monthly Trends</h3>
+        <div className="flex items-end justify-between gap-4 h-48 pt-6">
+          {monthlySpending.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center w-full">No historical data available</p>
+          ) : (
+            monthlySpending.map((m) => {
+              const maxMonth = Math.max(...monthlySpending.map(x => x.total)) || 1;
+              const heightPct = (m.total / maxMonth) * 100;
+              
+              return (
+                <div key={m.month} className="flex-1 flex flex-col items-center group h-full justify-end">
+                  <div className="relative w-full flex items-end justify-center h-32 mb-2">
+                    <span className="absolute bottom-full bg-obsidian-800 border border-obsidian-750 text-white font-bold text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none mb-1 shadow-xl z-10">
+                      {formatCurrency(m.total)}
+                    </span>
+                    <div 
+                      style={{ height: `${heightPct}%`, minHeight: '8%' }}
+                      className="w-8 sm:w-16 bg-neon-indigo/25 hover:bg-neon-indigo/55 border border-neon-indigo/35 hover:border-neon-indigo rounded-t-lg transition-all duration-300 relative shadow-[0_0_12px_rgba(99,102,241,0.05)] hover:shadow-[0_0_12px_rgba(99,102,241,0.2)]"
+                    />
                   </div>
-                );
-              })
-            )}
+                  <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">{m.month}</span>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </Card>
+
+      {/* Recent Activity Section */}
+      <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6">
+        <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+          <History size={20} className="text-neon-indigo" />
+          <span>Recent Activity</span>
+        </h3>
+        
+        {groupedTransactionsByDate.length === 0 ? (
+          <p className="text-slate-500 text-sm text-center py-6">No recent expenses found</p>
+        ) : (
+          <div className="space-y-6">
+            {groupedTransactionsByDate.slice(0, 15).map(group => (
+              <div key={group.rawDate} className="space-y-2.5">
+                {/* Date Header with Daily Total */}
+                <div className="flex justify-between items-center px-1 border-b border-obsidian-800/40 pb-1.5">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{group.dateLabel}</span>
+                  <span className="text-xs font-bold text-neon-crimson">{formatCurrency(group.totalAmount)}</span>
+                </div>
+                
+                {/* Transactions under this date */}
+                <div className="space-y-2">
+                  {group.transactions.map(t => {
+                    const config = getCategoryConfig(t.category);
+                    const IconComponent = config.icon;
+                    
+                    return (
+                      <div 
+                        key={t.id} 
+                        className="flex items-center justify-between p-3 bg-obsidian-850/30 hover:bg-obsidian-800/45 border border-obsidian-800/60 hover:border-obsidian-750 rounded-2xl transition-all duration-200 group"
+                      >
+                        <div className="flex items-center space-x-3.5">
+                          {/* Category Icon Circle */}
+                          <div 
+                            className="w-10 h-10 rounded-full flex items-center justify-center bg-obsidian-900 border transition-all duration-200 group-hover:border-opacity-100"
+                            style={{ 
+                              borderColor: `${config.color}25`,
+                              boxShadow: `0 0 8px ${config.color}10`
+                            }}
+                          >
+                            {IconComponent && <IconComponent size={18} style={{ color: config.color }} />}
+                          </div>
+                          
+                          <div>
+                            <p className="text-sm font-semibold text-white tracking-tight group-hover:text-neon-indigo transition-colors duration-200">
+                              {cleanMerchantName(t.description)}
+                            </p>
+                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                              <span style={{ color: config.color }} className="font-semibold">{t.category}</span>
+                              <span className="mx-1.5">•</span>
+                              <span>{t.account}</span>
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="text-right">
+                          <span className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors duration-200">
+                            {formatCurrency(Math.abs(t.amount))}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
-        </Card>
-      </div>
+        )}
+      </Card>
     </div>
   );
 }
+
