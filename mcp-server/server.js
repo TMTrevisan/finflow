@@ -399,12 +399,17 @@ function handleSseConnection(req, res) {
   const sessionId = Math.random().toString(36).substring(2, 15);
   sseConnections.set(sessionId, res);
 
-  // Send standard MCP SSE endpoint announcement
+  // Send standard MCP SSE endpoint announcement (Must be absolute for some remote clients like Grok/Cursor)
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  
   const messagePath = secretPrefix
     ? `/${secretPrefix}/message?sessionId=${sessionId}`
     : `/message?sessionId=${sessionId}`;
     
-  res.write(`event: endpoint\ndata: ${messagePath}\n\n`);
+  const absoluteMessageUrl = `${protocol}://${host}${messagePath}`;
+    
+  res.write(`event: endpoint\ndata: ${absoluteMessageUrl}\n\n`);
 
   req.on('close', () => {
     sseConnections.delete(sessionId);
