@@ -2,15 +2,9 @@
  * FinFlow MCP Server
  * 
  * Exposes your Google Sheets financial data as MCP tools that can be consumed
- * by Claude Desktop, Cursor, Zed, or any other MCP-compatible AI assistant.
+ * by Claude Desktop, Cursor, Zed, Grok, or any other MCP-compatible AI assistant.
  * 
- * Tool Endpoints:
- *   GET  /                - Health check
- *   GET  /tools           - List available tools (MCP discovery)
- *   POST /tools/:toolName - Call a specific tool
- * 
- * Deploy to Render.com (free) and add the URL to Claude Desktop settings.
- * Secure with Bearer token in the MCP_SECRET environment variable.
+ * Supports both standard MCP Server-Sent Events (SSE) protocol and simple REST HTTP.
  */
 
 import express from 'express';
@@ -24,6 +18,9 @@ const SHEETS_API_URL = process.env.SHEETS_API_URL || ''; // Your Google Apps Scr
 
 app.use(cors());
 app.use(express.json());
+
+// Active Server-Sent Events (SSE) connections mapping session IDs to response objects
+const sseConnections = new Map();
 
 // ─── Authentication Middleware ────────────────────────────────────────────────
 function authenticate(req, res, next) {
@@ -246,6 +243,85 @@ async function runTool(toolName, args) {
   }
 }
 
+// ─── Standard JSON-RPC Handler for MCP ───────────────────────────────────────
+async function handleJsonRpc(payload) {
+  const { jsonrpc, method, id, params } = payload;
+  if (jsonrpc !== '2.0') {
+    return { jsonrpc: '2.0', id, error: { code: -32600, message: 'Invalid Request' } };
+  }
+
+  try {
+    switch (method) {
+      case 'initialize':
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+              tools: {}
+            },
+            serverInfo: {
+              name: 'FinFlow MCP Server',
+              version: '1.0.0'
+            }
+          }
+        };
+
+      case 'notifications/initialized':
+        return null; // No response needed
+
+      case 'tools/list':
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            tools: TOOLS
+          }
+        };
+
+      case 'tools/call': {
+        const { name, arguments: args } = params || {};
+        const toolDef = TOOLS.find(t => t.name === name);
+        if (!toolDef) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: { code: -32601, message: `Tool "${name}" not found.` }
+          };
+        }
+        
+        const result = await runTool(name, args);
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }
+            ]
+          }
+        };
+      }
+
+      default:
+        return {
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32601, message: `Method not found: ${method}` }
+        };
+    }
+  } catch (err) {
+    return {
+      jsonrpc: '2.0',
+      id,
+      error: { code: -32000, message: err.message }
+    };
+  }
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // Health check
@@ -268,7 +344,7 @@ function handleHealthCheck(req, res) {
 app.get('/', handleHealthCheck);
 app.get('/:secretPrefix', handleHealthCheck);
 
-// MCP: List available tools
+// Simple REST endpoints (For Claude.ai custom connectors/REST integrations)
 app.get('/tools', authenticate, (req, res) => {
   res.json({ tools: TOOLS });
 });
@@ -276,7 +352,6 @@ app.get('/:secretPrefix/tools', authenticate, (req, res) => {
   res.json({ tools: TOOLS });
 });
 
-// MCP: Call a tool
 async function handleToolCall(req, res) {
   const { toolName } = req.params;
   const args = req.body || {};
@@ -298,11 +373,82 @@ async function handleToolCall(req, res) {
 app.post('/tools/:toolName', authenticate, handleToolCall);
 app.post('/:secretPrefix/tools/:toolName', authenticate, handleToolCall);
 
+// ─── Standard MCP SSE (Server-Sent Events) Transport Endpoints ────────────────
+
+function handleSseConnection(req, res) {
+  const { secretPrefix } = req.params;
+  
+  if (secretPrefix && MCP_SECRET && secretPrefix !== MCP_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized. Invalid secret prefix.' });
+  }
+  
+  if (!secretPrefix && MCP_SECRET) {
+    const auth = req.headers.authorization || '';
+    const token = auth.replace('Bearer ', '').trim();
+    if (token !== MCP_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized. Bearer token invalid.' });
+    }
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const sessionId = Math.random().toString(36).substring(2, 15);
+  sseConnections.set(sessionId, res);
+
+  // Send standard MCP SSE endpoint announcement
+  const messagePath = secretPrefix
+    ? `/${secretPrefix}/message?sessionId=${sessionId}`
+    : `/message?sessionId=${sessionId}`;
+    
+  res.write(`event: endpoint\ndata: ${messagePath}\n\n`);
+
+  req.on('close', () => {
+    sseConnections.delete(sessionId);
+  });
+}
+
+async function handlePostMessage(req, res) {
+  const { secretPrefix } = req.params;
+  const { sessionId } = req.query;
+
+  if (secretPrefix && MCP_SECRET && secretPrefix !== MCP_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized.' });
+  }
+
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Missing sessionId query parameter.' });
+  }
+
+  const clientRes = sseConnections.get(sessionId);
+  if (!clientRes) {
+    return res.status(404).json({ error: 'Active SSE connection session not found.' });
+  }
+
+  const payload = req.body;
+  const responsePayload = await handleJsonRpc(payload);
+  
+  if (responsePayload) {
+    clientRes.write(`event: message\ndata: ${JSON.stringify(responsePayload)}\n\n`);
+  }
+
+  res.status(202).end();
+}
+
+app.get('/sse', handleSseConnection);
+app.get('/:secretPrefix/sse', handleSseConnection);
+app.post('/message', handlePostMessage);
+app.post('/:secretPrefix/message', handlePostMessage);
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n🚀 FinFlow MCP Server running on port ${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/`);
   console.log(`   Tools:  http://localhost:${PORT}/tools`);
+  console.log(`   SSE:    http://localhost:${PORT}/sse`);
   if (MCP_SECRET) {
     console.log(`   Auth:   Bearer token configured ✓`);
   } else {
