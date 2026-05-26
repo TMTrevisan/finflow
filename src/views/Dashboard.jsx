@@ -617,31 +617,7 @@ export default function Dashboard({ setCurrentView }) {
             </div>
 
             {/* Income Progress */}
-            <div className="space-y-1.5 pt-1">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-slate-400">Income this month</span>
-                <span className="text-white font-extrabold">{formatCurrency(cashFlowMetrics.incomeThisMonth)}</span>
-              </div>
-              
-              {/* Stacked Proportional Bar (Simulated categories segments: Mint, Cyan, Blue) */}
-              <div className="w-full h-4 rounded overflow-hidden flex">
-                <div className="h-full bg-emerald-450" style={{ width: '65%' }} />
-                <div className="h-full bg-cyan-400" style={{ width: '23%' }} />
-                <div className="h-full bg-blue-500" style={{ width: '12%' }} />
-              </div>
 
-              {/* Progress Comparison line */}
-              <div className="w-full bg-[#131926] h-1.5 rounded overflow-hidden">
-                <div 
-                  className="h-full bg-emerald-500 rounded-full" 
-                  style={{ width: `${Math.min(100, (cashFlowMetrics.incomeThisMonth / Math.max(cashFlowMetrics.incomeThisMonth, cashFlowMetrics.incomeLastMonth, 1)) * 100)}%` }} 
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-500">
-                <span>last month</span>
-                <span className="font-bold">{formatCurrency(cashFlowMetrics.incomeLastMonth)}</span>
-              </div>
-            </div>
 
             {/* Expenses Progress */}
             <div className="space-y-1.5 pt-2">
@@ -697,7 +673,6 @@ export default function Dashboard({ setCurrentView }) {
             {/* Custom 12-Month Bar Chart */}
             <div className="space-y-4 pt-1">
               <div className="h-28 flex items-end justify-between gap-1 select-none">
-                {/* 12 monthly bars */}
                 {[
                   { m: 'JUN', val: 100 },
                   { m: 'JUL', val: 72 },
@@ -712,14 +687,15 @@ export default function Dashboard({ setCurrentView }) {
                   { m: 'APR', val: 24 },
                   { m: 'MAY', val: 22 }
                 ].map((bar, i) => (
-                  <div key={i} className="flex-1 flex flex-col items-center group">
-                    <div className="w-full bg-[#131926] rounded-md h-24 flex items-end relative overflow-hidden">
-                      <div 
-                        className="bg-blue-650 hover:bg-neon-indigo transition-all duration-300 rounded-md w-full"
-                        style={{ height: `${bar.val}%` }}
-                      />
+                  <div key={i} className="flex-1 flex flex-col items-center">
+                    <div 
+                      className="w-full rounded-t-sm bg-neon-indigo/20 hover:bg-neon-indigo/40 transition-colors relative group"
+                      style={{ height: `${bar.val}%` }}
+                    >
+                      <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black px-2 py-1 rounded text-[10px] font-bold text-white whitespace-nowrap">
+                        {bar.m}: {bar.val}%
+                      </div>
                     </div>
-                    {/* Month Label every other month */}
                     <span className="text-[8px] font-black text-slate-500 mt-2 block uppercase text-center min-h-[10px]">
                       {['JUN', 'AUG', 'OCT', 'DEC', 'FEB', 'APR'].includes(bar.m) ? bar.m : ''}
                     </span>
