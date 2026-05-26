@@ -44,9 +44,11 @@ export default function Dashboard({ setCurrentView }) {
   // Filter latest balance entries per account
   const latestBalances = useMemo(() => {
     const latestMap = new Map();
-    const sorted = [...balances].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sorted = [...(balances || [])]
+      .filter(b => b && b.date && b.institution && b.account)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
     sorted.forEach(b => {
-      const key = `${b.institution}_${b.account}_${b.account_id}`;
+      const key = `${b.institution}_${b.account}_${b.account_id || ''}`;
       latestMap.set(key, b);
     });
     return Array.from(latestMap.values());
@@ -59,6 +61,7 @@ export default function Dashboard({ setCurrentView }) {
     let savingsBalance = 0;
 
     latestBalances.forEach(b => {
+      if (!b) return;
       const val = Number(b.balance) || 0;
       if (b.class === 'Asset') {
         assets += val;
@@ -80,9 +83,9 @@ export default function Dashboard({ setCurrentView }) {
 
   // Group assets categories dynamically
   const assetCategories = useMemo(() => {
-    const cashAccts = latestBalances.filter(b => b.class === 'Asset' && (b.type?.toLowerCase() === 'checking' || b.type?.toLowerCase() === 'savings' || b.type?.toLowerCase() === 'cash'));
-    const investAccts = latestBalances.filter(b => b.class === 'Asset' && (b.type?.toLowerCase() === 'investment' || b.type?.toLowerCase() === 'brokerage' || b.type?.toLowerCase()?.includes('401') || b.type?.toLowerCase()?.includes('ira')));
-    const otherAccts = latestBalances.filter(b => b.class === 'Asset' && !cashAccts.includes(b) && !investAccts.includes(b));
+    const cashAccts = latestBalances.filter(b => b && b.class === 'Asset' && (b.type?.toLowerCase() === 'checking' || b.type?.toLowerCase() === 'savings' || b.type?.toLowerCase() === 'cash'));
+    const investAccts = latestBalances.filter(b => b && b.class === 'Asset' && (b.type?.toLowerCase() === 'investment' || b.type?.toLowerCase() === 'brokerage' || b.type?.toLowerCase()?.includes('401') || b.type?.toLowerCase()?.includes('ira')));
+    const otherAccts = latestBalances.filter(b => b && b.class === 'Asset' && !cashAccts.includes(b) && !investAccts.includes(b));
 
     const getCatMetrics = (accts, label) => {
       const balance = accts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
@@ -90,12 +93,17 @@ export default function Dashboard({ setCurrentView }) {
       // Calculate delta (latest snapshot vs earliest snapshot)
       let delta = 0;
       accts.forEach(acc => {
-        const accHist = balances.filter(b => b.institution === acc.institution && b.account === acc.account && b.account_id === acc.account_id);
+        if (!acc) return;
+        const accHist = (balances || []).filter(b => b && b.institution === acc.institution && b.account === acc.account && b.account_id === acc.account_id);
         if (accHist.length > 1) {
-          const sortedHist = [...accHist].sort((a, b) => new Date(a.date) - new Date(b.date));
-          const firstVal = Number(sortedHist[0].balance || 0);
-          const lastVal = Number(sortedHist[sortedHist.length - 1].balance || 0);
-          delta += (lastVal - firstVal);
+          const sortedHist = [...accHist]
+            .filter(b => b && b.date)
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+          if (sortedHist.length > 0) {
+            const firstVal = Number(sortedHist[0].balance || 0);
+            const lastVal = Number(sortedHist[sortedHist.length - 1].balance || 0);
+            delta += (lastVal - firstVal);
+          }
         }
       });
 
@@ -116,22 +124,27 @@ export default function Dashboard({ setCurrentView }) {
 
   // Group liabilities categories dynamically
   const liabilityCategories = useMemo(() => {
-    const cardAccts = latestBalances.filter(b => b.class === 'Liability' && b.type?.toLowerCase() === 'credit card');
-    const loanAccts = latestBalances.filter(b => b.class === 'Liability' && (b.type?.toLowerCase() === 'loan' || b.type?.toLowerCase()?.includes('student')));
-    const mortgageAccts = latestBalances.filter(b => b.class === 'Liability' && b.type?.toLowerCase() === 'mortgage');
-    const otherAccts = latestBalances.filter(b => b.class === 'Liability' && !cardAccts.includes(b) && !loanAccts.includes(b) && !mortgageAccts.includes(b));
+    const cardAccts = latestBalances.filter(b => b && b.class === 'Liability' && b.type?.toLowerCase() === 'credit card');
+    const loanAccts = latestBalances.filter(b => b && b.class === 'Liability' && (b.type?.toLowerCase() === 'loan' || b.type?.toLowerCase()?.includes('student')));
+    const mortgageAccts = latestBalances.filter(b => b && b.class === 'Liability' && b.type?.toLowerCase() === 'mortgage');
+    const otherAccts = latestBalances.filter(b => b && b.class === 'Liability' && !cardAccts.includes(b) && !loanAccts.includes(b) && !mortgageAccts.includes(b));
 
     const getCatMetrics = (accts, label) => {
       const balance = accts.reduce((sum, a) => sum + Math.abs(Number(a.balance || 0)), 0);
       
       let delta = 0;
       accts.forEach(acc => {
-        const accHist = balances.filter(b => b.institution === acc.institution && b.account === acc.account && b.account_id === acc.account_id);
+        if (!acc) return;
+        const accHist = (balances || []).filter(b => b && b.institution === acc.institution && b.account === acc.account && b.account_id === acc.account_id);
         if (accHist.length > 1) {
-          const sortedHist = [...accHist].sort((a, b) => new Date(a.date) - new Date(b.date));
-          const firstVal = Math.abs(Number(sortedHist[0].balance || 0));
-          const lastVal = Math.abs(Number(sortedHist[sortedHist.length - 1].balance || 0));
-          delta += (lastVal - firstVal); // positive means debt increased
+          const sortedHist = [...accHist]
+            .filter(b => b && b.date)
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+          if (sortedHist.length > 0) {
+            const firstVal = Math.abs(Number(sortedHist[0].balance || 0));
+            const lastVal = Math.abs(Number(sortedHist[sortedHist.length - 1].balance || 0));
+            delta += (lastVal - firstVal); // positive means debt increased
+          }
         }
       });
 
@@ -153,7 +166,7 @@ export default function Dashboard({ setCurrentView }) {
 
   // Calculate Net Worth / Assets / Liabilities history for Line Chart
   const historyData = useMemo(() => {
-    const uniqueDates = Array.from(new Set(balances.map(b => b.date))).sort(
+    const uniqueDates = Array.from(new Set((balances || []).filter(b => b && b.date).map(b => b.date))).sort(
       (a, b) => new Date(a) - new Date(b)
     );
 
@@ -163,14 +176,17 @@ export default function Dashboard({ setCurrentView }) {
       let assetsSum = 0;
       let liabilitiesSum = 0;
 
-      const dateBalances = balances.filter(b => b.date === date);
+      const dateBalances = (balances || []).filter(b => b && b.date === date);
       const map = new Map();
       dateBalances.forEach(b => {
-        const key = `${b.institution}_${b.account}_${b.account_id}`;
-        map.set(key, b);
+        if (b && b.institution && b.account) {
+          const key = `${b.institution}_${b.account}_${b.account_id || ''}`;
+          map.set(key, b);
+        }
       });
 
       Array.from(map.values()).forEach(b => {
+        if (!b) return;
         const val = Number(b.balance) || 0;
         if (b.class === 'Asset') {
           assetsSum += val;
@@ -221,7 +237,8 @@ export default function Dashboard({ setCurrentView }) {
 
   // Recent Transactions (last 5)
   const recentTransactions = useMemo(() => {
-    return [...transactions]
+    return [...(transactions || [])]
+      .filter(t => t && t.date)
       .sort((a, b) => new Date(b.date) - new Date(a.date))
       .slice(0, 5);
   }, [transactions]);
@@ -233,40 +250,42 @@ export default function Dashboard({ setCurrentView }) {
     const currentYear = now.getFullYear();
 
     // Filter current month
-    const thisMonthTxns = transactions.filter(t => {
+    const thisMonthTxns = (transactions || []).filter(t => {
+      if (!t || !t.date) return false;
       const d = new Date(t.date);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
 
     const incomeThisMonth = thisMonthTxns
-      .filter(t => t.type === 'Income')
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      .filter(t => t && t.type === 'Income')
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
     const expensesThisMonth = thisMonthTxns
-      .filter(t => t.type === 'Expense')
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      .filter(t => t && t.type === 'Expense')
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
     // Filter last month
     const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
-    const lastMonthTxns = transactions.filter(t => {
+    const lastMonthTxns = (transactions || []).filter(t => {
+      if (!t || !t.date) return false;
       const d = new Date(t.date);
       return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
     });
 
     const incomeLastMonth = lastMonthTxns
-      .filter(t => t.type === 'Income')
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      .filter(t => t && t.type === 'Income')
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
     const expensesLastMonth = lastMonthTxns
-      .filter(t => t.type === 'Expense')
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      .filter(t => t && t.type === 'Expense')
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
     // Year-to-date net cash flow
-    const ytdTxns = transactions.filter(t => new Date(t.date).getFullYear() === currentYear);
-    const ytdIncome = ytdTxns.filter(t => t.type === 'Income').reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    const ytdExpenses = ytdTxns.filter(t => t.type === 'Expense').reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const ytdTxns = (transactions || []).filter(t => t && t.date && new Date(t.date).getFullYear() === currentYear);
+    const ytdIncome = ytdTxns.filter(t => t && t.type === 'Income').reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+    const ytdExpenses = ytdTxns.filter(t => t && t.type === 'Expense').reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
     const ytdNet = ytdIncome - ytdExpenses;
 
     return {

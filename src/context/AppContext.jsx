@@ -6,6 +6,7 @@ const AppContext = createContext();
 
 // Helper to resolve budget from category object dynamically
 export const resolveBudget = (categoryObj, targetMonth, targetYear) => {
+  if (!categoryObj || typeof categoryObj !== 'object') return 0;
   const keys = Object.keys(categoryObj);
   
   // 1. Try exact month and year match (e.g. "dec" and "2023")
@@ -41,11 +42,11 @@ const decorateData = (rawTxns, rawCats) => {
   let activeMonth = 'may';
   let activeYear = 2026;
   
-  const txnsList = rawTxns || [];
+  const txnsList = (rawTxns || []).filter(t => t && typeof t === 'object');
   if (txnsList.length > 0) {
     const validDates = txnsList
-      .map(t => new Date(t.date))
-      .filter(d => !isNaN(d.getTime()))
+      .map(t => t.date ? new Date(t.date) : null)
+      .filter(d => d && !isNaN(d.getTime()))
       .sort((a, b) => b - a);
       
     if (validDates.length > 0) {
@@ -56,20 +57,22 @@ const decorateData = (rawTxns, rawCats) => {
     }
   }
 
-  const cats = (rawCats || []).map(c => ({
-    ...c,
-    budget: resolveBudget(c, activeMonth, activeYear)
-  }));
+  const cats = (rawCats || [])
+    .filter(c => c && typeof c === 'object')
+    .map(c => ({
+      ...c,
+      budget: resolveBudget(c, activeMonth, activeYear)
+    }));
 
   const catMap = {};
   cats.forEach(c => {
     if (c.category) {
-      catMap[c.category.trim().toLowerCase()] = c;
+      catMap[String(c.category).trim().toLowerCase()] = c;
     }
   });
 
   const txns = txnsList.map(t => {
-    const catName = (t.category || '').trim().toLowerCase();
+    const catName = String(t.category || '').trim().toLowerCase();
     const catMeta = catMap[catName];
     
     let type = t.type || '';
@@ -82,11 +85,12 @@ const decorateData = (rawTxns, rawCats) => {
     
     // Sign-based fallback
     if (!type) {
+      const amt = Number(t.amount) || 0;
       if (catName === 'uncategorized' || !catName) {
-        type = t.amount < 0 ? 'Expense' : 'Income';
+        type = amt < 0 ? 'Expense' : 'Income';
         group = 'Uncategorized';
       } else {
-        type = t.amount < 0 ? 'Expense' : 'Income';
+        type = amt < 0 ? 'Expense' : 'Income';
         group = 'Other';
       }
     }
@@ -137,7 +141,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
   const [transactions, setTransactions] = useState(() => {
     try {
       const cached = localStorage.getItem('finflow_cache_transactions');
-      return cached ? JSON.parse(cached) : [];
+      const parsed = cached ? JSON.parse(cached) : null;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -146,7 +151,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
   const [categories, setCategories] = useState(() => {
     try {
       const cached = localStorage.getItem('finflow_cache_categories');
-      return cached ? JSON.parse(cached) : [];
+      const parsed = cached ? JSON.parse(cached) : null;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -155,7 +161,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
   const [balances, setBalances] = useState(() => {
     try {
       const cached = localStorage.getItem('finflow_cache_balances');
-      return cached ? JSON.parse(cached) : [];
+      const parsed = cached ? JSON.parse(cached) : null;
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
