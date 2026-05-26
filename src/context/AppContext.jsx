@@ -91,6 +91,15 @@ const decorateData = (rawTxns, rawCats) => {
       }
     }
 
+    // Force 401(k), retirement, and investment transfers to be categorized correctly as 'Transfer'
+    const nameLower = catName.toLowerCase();
+    if (nameLower.includes('401') || nameLower.includes('retirement') || nameLower.includes('ira') || nameLower.includes('investment')) {
+      if (!nameLower.includes('income') && !nameLower.includes('dividend') && !nameLower.includes('interest')) {
+        type = 'Transfer';
+        group = 'Investments';
+      }
+    }
+
     return {
       ...t,
       type,

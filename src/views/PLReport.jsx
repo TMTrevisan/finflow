@@ -77,6 +77,9 @@ export default function PLReport() {
 
     // Fill data from transactions
     transactions.forEach(t => {
+      // Ignore transfers in the P&L report (e.g. 401k/investments)
+      if (t.type === 'Transfer') return;
+
       const date = new Date(t.date);
       if (isNaN(date.getTime())) return;
       const monthKey = date.toLocaleString('default', { month: 'short' }) + " '" + String(date.getFullYear()).slice(-2);
