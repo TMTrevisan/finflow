@@ -5,19 +5,41 @@ import { formatCurrency } from '../utils/formatting';
 import { 
   TrendingUp, 
   TrendingDown,
-  ShieldCheck,
   Umbrella,
   ArrowUpRight,
   ArrowDownRight,
   Sparkles,
-  Link,
   ChevronRight,
-  ExternalLink
+  ChevronDown,
+  ChevronUp,
+  Info,
+  Plus,
+  Table,
+  Calendar,
+  CalendarRange,
+  Waves,
+  RefreshCw
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard({ setCurrentView }) {
   const { balances, transactions, isLoading, navigateToTransactions } = useAppContext();
   const [metric, setMetric] = useState('history'); // 'history', 'assets', 'debts'
+  const [expandedCategories, setExpandedCategories] = useState({
+    'Cash': false,
+    'Investments': false,
+    'Other': false,
+    'Credit Cards': false,
+    'Loans': false,
+    'Mortgage': false
+  });
+
+  const toggleCategory = (label) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [label]: !prev[label]
+    }));
+  };
 
   // Filter latest balance entries per account
   const latestBalances = useMemo(() => {
@@ -56,23 +78,78 @@ export default function Dashboard({ setCurrentView }) {
     };
   }, [latestBalances]);
 
-  // Group cash/checking/savings for Budget Accounts
-  const budgetAccounts = useMemo(() => {
-    return latestBalances.filter(b => {
-      if (b.class !== 'Asset') return false;
-      const type = b.type ? b.type.toLowerCase() : '';
-      return type === 'checking' || type === 'savings' || type === 'cash';
-    });
-  }, [latestBalances]);
+  // Group assets categories dynamically
+  const assetCategories = useMemo(() => {
+    const cashAccts = latestBalances.filter(b => b.class === 'Asset' && (b.type?.toLowerCase() === 'checking' || b.type?.toLowerCase() === 'savings' || b.type?.toLowerCase() === 'cash'));
+    const investAccts = latestBalances.filter(b => b.class === 'Asset' && (b.type?.toLowerCase() === 'investment' || b.type?.toLowerCase() === 'brokerage' || b.type?.toLowerCase()?.includes('401') || b.type?.toLowerCase()?.includes('ira')));
+    const otherAccts = latestBalances.filter(b => b.class === 'Asset' && !cashAccts.includes(b) && !investAccts.includes(b));
 
-  // Filter credit card liabilities for Debt Accounts
-  const debtAccounts = useMemo(() => {
-    return latestBalances.filter(b => {
-      if (b.class !== 'Liability') return false;
-      const type = b.type ? b.type.toLowerCase() : '';
-      return type === 'credit card';
-    });
-  }, [latestBalances]);
+    const getCatMetrics = (accts, label) => {
+      const balance = accts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
+      
+      // Calculate delta (latest snapshot vs earliest snapshot)
+      let delta = 0;
+      accts.forEach(acc => {
+        const accHist = balances.filter(b => b.institution === acc.institution && b.account === acc.account && b.account_id === acc.account_id);
+        if (accHist.length > 1) {
+          const sortedHist = [...accHist].sort((a, b) => new Date(a.date) - new Date(b.date));
+          const firstVal = Number(sortedHist[0].balance || 0);
+          const lastVal = Number(sortedHist[sortedHist.length - 1].balance || 0);
+          delta += (lastVal - firstVal);
+        }
+      });
+
+      return {
+        label,
+        balance,
+        delta,
+        accounts: accts
+      };
+    };
+
+    return [
+      getCatMetrics(cashAccts, 'Cash'),
+      getCatMetrics(investAccts, 'Investments'),
+      getCatMetrics(otherAccts, 'Other')
+    ].filter(c => c.accounts.length > 0 || c.label !== 'Other');
+  }, [latestBalances, balances]);
+
+  // Group liabilities categories dynamically
+  const liabilityCategories = useMemo(() => {
+    const cardAccts = latestBalances.filter(b => b.class === 'Liability' && b.type?.toLowerCase() === 'credit card');
+    const loanAccts = latestBalances.filter(b => b.class === 'Liability' && (b.type?.toLowerCase() === 'loan' || b.type?.toLowerCase()?.includes('student')));
+    const mortgageAccts = latestBalances.filter(b => b.class === 'Liability' && b.type?.toLowerCase() === 'mortgage');
+    const otherAccts = latestBalances.filter(b => b.class === 'Liability' && !cardAccts.includes(b) && !loanAccts.includes(b) && !mortgageAccts.includes(b));
+
+    const getCatMetrics = (accts, label) => {
+      const balance = accts.reduce((sum, a) => sum + Math.abs(Number(a.balance || 0)), 0);
+      
+      let delta = 0;
+      accts.forEach(acc => {
+        const accHist = balances.filter(b => b.institution === acc.institution && b.account === acc.account && b.account_id === acc.account_id);
+        if (accHist.length > 1) {
+          const sortedHist = [...accHist].sort((a, b) => new Date(a.date) - new Date(b.date));
+          const firstVal = Math.abs(Number(sortedHist[0].balance || 0));
+          const lastVal = Math.abs(Number(sortedHist[sortedHist.length - 1].balance || 0));
+          delta += (lastVal - firstVal); // positive means debt increased
+        }
+      });
+
+      return {
+        label,
+        balance,
+        delta,
+        accounts: accts
+      };
+    };
+
+    return [
+      getCatMetrics(cardAccts, 'Credit Cards'),
+      getCatMetrics(loanAccts, 'Loans'),
+      getCatMetrics(mortgageAccts, 'Mortgage'),
+      getCatMetrics(otherAccts, 'Other')
+    ].filter(c => c.accounts.length > 0 || c.label !== 'Other');
+  }, [latestBalances, balances]);
 
   // Calculate Net Worth / Assets / Liabilities history for Line Chart
   const historyData = useMemo(() => {
@@ -80,17 +157,13 @@ export default function Dashboard({ setCurrentView }) {
       (a, b) => new Date(a) - new Date(b)
     );
 
-    // Filter to last 5 dates like the mockup
     const targetDates = uniqueDates.slice(-5);
 
     return targetDates.map(date => {
       let assetsSum = 0;
       let liabilitiesSum = 0;
 
-      // Filter balances up to this date
       const dateBalances = balances.filter(b => b.date === date);
-      
-      // Use latest map up to this date to avoid duplicating
       const map = new Map();
       dateBalances.forEach(b => {
         const key = `${b.institution}_${b.account}_${b.account_id}`;
@@ -123,7 +196,7 @@ export default function Dashboard({ setCurrentView }) {
       return {
         date: label,
         rawDate: date,
-        netWorth: chartVal, // LineChart looks for netWorth property
+        netWorth: chartVal,
         assets: assetsSum,
         liabilities: liabilitiesSum
       };
@@ -146,6 +219,116 @@ export default function Dashboard({ setCurrentView }) {
     navigateToTransactions(accountName);
   };
 
+  // Recent Transactions (last 5)
+  const recentTransactions = useMemo(() => {
+    return [...transactions]
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 5);
+  }, [transactions]);
+
+  // Cash Flow Calculations
+  const cashFlowMetrics = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Filter current month
+    const thisMonthTxns = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+
+    const incomeThisMonth = thisMonthTxns
+      .filter(t => t.type === 'Income')
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    const expensesThisMonth = thisMonthTxns
+      .filter(t => t.type === 'Expense')
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    // Filter last month
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const lastMonthTxns = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+    });
+
+    const incomeLastMonth = lastMonthTxns
+      .filter(t => t.type === 'Income')
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    const expensesLastMonth = lastMonthTxns
+      .filter(t => t.type === 'Expense')
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    // Year-to-date net cash flow
+    const ytdTxns = transactions.filter(t => new Date(t.date).getFullYear() === currentYear);
+    const ytdIncome = ytdTxns.filter(t => t.type === 'Income').reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const ytdExpenses = ytdTxns.filter(t => t.type === 'Expense').reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const ytdNet = ytdIncome - ytdExpenses;
+
+    return {
+      netFlow: incomeThisMonth - expensesThisMonth,
+      incomeThisMonth,
+      expensesThisMonth,
+      incomeLastMonth,
+      expensesLastMonth,
+      ytdNet
+    };
+  }, [transactions]);
+
+  // Account details decorators (simulated sync lag & reconnection status matching screenshot)
+  const getAccountSyncDetails = (accName) => {
+    const name = accName.toLowerCase();
+    if (name.includes('marcus')) {
+      return { sub: 'Savings Account • 0m ago', delta: null, status: 'synced' };
+    }
+    if (name.includes('chase total checking')) {
+      return { sub: 'Checking Account • 0m ago', delta: '+$1,862', status: 'synced' };
+    }
+    if (name.includes('emirates')) {
+      return { sub: 'Checking Account • 6d ago', delta: null, status: 'delayed', link: 'Reconnect' };
+    }
+    if (name.includes('wise')) {
+      return { sub: 'Multi-Currency Account • 2d ago', delta: null, status: 'loading' };
+    }
+    if (name.includes('revolut')) {
+      return { sub: 'Checking Account • 38d ago', delta: null, status: 'delayed', link: 'Reconnect' };
+    }
+    if (name.includes('venmo')) {
+      return { sub: 'Cash Balance • 196d ago', delta: null, status: 'delayed', tag: 'Delayed' };
+    }
+    if (name.includes('cash wallet')) {
+      return { sub: 'Manual Asset • 0m ago', delta: null, status: 'synced' };
+    }
+    if (name.includes('apple card')) {
+      return { sub: '1871 • 6d ago', delta: '-$94,212', status: 'delayed', link: 'Reconnect' };
+    }
+    if (name.includes('amex')) {
+      return { sub: '8829 • 6d ago', delta: null, status: 'delayed', link: 'Reconnect' };
+    }
+    if (name.includes('sapphire')) {
+      return { sub: '3956 • 0m ago', delta: '+$1,862', status: 'synced' };
+    }
+    if (name.includes('adcb')) {
+      return { sub: '4444 • 38d ago', delta: null, status: 'delayed', link: 'Reconnect' };
+    }
+    return { sub: '0m ago', delta: null, status: 'synced' };
+  };
+
+  const getAccountStatusDot = (acc) => {
+    const name = acc.toLowerCase();
+    if (name.includes('emirates') || name.includes('revolut') || name.includes('apple') || name.includes('amex') || name.includes('adcb')) {
+      return <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />;
+    }
+    if (name.includes('venmo')) {
+      return <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />;
+    }
+    return null;
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col space-y-6 animate-pulse p-4">
@@ -157,41 +340,6 @@ export default function Dashboard({ setCurrentView }) {
       </div>
     );
   }
-
-  // Calculate Debt summaries
-  const totalInterestPaid = debtAccounts.reduce((sum, a) => sum + (a.interestPaid || 0), 0);
-  const interestBurnPerMonth = totalInterestPaid / 12;
-  const debtToAssetRatio = totals.assets > 0 ? (totals.liabilities / totals.assets) * 100 : 0;
-  const unpaidUpcoming = debtAccounts.filter(a => a.status === 'UNPAID' && a.dueDate === '7D').length;
-
-  // Dot styles mapping for debt list
-  const getDebtDotColor = (accountName) => {
-    const name = accountName.toLowerCase();
-    if (name.includes('apple')) return 'bg-white';
-    if (name.includes('amex')) return 'bg-amber-400';
-    if (name.includes('sapphire') || name.includes('chase')) return 'bg-sky-400';
-    return 'bg-rose-500';
-  };
-
-  // Border styles mapping for budget accounts left margin highlights
-  const getAccountBorderColor = (accountName) => {
-    const name = accountName.toLowerCase();
-    if (name.includes('marcus')) return 'border-l-amber-500';
-    if (name.includes('chase')) return 'border-l-emerald-500';
-    if (name.includes('emirates')) return 'border-l-cyan-500';
-    if (name.includes('wise')) return 'border-l-blue-500';
-    if (name.includes('revolut')) return 'border-l-purple-500';
-    if (name.includes('venmo')) return 'border-l-slate-500';
-    return 'border-l-pink-500';
-  };
-
-  // Foreign currency labels mapping
-  const getForeignDetails = (acc) => {
-    if (acc.currency === 'AED') return `AED ${acc.foreignBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (acc.currency === 'EUR') return `€${acc.foreignBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    if (acc.currency === 'GBP') return `£${acc.foreignBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    return null;
-  };
 
   return (
     <div className="space-y-6 pb-12 max-w-lg mx-auto md:max-w-none">
@@ -205,27 +353,27 @@ export default function Dashboard({ setCurrentView }) {
             <div className="flex bg-[#131926] p-0.5 rounded-full text-[10px] font-extrabold gap-0.5 border border-slate-800/40">
               <button
                 onClick={() => setMetric('assets')}
-                className={`px-3 py-1 rounded-full flex items-center gap-1 transition-all ${
+                className={`px-3 py-1 rounded-full flex items-center gap-1 transition-all cursor-pointer ${
                   metric === 'assets'
                     ? 'bg-[#1D273B] text-emerald-400 font-black border border-slate-800/60'
-                    : 'text-slate-500 hover:text-slate-300'
+                    : 'text-slate-500 hover:text-slate-350'
                 }`}
               >
-                Assets <span className="bg-[#121724] text-[8px] px-1 rounded text-slate-400 font-semibold">5</span>
+                Assets <span className="bg-[#121724] text-[8px] px-1 rounded text-slate-400 font-semibold">7</span>
               </button>
               <button
                 onClick={() => setMetric('debts')}
-                className={`px-3 py-1 rounded-full flex items-center gap-1 transition-all ${
+                className={`px-3 py-1 rounded-full flex items-center gap-1 transition-all cursor-pointer ${
                   metric === 'debts'
                     ? 'bg-[#1D273B] text-rose-400 font-black border border-slate-800/60'
-                    : 'text-slate-500 hover:text-slate-300'
+                    : 'text-slate-500 hover:text-slate-350'
                 }`}
               >
                 Debts <span className="bg-[#121724] text-[8px] px-1 rounded text-slate-400 font-semibold">4</span>
               </button>
               <button
                 onClick={() => setMetric('history')}
-                className={`px-3 py-1 rounded-full transition-all ${
+                className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
                   metric === 'history'
                     ? 'bg-[#1D273B] text-emerald-400 font-black border border-slate-800/60'
                     : 'text-slate-500 hover:text-slate-300'
@@ -236,14 +384,14 @@ export default function Dashboard({ setCurrentView }) {
             </div>
           </div>
 
-          {/* Centered current month & value */}
+          {/* Centered current value */}
           <div className="text-center py-2 space-y-1">
-            <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase">May 23</span>
+            <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase">May 26</span>
             <div className="flex items-center justify-center space-x-2">
               <span className={`text-3xl font-extrabold tracking-tight font-display ${
                 metric === 'debts' ? 'text-rose-500' : 'text-[#10B981]'
               }`}>
-                {metric === 'debts' ? '' : ''}{formatCurrency(activeValue)}
+                {formatCurrency(activeValue)}
               </span>
             </div>
             
@@ -275,202 +423,379 @@ export default function Dashboard({ setCurrentView }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        {/* Left Column: Debts List */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-xs font-black text-slate-400 tracking-wider uppercase">Debt • 4 Accounts</h3>
-            <span className="text-xs font-semibold text-slate-500">Verified</span>
-          </div>
-
-          <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-6 space-y-6">
-            <div className="space-y-1">
-              <h2 className="text-3xl font-bold text-white tracking-tight">
-                -{formatCurrency(totals.liabilities)}
-              </h2>
-              <p className="text-[11px] text-slate-400 leading-relaxed italic">
-                Across 4 accounts, ${totalInterestPaid.toFixed(2)} paid in interest this year. {unpaidUpcoming} due this week.
-              </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        {/* Left Column: Bucket Account Group List (Assets & Liabilities) */}
+        <div className="space-y-6">
+          {/* ASSETS SECTION */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <h3 className="text-xs font-black text-slate-400 tracking-wider uppercase">Assets</h3>
+              <span className="text-xs font-bold text-slate-200">{formatCurrency(totals.assets)}</span>
             </div>
-
-            {/* Interest metrics columns */}
-            <div className="grid grid-cols-3 gap-2 border-t border-b border-slate-800/60 py-4">
-              <div className="space-y-1">
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Per Month</span>
-                <span className="text-base font-bold text-slate-200 block">{formatCurrency(interestBurnPerMonth)}</span>
-                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block">Interest Burn</span>
-              </div>
-              <div className="space-y-1 border-l border-slate-800/40 pl-3">
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">D / A</span>
-                <span className="text-base font-bold text-slate-200 block">{debtToAssetRatio.toFixed(1)}%</span>
-                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block">Diversified</span>
-              </div>
-              <div className="space-y-1 border-l border-slate-800/40 pl-3">
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Due / 7D</span>
-                <span className="text-base font-bold text-slate-200 block">{unpaidUpcoming}</span>
-                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block">Upcoming</span>
-              </div>
-            </div>
-
-            {/* Accounts Sublist */}
-            <div className="space-y-4">
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Accounts</span>
-              <div className="space-y-3.5">
-                {debtAccounts.map((acc, index) => {
-                  const debtShare = totals.liabilities > 0 ? Math.round((Math.abs(acc.balance) / totals.liabilities) * 100) : 0;
-                  return (
-                    <div 
-                      key={acc.id}
-                      onClick={() => handleAccountClick(acc.account)}
-                      className="group cursor-pointer hover:bg-slate-800/10 -mx-3 px-3 py-2 rounded-xl transition-all flex items-start justify-between"
+            
+            <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl overflow-hidden divide-y divide-slate-800/40">
+              {assetCategories.map(cat => {
+                const isExpanded = !!expandedCategories[cat.label];
+                return (
+                  <div key={cat.label} className="transition-all">
+                    {/* Category Row */}
+                    <button 
+                      onClick={() => toggleCategory(cat.label)}
+                      className={`w-full p-4 flex items-center justify-between hover:bg-slate-800/10 transition-colors text-left focus:outline-none cursor-pointer ${isExpanded ? 'bg-slate-800/5' : ''}`}
                     >
-                      <div className="flex items-start space-x-2.5">
-                        {/* Bullet point colored highlight */}
-                        <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${getDebtDotColor(acc.account)}`} />
-                        <div className="space-y-1.5">
-                          <p className="text-sm font-bold text-slate-100 group-hover:text-[#10B981] transition-colors">{acc.account}</p>
-                          
-                          {/* Info Pill Indicators */}
-                          <div className="flex flex-wrap items-center gap-1.5 text-[8px] font-extrabold text-slate-400 uppercase tracking-wider">
-                            <span className="bg-[#121826] px-1.5 py-0.5 rounded border border-slate-800">#{index + 1}</span>
-                            <span>•</span>
-                            <span>{debtShare}%</span>
-                            <span>•</span>
-                            <span className={acc.status === 'UNPAID' ? 'text-rose-400' : 'text-emerald-400'}>{acc.status}</span>
-                            <span>•</span>
-                            <span>{acc.dueDate}</span>
-                            <span>•</span>
-                            <span>{acc.apr}% APR</span>
-                          </div>
-
-                          {/* Interest Paid */}
-                          <p className="text-[10px] text-slate-500 italic">
-                            ${acc.interestPaid ? acc.interestPaid.toFixed(2) : '0.00'} in interest this year
+                      <div className="flex items-center space-x-3.5">
+                        {cat.delta < 0 ? (
+                          <ArrowDownRight className="w-4 h-4 text-rose-500 shrink-0" />
+                        ) : (
+                          <ArrowUpRight className="w-4 h-4 text-emerald-500 shrink-0" />
+                        )}
+                        <span className="font-bold text-slate-100 text-sm">{cat.label}</span>
+                      </div>
+                      
+                      <div className="text-right flex items-center space-x-3">
+                        <div>
+                          <p className="font-bold text-white text-sm">{formatCurrency(cat.balance)}</p>
+                          <p className={`text-[10px] font-bold ${cat.delta < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                            {cat.delta < 0 ? '' : '+'}{formatCurrency(cat.delta)}
                           </p>
                         </div>
+                        {isExpanded ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
                       </div>
+                    </button>
 
-                      <div className="text-right space-y-1">
-                        <p className="text-sm font-bold text-white">
-                          -{formatCurrency(Math.abs(acc.balance))}
-                        </p>
-                        {getForeignDetails(acc) && (
-                          <p className="text-[10px] text-slate-500">{getForeignDetails(acc)}</p>
+                    {/* Sub accounts (Expanded list) */}
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div 
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden bg-[#070A10]/50 divide-y divide-slate-850/30"
+                        >
+                          {cat.accounts.map(acc => {
+                            const details = getAccountSyncDetails(acc.account);
+                            return (
+                              <div 
+                                key={acc.id}
+                                onClick={() => handleAccountClick(acc.account)}
+                                className="p-3.5 pl-12 pr-6 hover:bg-slate-800/15 transition-all flex items-center justify-between cursor-pointer group"
+                              >
+                                <div className="flex items-center space-x-2.5 min-w-0">
+                                  {getAccountStatusDot(acc.account)}
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-200 group-hover:text-neon-indigo transition-colors truncate">{acc.account}</p>
+                                    <p className="text-[10px] text-slate-500 mt-0.5 truncate">{details.sub}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="text-xs font-bold text-white">{formatCurrency(acc.balance)}</p>
+                                  {details.link ? (
+                                    <span className="text-[10px] font-bold text-blue-500 hover:underline mt-0.5 block">{details.link}</span>
+                                  ) : details.tag ? (
+                                    <span className="text-[10px] font-semibold text-slate-500 mt-0.5 block">{details.tag}</span>
+                                  ) : details.status === 'loading' ? (
+                                    <span className="text-[10px] font-medium text-slate-500 flex items-center justify-end gap-1 mt-0.5">
+                                      Loading <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                                    </span>
+                                  ) : details.delta ? (
+                                    <span className={`text-[10px] font-bold mt-0.5 block ${details.delta.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>{details.delta}</span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* LIABILITIES SECTION */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <h3 className="text-xs font-black text-slate-400 tracking-wider uppercase">Liabilities</h3>
+              <span className="text-xs font-bold text-slate-200">{formatCurrency(totals.liabilities)}</span>
+            </div>
+            
+            <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl overflow-hidden divide-y divide-slate-800/40">
+              {liabilityCategories.map(cat => {
+                const isExpanded = !!expandedCategories[cat.label];
+                return (
+                  <div key={cat.label} className="transition-all">
+                    {/* Category Row */}
+                    <button 
+                      onClick={() => toggleCategory(cat.label)}
+                      className={`w-full p-4 flex items-center justify-between hover:bg-slate-800/10 transition-colors text-left focus:outline-none cursor-pointer ${isExpanded ? 'bg-slate-800/5' : ''}`}
+                    >
+                      <div className="flex items-center space-x-3.5">
+                        {cat.delta < 0 ? (
+                          <ArrowDownRight className="w-4 h-4 text-emerald-500 shrink-0" />
+                        ) : (
+                          <ArrowUpRight className="w-4 h-4 text-rose-500 shrink-0" />
                         )}
+                        <span className="font-bold text-slate-100 text-sm">{cat.label}</span>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                      
+                      <div className="text-right flex items-center space-x-3">
+                        <div>
+                          <p className="font-bold text-white text-sm">{formatCurrency(cat.balance)}</p>
+                          <p className={`text-[10px] font-bold ${cat.delta < 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                            {cat.delta < 0 ? '' : '+'}{formatCurrency(cat.delta)}
+                          </p>
+                        </div>
+                        {isExpanded ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+                      </div>
+                    </button>
+
+                    {/* Sub accounts (Expanded list) */}
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div 
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden bg-[#070A10]/50 divide-y divide-slate-855/30"
+                        >
+                          {cat.accounts.map(acc => {
+                            const details = getAccountSyncDetails(acc.account);
+                            return (
+                              <div 
+                                key={acc.id}
+                                onClick={() => handleAccountClick(acc.account)}
+                                className="p-3.5 pl-12 pr-6 hover:bg-slate-800/15 transition-all flex items-center justify-between cursor-pointer group"
+                              >
+                                <div className="flex items-center space-x-2.5 min-w-0">
+                                  {getAccountStatusDot(acc.account)}
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-200 group-hover:text-neon-indigo transition-colors truncate">{acc.account}</p>
+                                    <p className="text-[10px] text-slate-500 mt-0.5 truncate">{details.sub}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="text-xs font-bold text-white">-{formatCurrency(Math.abs(acc.balance))}</p>
+                                  {details.link ? (
+                                    <span className="text-[10px] font-bold text-blue-500 hover:underline mt-0.5 block">{details.link}</span>
+                                  ) : details.delta ? (
+                                    <span className={`text-[10px] font-bold mt-0.5 block ${details.delta.startsWith('+') ? 'text-rose-500' : 'text-emerald-500'}`}>{details.delta}</span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
 
-        {/* Right Column: Goal Tracker & Cash Accounts */}
+        {/* Right Column: Dynamic Cash Flow card, Emergency Fund chart & Recent Transactions */}
         <div className="space-y-6">
-          {/* Emergency Fund Card */}
+          {/* CASH FLOW CARD (Image 3) */}
           <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="border border-emerald-500/30 text-emerald-400 bg-emerald-500/5 px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase tracking-widest">
-                ⚙ Current Goal
-              </span>
-              <span className="text-emerald-400 font-extrabold text-[9px] uppercase tracking-widest">On Track</span>
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 shadow-lg shadow-emerald-500/5">
-                  <Umbrella size={18} />
-                </div>
-                <div>
-                  <h4 className="text-sm font-black text-slate-100">Emergency Fund</h4>
-                  <p className="text-[10px] text-slate-400 font-medium">Have balance - $18,000</p>
-                </div>
-              </div>
-
-              {/* Progress Ring SVG */}
-              <div className="relative flex items-center justify-center shrink-0">
-                <svg className="w-14 h-14 transform -rotate-90">
-                  <circle cx="28" cy="28" r="21" stroke="#131924" strokeWidth="3.5" fill="transparent" />
-                  <circle 
-                    cx="28" 
-                    cy="28" 
-                    r="21" 
-                    stroke="#10B981" 
-                    strokeWidth="3.5" 
-                    strokeDasharray={132} 
-                    strokeDashoffset={132 - (71 / 100) * 132} 
-                    strokeLinecap="round" 
-                    fill="transparent" 
-                  />
-                </svg>
-                <span className="absolute text-[10px] font-black text-white">71%</span>
+              <button 
+                onClick={() => setCurrentView('cashflow')}
+                className="flex items-center space-x-1 font-bold text-white hover:text-neon-indigo transition-colors text-sm"
+              >
+                <span>Cash Flow</span>
+                <Info size={13} className="text-slate-500 shrink-0" />
+                <span className="text-slate-400 font-normal">»</span>
+              </button>
+              <div className="text-right">
+                <span className={`text-sm font-extrabold ${cashFlowMetrics.netFlow >= 0 ? 'text-[#10B981]' : 'text-rose-500'}`}>
+                  {cashFlowMetrics.netFlow >= 0 ? '+' : ''}{formatCurrency(cashFlowMetrics.netFlow)}
+                </span>
+                <span className="text-[9px] font-black text-slate-500 block uppercase tracking-widest mt-0.5">This month</span>
               </div>
             </div>
 
-            {/* Accent divider line */}
-            <div className="h-0.5 bg-emerald-500 rounded-full w-full opacity-80" />
+            {/* Income Progress */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex justify-between text-xs font-semibold">
+                <span className="text-slate-400">Income this month</span>
+                <span className="text-white font-extrabold">{formatCurrency(cashFlowMetrics.incomeThisMonth)}</span>
+              </div>
+              
+              {/* Stacked Proportional Bar (Simulated categories segments: Mint, Cyan, Blue) */}
+              <div className="w-full h-4 rounded overflow-hidden flex">
+                <div className="h-full bg-emerald-450" style={{ width: '65%' }} />
+                <div className="h-full bg-cyan-400" style={{ width: '23%' }} />
+                <div className="h-full bg-blue-500" style={{ width: '12%' }} />
+              </div>
 
-            {/* Metrics column grid */}
-            <div className="grid grid-cols-3 gap-2 text-center pt-2">
-              <div className="space-y-0.5">
-                <span className="text-[14px] font-extrabold text-white">{formatCurrency(totals.savingsBalance)}</span>
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">Saved</span>
+              {/* Progress Comparison line */}
+              <div className="w-full bg-[#131926] h-1.5 rounded overflow-hidden">
+                <div 
+                  className="h-full bg-emerald-500 rounded-full" 
+                  style={{ width: `${Math.min(100, (cashFlowMetrics.incomeThisMonth / Math.max(cashFlowMetrics.incomeThisMonth, cashFlowMetrics.incomeLastMonth, 1)) * 100)}%` }} 
+                />
               </div>
-              <div className="space-y-0.5 border-l border-slate-800/40">
-                <span className="text-[14px] font-extrabold text-white">{formatCurrency(18000 - totals.savingsBalance)}</span>
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">To Go</span>
-              </div>
-              <div className="space-y-0.5 border-l border-slate-800/40">
-                <span className="text-[14px] font-extrabold text-emerald-400 block">Dec 2026</span>
-                <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">$700/mo</span>
+              <div className="flex justify-between text-[10px] text-slate-500">
+                <span>last month</span>
+                <span className="font-bold">{formatCurrency(cashFlowMetrics.incomeLastMonth)}</span>
               </div>
             </div>
 
-            {/* Goal Link */}
-            <button className="w-full text-center text-[9px] font-extrabold text-slate-500 hover:text-slate-300 transition-colors pt-2 flex items-center justify-center gap-1 uppercase tracking-widest">
-              ▲ Track balance to goal
-            </button>
+            {/* Expenses Progress */}
+            <div className="space-y-1.5 pt-2">
+              <div className="flex justify-between text-xs font-semibold">
+                <span className="text-slate-400">Expenses this month</span>
+                <span className="text-white font-extrabold">-{formatCurrency(cashFlowMetrics.expensesThisMonth)}</span>
+              </div>
+              
+              {/* Stacked Proportional Bar (Simulated categories segments: Coral, Red, Orange, Yellow, Lime) */}
+              <div className="w-full h-4 rounded overflow-hidden flex">
+                <div className="h-full bg-rose-500" style={{ width: '45%' }} />
+                <div className="h-full bg-orange-500" style={{ width: '22%' }} />
+                <div className="h-full bg-amber-400" style={{ width: '15%' }} />
+                <div className="h-full bg-yellow-300" style={{ width: '10%' }} />
+                <div className="h-full bg-lime-400" style={{ width: '8%' }} />
+              </div>
+
+              {/* Progress Comparison line */}
+              <div className="w-full bg-[#131926] h-1.5 rounded overflow-hidden">
+                <div 
+                  className="h-full bg-rose-500 rounded-full" 
+                  style={{ width: `${Math.min(100, (cashFlowMetrics.expensesThisMonth / Math.max(cashFlowMetrics.expensesThisMonth, cashFlowMetrics.expensesLastMonth, 1)) * 100)}%` }} 
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-500">
+                <span>Last Month</span>
+                <span className="font-bold">-{formatCurrency(cashFlowMetrics.expensesLastMonth)}</span>
+              </div>
+            </div>
+
+            {/* YTD net cash flow indicator */}
+            <div className="text-[10px] text-slate-400 italic pt-2 flex items-center justify-between border-t border-slate-800/40">
+              <span>Up {formatCurrency(Math.abs(cashFlowMetrics.ytdNet))} so far this year.</span>
+            </div>
           </div>
 
-          {/* Budget Accounts (Assets - Cash & Checking) */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="text-xs font-black text-slate-400 tracking-wider uppercase">Budget Accounts</h3>
-              <span className="text-xs font-bold text-slate-200">
-                {formatCurrency(budgetAccounts.reduce((sum, a) => sum + a.balance, 0))}
+          {/* EMERGENCY FUND BAR CHART CARD (Image 4) */}
+          <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <button 
+                onClick={() => setCurrentView('budgets')}
+                className="flex items-center space-x-1 font-bold text-white hover:text-neon-indigo transition-colors text-sm"
+              >
+                <span>Emergency Fund</span>
+                <Info size={13} className="text-slate-500 shrink-0" />
+                <span className="text-slate-400 font-normal">»</span>
+              </button>
+              <span className="text-sm font-extrabold text-white">
+                {formatCurrency(totals.savingsBalance)}
               </span>
             </div>
 
-            <div className="space-y-2">
-              {budgetAccounts.map((acc) => (
-                <div 
-                  key={acc.id}
-                  onClick={() => handleAccountClick(acc.account)}
-                  className={`bg-[#0B0E14] border border-[#161B26] rounded-2xl p-4 hover:border-slate-700 transition-all cursor-pointer flex items-center justify-between border-l-4 ${getAccountBorderColor(acc.account)}`}
-                >
-                  <div className="space-y-1.5 min-w-0 pr-4">
-                    {/* Category Label */}
-                    <span className="text-[8px] font-extrabold text-slate-500 tracking-wider uppercase block">
-                      {acc.type === 'Savings' ? 'SAVINGS' : acc.type === 'Checking' ? 'CHECKING' : 'CASH'} 
-                      {acc.note ? ` • ${acc.note.toUpperCase()}` : ''}
+            {/* Custom 12-Month Bar Chart */}
+            <div className="space-y-4 pt-1">
+              <div className="h-28 flex items-end justify-between gap-1 select-none">
+                {/* 12 monthly bars */}
+                {[
+                  { m: 'JUN', val: 100 },
+                  { m: 'JUL', val: 72 },
+                  { m: 'AUG', val: 51 },
+                  { m: 'SEP', val: 34 },
+                  { m: 'OCT', val: 18 },
+                  { m: 'NOV', val: 19 },
+                  { m: 'DEC', val: 20 },
+                  { m: 'JAN', val: 23 },
+                  { m: 'FEB', val: 22 },
+                  { m: 'MAR', val: 22 },
+                  { m: 'APR', val: 24 },
+                  { m: 'MAY', val: 22 }
+                ].map((bar, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center group">
+                    <div className="w-full bg-[#131926] rounded-md h-24 flex items-end relative overflow-hidden">
+                      <div 
+                        className="bg-blue-650 hover:bg-neon-indigo transition-all duration-300 rounded-md w-full"
+                        style={{ height: `${bar.val}%` }}
+                      />
+                    </div>
+                    {/* Month Label every other month */}
+                    <span className="text-[8px] font-black text-slate-500 mt-2 block uppercase text-center min-h-[10px]">
+                      {['JUN', 'AUG', 'OCT', 'DEC', 'FEB', 'APR'].includes(bar.m) ? bar.m : ''}
                     </span>
-                    <p className="text-sm font-bold text-slate-100 truncate">{acc.account}</p>
-                    
-                    {/* Foreign details as secondary description */}
-                    {getForeignDetails(acc) && (
-                      <p className="text-[11px] text-slate-400 font-semibold">{getForeignDetails(acc)}</p>
-                    )}
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-extrabold text-white">
-                      {formatCurrency(acc.balance)}
+                ))}
+              </div>
+
+              {/* Savings Advice */}
+              <div className="text-[10px] text-slate-450 leading-relaxed pt-2 border-t border-slate-800/40 italic">
+                {totals.savingsBalance > 10000 
+                  ? `$${(totals.savingsBalance - 10000).toLocaleString('en-US', { maximumFractionDigits: 0 })} could be invested for potential greater returns.`
+                  : 'Keep building savings to reach your $18,000 emergency fund target.'}
+              </div>
+            </div>
+          </div>
+
+          {/* RECENT TRANSACTIONS CARD */}
+          <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-bold text-white">Recent Transactions</h4>
+              <button 
+                onClick={() => setCurrentView('transactions')}
+                className="text-[10px] font-black text-slate-500 hover:text-slate-350 tracking-wider uppercase"
+              >
+                View All
+              </button>
+            </div>
+
+            <div className="divide-y divide-slate-850/40">
+              {recentTransactions.map(txn => (
+                <div 
+                  key={txn.id}
+                  onClick={() => handleAccountClick(txn.account)}
+                  className="py-3 flex items-center justify-between cursor-pointer hover:bg-slate-800/5 -mx-3 px-3 rounded-xl transition-all"
+                >
+                  <div className="min-w-0 pr-4">
+                    <p className="text-xs font-bold text-slate-200 truncate">{cleanMerchantName(txn.description)}</p>
+                    <p className="text-[10px] text-slate-550 mt-1 truncate">
+                      {txn.date} • {txn.category} • {txn.account}
                     </p>
                   </div>
+                  <span className={`text-xs font-extrabold shrink-0 ${
+                    txn.type === 'Income' ? 'text-emerald-500' : 'text-slate-100'
+                  }`}>
+                    {txn.type === 'Income' ? '+' : '-'}{formatCurrency(Math.abs(txn.amount))}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Reports Quick Access */}
+      <div className="space-y-3">
+        <h3 className="text-lg font-bold text-white tracking-tight">Reports & Analytics</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { id: 'cashflow', label: 'Cash Flow', icon: Waves, color: 'text-neon-indigo' },
+            { id: 'spending', label: 'Spending', icon: ArrowDownRight, color: 'text-neon-crimson' },
+            { id: 'income', label: 'Income', icon: ArrowUpRight, color: 'text-neon-emerald' },
+            { id: 'plreport', label: 'P&L Report', icon: Table, color: 'text-amber-400' },
+            { id: 'yearly', label: 'Yearly', icon: Calendar, color: 'text-slate-300' },
+            { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange, color: 'text-[#6366F1]' },
+          ].map(({ id, label, icon: Icon, color }) => (
+            <button
+              key={id}
+              onClick={() => setCurrentView(id)}
+              className="flex flex-col items-center justify-center p-4 bg-obsidian-800/40 hover:bg-obsidian-800/70 border border-obsidian-800/80 hover:border-obsidian-750 rounded-2xl transition-all group active:scale-[0.97] space-y-2 cursor-pointer"
+            >
+              <div className={`p-2 rounded-xl bg-obsidian-800 ${color}`}>
+                <Icon size={18} />
+              </div>
+              <span className="text-xs font-semibold text-slate-400 group-hover:text-white transition-colors">{label}</span>
+            </button>
+          ))}
         </div>
       </div>
     </div>
