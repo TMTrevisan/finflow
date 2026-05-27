@@ -34,7 +34,7 @@ export default function SpendingTrends() {
     const yesterdayStr = yesterday.toISOString().split('T')[0];
     
     return transactions
-      .filter(t => t.type === 'Expense' && t.date === yesterdayStr)
+      .filter(t => t.type === 'Expense' && String(t.date || '').substring(0, 10) === yesterdayStr)
       .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
   }, [transactions, referenceDate]);
 
@@ -109,8 +109,9 @@ export default function SpendingTrends() {
     
     transactions.forEach(t => {
       if (t.type !== 'Expense' || !t.date) return;
-      if (t.date in dataMap) {
-        dataMap[t.date] += Math.abs(Number(t.amount) || 0);
+      const dateKey = String(t.date).substring(0, 10);
+      if (dateKey in dataMap) {
+        dataMap[dateKey] += Math.abs(Number(t.amount) || 0);
       }
     });
     

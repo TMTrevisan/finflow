@@ -14,7 +14,7 @@ export default function LifeOptimization() {
     const cats = new Set();
     transactions.forEach(t => {
       if (t.category) {
-        cats.add(t.category);
+        cats.add(String(t.category));
       }
     });
     return Array.from(cats).sort();
@@ -22,6 +22,7 @@ export default function LifeOptimization() {
 
   // Helper for initial category guessing/smart-defaults
   const guessClassification = (catName) => {
+    if (!catName || typeof catName !== 'string') return 'Lifestyle';
     const name = catName.toLowerCase();
     if (name.includes('paycheck') || name.includes('salary') || name.includes('bonus') || name.includes('dividend') || name.includes('interest') || name.includes('deposit') || name.includes('wages') || name.includes('family funding')) {
       return 'Income';
@@ -115,7 +116,7 @@ export default function LifeOptimization() {
           const categoryName = String(row[catKey]).trim();
           if (categoryName) {
             // Casing-agnostic match
-            const matchName = allCategories.find(c => c.toLowerCase().trim() === categoryName.toLowerCase()) || categoryName;
+            const matchName = allCategories.find(c => String(c).toLowerCase().trim() === categoryName.toLowerCase()) || categoryName;
 
             let classification = newMappings[matchName]?.classification || 'Lifestyle';
             if (classKey && row[classKey] !== undefined && row[classKey] !== null && String(row[classKey]).trim() !== '') {
@@ -220,16 +221,22 @@ export default function LifeOptimization() {
       }
 
       const classification = mapping ? mapping.classification : guessClassification(t.category);
-      const absAmount = Math.abs(Number(t.amount) || 0);
+      const amountVal = Number(t.amount) || 0;
 
       if (classification === 'Income') {
-        monthlyMap[monthKey].Income += absAmount;
-      } else if (classification === 'Compounding') {
-        monthlyMap[monthKey].Compounding += absAmount;
-      } else if (classification === 'Baseline') {
-        monthlyMap[monthKey].Baseline += absAmount;
-      } else if (classification === 'Lifestyle') {
-        monthlyMap[monthKey].Lifestyle += absAmount;
+        // Income is positive in standard reporting; positive amount adds to it, negative subtracts
+        monthlyMap[monthKey].Income += amountVal;
+      } else {
+        // Tiller stores expenses as negative values. Negate them to display as positive spending totals.
+        // Positive refunds/adjustments will correctly decrease this total.
+        const netExpense = -amountVal;
+        if (classification === 'Compounding') {
+          monthlyMap[monthKey].Compounding += netExpense;
+        } else if (classification === 'Baseline') {
+          monthlyMap[monthKey].Baseline += netExpense;
+        } else if (classification === 'Lifestyle') {
+          monthlyMap[monthKey].Lifestyle += netExpense;
+        }
       }
     });
 

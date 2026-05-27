@@ -341,25 +341,25 @@ export default function Spending() {
                     return (
                       <div 
                         key={t.id} 
-                        className="flex items-center justify-between py-2.5 hover:bg-slate-800/10 px-2 rounded-xl transition-all duration-150 group"
+                        className="flex items-center justify-between py-4.5 hover:bg-slate-800/10 px-3 rounded-2xl transition-all duration-150 group"
                       >
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-4">
                           {/* Category Icon Circle */}
                           <div 
-                            className="w-9 h-9 rounded-xl flex items-center justify-center bg-obsidian-900 border transition-all duration-150"
+                            className="w-11 h-11 rounded-2xl flex items-center justify-center bg-obsidian-900 border transition-all duration-150"
                             style={{ 
-                              borderColor: `${config.color}20`,
+                              borderColor: `${config.color}25`,
                             }}
                           >
-                            {IconComponent && <IconComponent size={16} style={{ color: config.color }} />}
+                            {IconComponent && <IconComponent size={18} style={{ color: config.color }} />}
                           </div>
                           
                           <div>
                             <p className="text-base font-bold text-white tracking-tight group-hover:text-neon-indigo transition-colors duration-150">
                               {cleanMerchantName(t.description)}
                             </p>
-                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                              <span style={{ color: config.color }} className="font-semibold">{t.category}</span>
+                            <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-2">
+                              <span style={{ color: config.color }} className="font-bold">{t.category}</span>
                               <span className="text-slate-600 font-normal">•</span>
                               <span>{t.account}</span>
                             </p>
@@ -367,7 +367,7 @@ export default function Spending() {
                         </div>
                         
                         <div className="text-right">
-                          <span className="text-base font-extrabold text-slate-200 group-hover:text-white transition-colors duration-150">
+                          <span className="text-base font-black text-slate-100 group-hover:text-white transition-colors duration-150">
                             {formatCurrency(Math.abs(t.amount))}
                           </span>
                         </div>
