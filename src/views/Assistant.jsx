@@ -60,8 +60,18 @@ export default function Assistant() {
 
   // Helper to compile structured financial context for Gemini
   const financialContext = useMemo(() => {
-    // 1. Accounts context
-    const accountsData = balances.map(b => ({
+    // 1. Accounts context - Deduplicate to only include latest balance snapshot for each unique account
+    const latestMap = new Map();
+    const sortedBalances = [...(balances || [])]
+      .filter(b => b && b.date && b.institution && b.account)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    sortedBalances.forEach(b => {
+      const key = `${b.institution}_${b.account}_${b.account_id || ''}`;
+      latestMap.set(key, b);
+    });
+    const latestBalances = Array.from(latestMap.values());
+
+    const accountsData = latestBalances.map(b => ({
       inst: b.institution,
       name: b.account,
       bal: b.balance,
@@ -69,11 +79,56 @@ export default function Assistant() {
       typ: b.type
     }));
 
-    // Calculate totals
-    const cashTotal = balances.filter(b => b.type === 'Checking' || b.type === 'Savings').reduce((sum, b) => sum + b.balance, 0);
-    const creditTotal = balances.filter(b => b.type === 'Credit Card').reduce((sum, b) => sum + b.balance, 0);
-    const investTotal = balances.filter(b => b.type === 'Investment').reduce((sum, b) => sum + b.balance, 0);
-    const loanTotal = balances.filter(b => b.type === 'Loan').reduce((sum, b) => sum + b.balance, 0);
+    // Calculate totals matching dashboard groups
+    let cashTotal = 0;
+    let investTotal = 0;
+    let creditTotal = 0;
+    let loanTotal = 0;
+
+    latestBalances.forEach(b => {
+      const val = Number(b.balance) || 0;
+      const typeLower = (b.type || '').toLowerCase();
+      const nameLower = (b.account || '').toLowerCase();
+      const instLower = (b.institution || '').toLowerCase();
+
+      if (b.class === 'Asset') {
+        const isInvest = typeLower.includes('investment') ||
+          typeLower.includes('brokerage') ||
+          typeLower.includes('retirement') ||
+          typeLower.includes('401') ||
+          typeLower.includes('ira') ||
+          typeLower.includes('529') ||
+          nameLower.includes('fidelity') ||
+          nameLower.includes('etrade') ||
+          nameLower.includes('e*trade') ||
+          nameLower.includes('schwab') ||
+          nameLower.includes('vanguard') ||
+          nameLower.includes('robinhood') ||
+          nameLower.includes('brokerage') ||
+          nameLower.includes('ira') ||
+          nameLower.includes('401k') ||
+          nameLower.includes('401(k)') ||
+          nameLower.includes('529') ||
+          instLower.includes('fidelity') ||
+          instLower.includes('etrade') ||
+          instLower.includes('schwab') ||
+          instLower.includes('vanguard') ||
+          instLower.includes('robinhood');
+
+        if (isInvest) {
+          investTotal += val;
+        } else {
+          cashTotal += val;
+        }
+      } else if (b.class === 'Liability') {
+        const isCard = typeLower.includes('credit') || nameLower.includes('card') || nameLower.includes('credit');
+        if (isCard) {
+          creditTotal += val;
+        } else {
+          loanTotal += val;
+        }
+      }
+    });
 
     // 2. Budget limits and actual spends this month
     const budgetData = categories.map(c => {
