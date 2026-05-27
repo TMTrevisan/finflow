@@ -3,19 +3,30 @@ import Layout from './components/layout/Layout';
 import PasscodeLock from './components/ui/PasscodeLock';
 import { AppProvider } from './context/AppContext';
 
-// Lazy-load all views for code-splitting performance
-const Dashboard = lazy(() => import('./views/Dashboard'));
-const Spending = lazy(() => import('./views/Spending'));
-const Income = lazy(() => import('./views/Income'));
-const Transactions = lazy(() => import('./views/Transactions'));
-const Budgets = lazy(() => import('./views/Budgets'));
-const CashFlow = lazy(() => import('./views/CashFlow'));
-const Settings = lazy(() => import('./views/Settings'));
-const PLReport = lazy(() => import('./views/PLReport'));
-const YearlyInsights = lazy(() => import('./views/YearlyInsights'));
-const Insights = lazy(() => import('./views/Insights'));
-const Assistant = lazy(() => import('./views/Assistant'));
-const Subscriptions = lazy(() => import('./views/Subscriptions'));
+// Helper to catch chunk load errors and reload the page automatically to fetch latest deployment files
+const safeLazy = (importFn) => {
+  return lazy(() => 
+    importFn().catch(err => {
+      console.warn("Dynamic import failed, reloading page to get latest version...", err);
+      window.location.reload();
+      return new Promise(() => {}); // Suspend while page reloads
+    })
+  );
+};
+
+// Lazy-load all views safely for code-splitting performance
+const Dashboard = safeLazy(() => import('./views/Dashboard'));
+const Spending = safeLazy(() => import('./views/Spending'));
+const Income = safeLazy(() => import('./views/Income'));
+const Transactions = safeLazy(() => import('./views/Transactions'));
+const Budgets = safeLazy(() => import('./views/Budgets'));
+const CashFlow = safeLazy(() => import('./views/CashFlow'));
+const Settings = safeLazy(() => import('./views/Settings'));
+const PLReport = safeLazy(() => import('./views/PLReport'));
+const YearlyInsights = safeLazy(() => import('./views/YearlyInsights'));
+const Insights = safeLazy(() => import('./views/Insights'));
+const Assistant = safeLazy(() => import('./views/Assistant'));
+const Subscriptions = safeLazy(() => import('./views/Subscriptions'));
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-full w-full min-h-[300px]">

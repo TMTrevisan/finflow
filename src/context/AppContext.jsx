@@ -380,6 +380,136 @@ export const AppProvider = ({ children, setCurrentView }) => {
     }
   }, []);
 
+  // Calculate Rolling 30-Day and Blended Monthly Surplus Projections
+  const surplusMetrics = useMemo(() => {
+    let mappings = {};
+    try {
+      const cached = safeStorage.getItem('finflow_life_opt_mappings');
+      if (cached) mappings = JSON.parse(cached);
+    } catch {}
+
+    const getClassification = (cat) => {
+      if (mappings[cat]) return mappings[cat].classification;
+      const name = String(cat || '').toLowerCase();
+      if (name.includes('paycheck') || name.includes('salary') || name.includes('bonus') || name.includes('dividend') || name.includes('interest') || name.includes('deposit') || name.includes('wages') || name.includes('family funding')) return 'Income';
+      if (name.includes('401') || name.includes('ira') || name.includes('retirement') || name.includes('invest') || name.includes('savings') || name.includes('hsa') || name.includes('529') || name.includes('compounding') || name.includes('stock')) return 'Compounding';
+      if (name.includes('grocer') || name.includes('rent') || name.includes('mortgage') || name.includes('utilit') || name.includes('electric') || name.includes('gas') || name.includes('water') || name.includes('power') || name.includes('internet') || name.includes('phone') || name.includes('insurance') || name.includes('medical') || name.includes('doctor') || name.includes('health') || name.includes('care') || name.includes('daycare') || name.includes('childcare')) return 'Baseline';
+      return 'Lifestyle';
+    };
+
+    const isIncluded = (cat) => {
+      if (mappings[cat] && mappings[cat].included === false) return false;
+      return true;
+    };
+
+    let refDate = new Date();
+    const validTxnDates = (transactions || [])
+      .map(t => t.date ? new Date(t.date) : null)
+      .filter(d => d && !isNaN(d.getTime()))
+      .sort((a, b) => b - a);
+    if (validTxnDates.length > 0) {
+      refDate = validTxnDates[0];
+    }
+
+    // A. ROLLING 30-DAY
+    const rollingStart = new Date(refDate.getTime());
+    rollingStart.setDate(rollingStart.getDate() - 30);
+
+    let rollingIncome = 0;
+    let rollingBaseline = 0;
+    let rollingCompounding = 0;
+    let rollingLifestyle = 0;
+
+    (transactions || []).forEach(t => {
+      if (!t.date || !t.category || !isIncluded(t.category)) return;
+      const d = new Date(t.date);
+      if (d < rollingStart || d > refDate) return;
+
+      const classification = getClassification(t.category);
+      const amountVal = Number(t.amount) || 0;
+
+      if (classification === 'Income') {
+        rollingIncome += amountVal;
+      } else {
+        const netExpense = -amountVal;
+        if (classification === 'Compounding') rollingCompounding += netExpense;
+        else if (classification === 'Baseline') rollingBaseline += netExpense;
+        else if (classification === 'Lifestyle') rollingLifestyle += netExpense;
+      }
+    });
+
+    const rollingSurplus = rollingIncome - rollingCompounding - rollingBaseline;
+
+    // B. BLENDED/PROJECTED CALENDAR MONTH
+    const currentMonth = refDate.getMonth();
+    const currentYear = refDate.getFullYear();
+
+    let actualIncome = 0;
+    let actualBaseline = 0;
+    let actualCompounding = 0;
+    let actualLifestyle = 0;
+
+    (transactions || []).forEach(t => {
+      if (!t.date || !t.category || !isIncluded(t.category)) return;
+      const d = new Date(t.date);
+      if (d.getMonth() !== currentMonth || d.getFullYear() !== currentYear) return;
+
+      const classification = getClassification(t.category);
+      const amountVal = Number(t.amount) || 0;
+
+      if (classification === 'Income') {
+        actualIncome += amountVal;
+      } else {
+        const netExpense = -amountVal;
+        if (classification === 'Compounding') actualCompounding += netExpense;
+        else if (classification === 'Baseline') actualBaseline += netExpense;
+        else if (classification === 'Lifestyle') actualLifestyle += netExpense;
+      }
+    });
+
+    let budgetIncome = 0;
+    let budgetBaseline = 0;
+    let budgetCompounding = 0;
+
+    (categories || []).forEach(c => {
+      if (!c.category || !isIncluded(c.category)) return;
+      const classification = getClassification(c.category);
+      const budgetVal = Number(c.budget) || 0;
+
+      if (classification === 'Income') {
+        budgetIncome += budgetVal;
+      } else if (classification === 'Compounding') {
+        budgetCompounding += budgetVal;
+      } else if (classification === 'Baseline') {
+        budgetBaseline += budgetVal;
+      }
+    });
+
+    const projectedIncome = Math.max(actualIncome, budgetIncome);
+    const projectedBaseline = Math.max(actualBaseline, budgetBaseline);
+    const projectedCompounding = Math.max(actualCompounding, budgetCompounding);
+    const projectedSurplus = projectedIncome - projectedCompounding - projectedBaseline;
+
+    return {
+      rolling: {
+        income: rollingIncome,
+        baseline: rollingBaseline,
+        compounding: rollingCompounding,
+        lifestyle: rollingLifestyle,
+        surplus: rollingSurplus
+      },
+      projected: {
+        income: projectedIncome,
+        baseline: projectedBaseline,
+        compounding: projectedCompounding,
+        surplus: projectedSurplus,
+        actualIncome,
+        actualBaseline,
+        actualCompounding
+      }
+    };
+  }, [transactions, categories]);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -390,6 +520,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       categories,
       balances,
       lifeOptimization,
+      surplusMetrics,
       isLoading,
       isSyncing,
       error,

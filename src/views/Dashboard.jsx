@@ -20,12 +20,14 @@ import {
   CalendarRange,
   Waves,
   RefreshCw,
-  Compass
+  Compass,
+  Heart,
+  Shield
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard({ setCurrentView }) {
-  const { balances, transactions, isLoading, navigateToTransactions } = useAppContext();
+  const { balances, transactions, surplusMetrics, isLoading, navigateToTransactions } = useAppContext();
   const [metric, setMetric] = useState('history'); // 'history', 'assets', 'debts'
   const [expandedCategories, setExpandedCategories] = useState({
     'Cash': false,
@@ -680,6 +682,54 @@ export default function Dashboard({ setCurrentView }) {
 
         {/* Right Column: Dynamic Cash Flow card, Emergency Fund chart & Recent Transactions */}
         <div className="space-y-6">
+          {/* PERMISSION TO SPEND ENGINE SUMMARY CARD */}
+          {surplusMetrics && (
+            <div 
+              onClick={() => setCurrentView('insights')}
+              className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-6 space-y-4 hover:border-neon-indigo/55 transition-all duration-300 cursor-pointer group"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800/40 pb-3">
+                <span className="flex items-center space-x-1.5 font-bold text-white group-hover:text-neon-indigo transition-colors text-sm">
+                  <Compass className="text-neon-indigo animate-spin-slow" size={16} />
+                  <span>Permission to Spend</span>
+                </span>
+                <span className="text-xs text-slate-500 font-semibold flex items-center gap-0.5 group-hover:text-slate-350 transition-colors">
+                  View <ChevronRight size={12} />
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* Option A: Rolling 30D */}
+                <div className="space-y-1.5">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                    <Heart size={10} className="text-neon-indigo" />
+                    <span>A: Rolling 30d</span>
+                  </span>
+                  <p className={`text-lg font-black tracking-tight ${surplusMetrics.rolling.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {formatCurrency(surplusMetrics.rolling.surplus)}
+                  </p>
+                  <span className="text-[9px] font-bold text-slate-450 block leading-tight">
+                    {surplusMetrics.rolling.surplus >= 0 ? '✓ Clear to Spend' : '⚠️ Deficit'}
+                  </span>
+                </div>
+
+                {/* Option B: Blended Projected */}
+                <div className="space-y-1.5 border-l border-slate-850/40 pl-4">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                    <Shield size={10} className="text-neon-indigo" />
+                    <span>B: Proj Month</span>
+                  </span>
+                  <p className={`text-lg font-black tracking-tight ${surplusMetrics.projected.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {formatCurrency(surplusMetrics.projected.surplus)}
+                  </p>
+                  <span className="text-[9px] font-bold text-slate-455 block leading-tight">
+                    {surplusMetrics.projected.surplus >= 0 ? '✓ Budget Cleared' : '⚠️ Proj Deficit'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* CASH FLOW CARD (Image 3) */}
           <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-6 space-y-4">
             <div className="flex items-center justify-between">

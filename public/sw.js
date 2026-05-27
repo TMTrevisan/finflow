@@ -11,6 +11,8 @@ self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
+    }).catch(err => {
+      console.warn('Service Worker cache installation skipped (storage blocked):', err);
     })
   );
 });
@@ -21,10 +23,12 @@ self.addEventListener('activate', (e) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME && key !== CONFIG_CACHE) {
-            return caches.delete(key);
+            return caches.delete(key).catch(() => {});
           }
         })
       );
+    }).catch(err => {
+      console.warn('Service Worker cache activation cleanup skipped (storage blocked):', err);
     })
   );
 });
@@ -35,30 +39,46 @@ self.addEventListener('fetch', (e) => {
   }
 
   e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        fetch(e.request).then((networkResponse) => {
-          if (networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, networkResponse));
-          }
-        }).catch(() => {});
-        return cachedResponse;
-      }
-      return fetch(e.request);
-    })
+    caches.match(e.request)
+      .then((cachedResponse) => {
+        if (cachedResponse) {
+          fetch(e.request).then((networkResponse) => {
+            if (networkResponse.status === 200) {
+              caches.open(CACHE_NAME)
+                .then((cache) => cache.put(e.request, networkResponse))
+                .catch(() => {});
+            }
+          }).catch(() => {});
+          return cachedResponse;
+        }
+        return fetch(e.request);
+      })
+      .catch((err) => {
+        // Fall back to direct network request if caches API throws access denied
+        return fetch(e.request);
+      })
   );
 });
 
-// Helpers to save and retrieve settings in Cache Storage (localStorage equivalent for SW)
+// Helpers to save and retrieve settings in Cache Storage safely (handling sandboxed restriction errors)
 const saveApiUrl = async (url) => {
-  const cache = await caches.open(CONFIG_CACHE);
-  await cache.put('/api-url', new Response(url));
+  try {
+    const cache = await caches.open(CONFIG_CACHE);
+    await cache.put('/api-url', new Response(url));
+  } catch (err) {
+    console.warn('Cache storage is not allowed/accessible in this context:', err);
+  }
 };
 
 const getApiUrl = async () => {
-  const cache = await caches.open(CONFIG_CACHE);
-  const response = await cache.match('/api-url');
-  return response ? response.text() : '';
+  try {
+    const cache = await caches.open(CONFIG_CACHE);
+    const response = await cache.match('/api-url');
+    return response ? response.text() : '';
+  } catch (err) {
+    console.warn('Cache storage read failed (access denied):', err);
+    return '';
+  }
 };
 
 // Listen for settings synchronization messages from the client
@@ -86,14 +106,26 @@ const checkNewTransactionsAndNotify = async () => {
     );
 
     if (uncategorized.length > 0) {
-      const configCache = await caches.open(CONFIG_CACHE);
-      const lastTxnIdRes = await configCache.match('/last-notified-id');
-      const lastTxnId = lastTxnIdRes ? await lastTxnIdRes.text() : '';
+      let configCache;
+      let lastTxnId = '';
+      try {
+        configCache = await caches.open(CONFIG_CACHE);
+        const lastTxnIdRes = await configCache.match('/last-notified-id');
+        lastTxnId = lastTxnIdRes ? await lastTxnIdRes.text() : '';
+      } catch (cacheErr) {
+        console.warn('Notification configCache access failed:', cacheErr);
+      }
 
       // Check if the latest uncategorized transaction is new
       const latestTxn = uncategorized[0];
       if (latestTxn.id !== lastTxnId) {
-        await configCache.put('/last-notified-id', new Response(latestTxn.id));
+        try {
+          if (configCache) {
+            await configCache.put('/last-notified-id', new Response(latestTxn.id));
+          }
+        } catch (cachePutErr) {
+          console.warn('Failed to save last-notified-id:', cachePutErr);
+        }
 
         self.registration.showNotification('Uncategorized Transactions', {
           body: `You have ${uncategorized.length} transaction(s) requiring category triage.`,

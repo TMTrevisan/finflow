@@ -6,7 +6,7 @@ import { SlidersHorizontal, ArrowUpRight, ArrowDownRight, Compass, Shield, Heart
 import { safeStorage } from '../utils/storage';
 
 export default function LifeOptimization() {
-  const { transactions = [], categories = [], lifeOptimization = [], isLoading } = useAppContext();
+  const { transactions = [], categories = [], lifeOptimization = [], surplusMetrics, isLoading } = useAppContext();
   const [showConfig, setShowConfig] = useState(false);
 
   // Extract all distinct category names from transactions list
@@ -249,7 +249,7 @@ export default function LifeOptimization() {
           surplus
         };
       })
-      .sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+      .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
   }, [transactions, mappings]);
 
   if (isLoading) {
@@ -297,6 +297,121 @@ export default function LifeOptimization() {
           </button>
         </div>
       </div>
+
+      {/* Real-time Surplus Engines Row */}
+      {surplusMetrics && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Card A: Rolling 30-Day Surplus */}
+          <Card className="bg-[#0B0E14] border border-[#161B26] p-6 rounded-3xl relative overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-800/40 pb-3.5 mb-4">
+              <div>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Option A</span>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                  <Heart className="text-neon-indigo animate-pulse" size={16} />
+                  <span>Rolling 30-Day Surplus</span>
+                </h3>
+              </div>
+              <span className="text-[9.5px] font-bold text-slate-400 bg-obsidian-800 border border-slate-700/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Time-Smooth</span>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-slate-450">Permission to Spend (last 30d):</span>
+                <span className={`text-2xl font-black ${surplusMetrics.rolling.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {formatCurrency(surplusMetrics.rolling.surplus)}
+                </span>
+              </div>
+              
+              <div className="w-full bg-obsidian-950 h-2 rounded-full overflow-hidden flex">
+                <div 
+                  className="h-full bg-neon-indigo transition-all"
+                  style={{ width: `${Math.min(100, (surplusMetrics.rolling.income / Math.max(surplusMetrics.rolling.income + surplusMetrics.rolling.baseline + surplusMetrics.rolling.compounding, 1)) * 100)}%` }}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 pt-1.5 text-center">
+                <div className="bg-[#0c0f16] border border-[#161B26] p-2 rounded-2xl">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Inflow</p>
+                  <p className="text-xs font-bold text-slate-200 mt-1">{formatCurrency(surplusMetrics.rolling.income)}</p>
+                </div>
+                <div className="bg-[#0c0f16] border border-[#161B26] p-2 rounded-2xl">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Baseline</p>
+                  <p className="text-xs font-bold text-slate-400 mt-1">-{formatCurrency(surplusMetrics.rolling.baseline)}</p>
+                </div>
+                <div className="bg-[#0c0f16] border border-[#161B26] p-2 rounded-2xl">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Compound</p>
+                  <p className="text-xs font-bold text-slate-400 mt-1">-{formatCurrency(surplusMetrics.rolling.compounding)}</p>
+                </div>
+              </div>
+              
+              {surplusMetrics.rolling.surplus >= 0 ? (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-2xl text-[10px] font-bold text-emerald-400 flex items-center justify-center text-center">
+                  ✓ Long-term goals fully funded. Discretionary cash cleared to spend guilt-free!
+                </div>
+              ) : (
+                <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-2xl text-[10px] font-bold text-rose-400 flex items-center justify-center text-center">
+                  ⚠️ Deficit over last 30 days. Recommend dialing back non-essential lifestyle purchases.
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Card B: Blended Monthly Projections */}
+          <Card className="bg-[#0B0E14] border border-[#161B26] p-6 rounded-3xl relative overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-800/40 pb-3.5 mb-4">
+              <div>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Option B</span>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
+                  <Shield className="text-neon-indigo" size={16} />
+                  <span>Blended Projected Month Surplus</span>
+                </h3>
+              </div>
+              <span className="text-[9.5px] font-bold text-slate-400 bg-obsidian-800 border border-slate-700/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Forecast</span>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-slate-455">Projected final surplus (Budget + Actuals):</span>
+                <span className={`text-2xl font-black ${surplusMetrics.projected.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {formatCurrency(surplusMetrics.projected.surplus)}
+                </span>
+              </div>
+
+              <div className="w-full bg-obsidian-950 h-2 rounded-full overflow-hidden flex">
+                <div 
+                  className="h-full bg-neon-indigo transition-all"
+                  style={{ width: `${Math.min(100, (surplusMetrics.projected.income / Math.max(surplusMetrics.projected.income + surplusMetrics.projected.baseline + surplusMetrics.projected.compounding, 1)) * 100)}%` }}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 pt-1.5 text-center">
+                <div className="bg-[#0c0f16] border border-[#161B26] p-2 rounded-2xl">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Proj Income</p>
+                  <p className="text-xs font-bold text-slate-200 mt-1">{formatCurrency(surplusMetrics.projected.income)}</p>
+                </div>
+                <div className="bg-[#0c0f16] border border-[#161B26] p-2 rounded-2xl">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Proj Baseline</p>
+                  <p className="text-xs font-bold text-slate-400 mt-1">-{formatCurrency(surplusMetrics.projected.baseline)}</p>
+                </div>
+                <div className="bg-[#0c0f16] border border-[#161B26] p-2 rounded-2xl">
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Proj Compound</p>
+                  <p className="text-xs font-bold text-slate-400 mt-1">-{formatCurrency(surplusMetrics.projected.compounding)}</p>
+                </div>
+              </div>
+
+              {surplusMetrics.projected.surplus >= 0 ? (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-2xl text-[10px] font-bold text-emerald-400 flex items-center justify-center text-center">
+                  ✓ Projected surplus is healthy. Month-end budget commitments fully secured.
+                </div>
+              ) : (
+                <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-2xl text-[10px] font-bold text-rose-400 flex items-center justify-center text-center">
+                  ⚠️ Projected month-end deficit. Review budget categories for potential savings.
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Control Plane Section: Category Assignments */}
       {showConfig && (
