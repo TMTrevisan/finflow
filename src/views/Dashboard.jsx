@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import LineChart from '../components/ui/LineChart';
-import { formatCurrency } from '../utils/formatting';
+import { formatCurrency, cleanMerchantName } from '../utils/formatting';
 import { 
   TrendingUp, 
   TrendingDown,
