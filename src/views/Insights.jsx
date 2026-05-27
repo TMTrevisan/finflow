@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import SpendingTrends from './SpendingTrends';
+import LifeOptimization from './LifeOptimization';
 import Spending from './Spending';
 import Income from './Income';
 import PLReport from './PLReport';
@@ -6,22 +8,26 @@ import YearlyInsights from './YearlyInsights';
 import { cn } from '../components/ui/Card';
 
 export default function Insights() {
-  const [activeSubTab, setActiveSubTab] = useState('spending');
+  const [activeSubTab, setActiveSubTab] = useState('spending_trends');
 
   const TABS = [
-    { id: 'spending', label: 'Spending' },
-    { id: 'income', label: 'Income' },
+    { id: 'spending_trends', label: 'Spending Trends' },
+    { id: 'life_optimization', label: 'Permission to Spend' },
+    { id: 'spending', label: 'Spending Breakdown' },
+    { id: 'income', label: 'Income Breakdown' },
     { id: 'pl', label: 'P&L Report' },
     { id: 'yearly', label: 'Yearly Insights' },
   ];
 
   const renderSubView = () => {
     switch (activeSubTab) {
+      case 'spending_trends': return <SpendingTrends />;
+      case 'life_optimization': return <LifeOptimization />;
       case 'spending': return <Spending />;
       case 'income': return <Income />;
       case 'pl': return <PLReport />;
       case 'yearly': return <YearlyInsights />;
-      default: return <Spending />;
+      default: return <SpendingTrends />;
     }
   };
 
