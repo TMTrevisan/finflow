@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, ReceiptText, Sparkles, MoreHorizontal, X,
   PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings, Table,
-  Calendar, CalendarRange
+  Calendar, CalendarRange, Compass
 } from 'lucide-react';
 import { haptics } from '../../utils/haptics';
 
@@ -18,6 +18,7 @@ const MORE_SECTIONS = [
   {
     label: 'Analytics',
     items: [
+      { id: 'insights', label: 'Insights', icon: Compass, desc: 'Spending Trends & Surplus' },
       { id: 'budgets', label: 'Budgets', icon: PieChart, desc: 'Monthly spending limits' },
       { id: 'spending', label: 'Spending', icon: ArrowDownRight, desc: 'Category breakdown' },
       { id: 'income', label: 'Income', icon: ArrowUpRight, desc: 'Earnings & sources' },

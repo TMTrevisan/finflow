@@ -19,7 +19,8 @@ import {
   Calendar,
   CalendarRange,
   Waves,
-  RefreshCw
+  RefreshCw,
+  Compass
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -855,8 +856,9 @@ export default function Dashboard({ setCurrentView }) {
       {/* Reports Quick Access */}
       <div className="space-y-3">
         <h3 className="text-lg font-bold text-white tracking-tight">Reports & Analytics</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
           {[
+            { id: 'insights', label: 'Insights', icon: Compass, color: 'text-sky-400' },
             { id: 'cashflow', label: 'Cash Flow', icon: Waves, color: 'text-neon-indigo' },
             { id: 'spending', label: 'Spending', icon: ArrowDownRight, color: 'text-neon-crimson' },
             { id: 'income', label: 'Income', icon: ArrowUpRight, color: 'text-neon-emerald' },
