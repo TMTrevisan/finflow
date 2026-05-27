@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import LineChart from '../components/ui/LineChart';
-import { formatCurrency, cleanMerchantName, getCategoryEmoji } from '../utils/formatting';
+import { formatCurrency, cleanMerchantName, getCategoryEmoji, formatDate } from '../utils/formatting';
 import { Card, CardContent } from '../components/ui/Card';
 import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, HelpCircle } from 'lucide-react';
 
@@ -367,7 +367,7 @@ export default function SpendingTrends() {
                     
                     {/* Collapsible list of transactions */}
                     {isExpanded && (
-                      <div className="mt-2.5 pl-6 pr-2 py-2 bg-obsidian-900/50 rounded-xl border border-obsidian-800/80 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                      <div className="mt-2.5 pl-6 pr-2 py-2 bg-obsidian-900/50 rounded-xl border border-obsidian-800/80 space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
                         {transactions
                           .filter(t => {
                             if (t.type !== 'Income' || t.category !== cat.name) return false;
@@ -376,12 +376,12 @@ export default function SpendingTrends() {
                           })
                           .sort((a, b) => new Date(b.date) - new Date(a.date))
                           .map(t => (
-                            <div key={t.id} className="flex justify-between items-center text-[10px] text-slate-400 py-1.5 border-b border-obsidian-800/40 last:border-b-0">
+                            <div key={t.id} className="flex justify-between items-center text-xs text-slate-400 py-2 border-b border-obsidian-800/40 last:border-b-0">
                               <div className="min-w-0">
-                                <p className="font-bold text-slate-300 truncate">{cleanMerchantName(t.description)}</p>
-                                <p className="text-[8px] text-slate-500 mt-0.5">{t.date} • {t.account}</p>
+                                <p className="font-semibold text-slate-200 text-sm truncate">{cleanMerchantName(t.description)}</p>
+                                <p className="text-xs text-slate-500 mt-1">{formatDate(t.date)} • {t.account}</p>
                               </div>
-                              <span className="font-extrabold text-slate-200 ml-2 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
+                              <span className="font-bold text-slate-100 text-sm ml-2 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
                             </div>
                           ))
                         }
@@ -430,7 +430,7 @@ export default function SpendingTrends() {
                     
                     {/* Collapsible list of transactions */}
                     {isExpanded && (
-                      <div className="mt-2.5 pl-6 pr-2 py-2 bg-obsidian-900/50 rounded-xl border border-obsidian-800/80 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                      <div className="mt-2.5 pl-6 pr-2 py-2 bg-obsidian-900/50 rounded-xl border border-obsidian-800/80 space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
                         {transactions
                           .filter(t => {
                             if (t.type !== 'Expense' || t.category !== cat.name) return false;
@@ -439,12 +439,12 @@ export default function SpendingTrends() {
                           })
                           .sort((a, b) => new Date(b.date) - new Date(a.date))
                           .map(t => (
-                            <div key={t.id} className="flex justify-between items-center text-[10px] text-slate-400 py-1.5 border-b border-obsidian-800/40 last:border-b-0">
+                            <div key={t.id} className="flex justify-between items-center text-xs text-slate-400 py-2 border-b border-obsidian-800/40 last:border-b-0">
                               <div className="min-w-0">
-                                <p className="font-bold text-slate-300 truncate">{cleanMerchantName(t.description)}</p>
-                                <p className="text-[8px] text-slate-500 mt-0.5">{t.date} • {t.account}</p>
+                                <p className="font-semibold text-slate-200 text-sm truncate">{cleanMerchantName(t.description)}</p>
+                                <p className="text-xs text-slate-500 mt-1">{formatDate(t.date)} • {t.account}</p>
                               </div>
-                              <span className="font-extrabold text-slate-200 ml-2 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
+                              <span className="font-bold text-slate-100 text-sm ml-2 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
                             </div>
                           ))
                         }

@@ -111,7 +111,7 @@ export default function Income() {
 
         let key = '';
         if (isDaily) {
-          key = t.date; // YYYY-MM-DD
+          key = String(t.date).substring(0, 10); // Ensure YYYY-MM-DD format
         } else {
           const year = d.getFullYear();
           const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -125,7 +125,12 @@ export default function Income() {
         let displayLabel = label;
         if (isDaily) {
           const d = new Date(label + 'T00:00:00');
-          displayLabel = d.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+          if (isNaN(d.getTime())) {
+            const parsed = new Date(label);
+            displayLabel = isNaN(parsed.getTime()) ? label : parsed.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+          } else {
+            displayLabel = d.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+          }
         } else {
           const [year, month] = label.split('-');
           const d = new Date(Number(year), Number(month) - 1, 1);
@@ -328,49 +333,48 @@ export default function Income() {
                 </div>
                 
                 {/* Transactions under this date */}
-                <div className="space-y-2">
-                  {group.transactions.map(t => {
-                    const config = getCategoryConfig(t.category);
-                    const IconComponent = config.icon;
-                    
-                    return (
-                      <div 
-                        key={t.id} 
-                        className="flex items-center justify-between p-3 bg-obsidian-850/30 hover:bg-obsidian-800/45 border border-obsidian-800/60 hover:border-obsidian-750 rounded-2xl transition-all duration-200 group"
-                      >
-                        <div className="flex items-center space-x-3.5">
-                          {/* Category Icon Circle */}
-                          <div 
-                            className="w-10 h-10 rounded-full flex items-center justify-center bg-obsidian-900 border transition-all duration-200 group-hover:border-opacity-100"
-                            style={{ 
-                              borderColor: `${config.color}25`,
-                              boxShadow: `0 0 8px ${config.color}10`
-                            }}
-                          >
-                            {IconComponent && <IconComponent size={18} style={{ color: config.color }} />}
-                          </div>
-                          
-                          <div>
-                            <p className="text-sm font-semibold text-white tracking-tight group-hover:text-neon-indigo transition-colors duration-200">
-                              {cleanMerchantName(t.description)}
-                            </p>
-                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">
-                              <span style={{ color: config.color }} className="font-semibold">{t.category}</span>
-                              <span className="mx-1.5">•</span>
-                              <span>{t.account}</span>
-                            </p>
-                          </div>
-                        </div>
-                        
-                        <div className="text-right">
-                          <span className="text-sm font-bold text-slate-200 group-hover:text-white transition-colors duration-200">
-                            {formatCurrency(t.amount)}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <div className="divide-y divide-obsidian-800/40">
+                   {group.transactions.map(t => {
+                     const config = getCategoryConfig(t.category);
+                     const IconComponent = config.icon;
+                     
+                     return (
+                       <div 
+                         key={t.id} 
+                         className="flex items-center justify-between py-2.5 hover:bg-slate-800/10 px-2 rounded-xl transition-all duration-150 group"
+                       >
+                         <div className="flex items-center space-x-3">
+                           {/* Category Icon Circle */}
+                           <div 
+                             className="w-9 h-9 rounded-xl flex items-center justify-center bg-obsidian-900 border transition-all duration-150"
+                             style={{ 
+                               borderColor: `${config.color}20`,
+                             }}
+                           >
+                             {IconComponent && <IconComponent size={16} style={{ color: config.color }} />}
+                           </div>
+                           
+                           <div>
+                             <p className="text-base font-bold text-white tracking-tight group-hover:text-neon-indigo transition-colors duration-150">
+                               {cleanMerchantName(t.description)}
+                             </p>
+                             <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                               <span style={{ color: config.color }} className="font-semibold">{t.category}</span>
+                               <span className="text-slate-600 font-normal">•</span>
+                               <span>{t.account}</span>
+                             </p>
+                           </div>
+                         </div>
+                         
+                         <div className="text-right">
+                           <span className="text-base font-extrabold text-slate-200 group-hover:text-white transition-colors duration-150">
+                             {formatCurrency(t.amount)}
+                           </span>
+                         </div>
+                       </div>
+                     );
+                   })}
+                 </div>
               </div>
             ))}
           </div>

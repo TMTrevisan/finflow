@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import { formatCurrency, getCategoryEmoji } from '../utils/formatting';
 import { Card, CardContent } from '../components/ui/Card';
 import { SlidersHorizontal, ArrowUpRight, ArrowDownRight, Compass, Shield, Heart, PlusCircle } from 'lucide-react';
+import { safeStorage } from '../utils/storage';
 
 export default function LifeOptimization() {
   const { transactions = [], categories = [], lifeOptimization = [], isLoading } = useAppContext();
@@ -37,7 +38,7 @@ export default function LifeOptimization() {
   // State to hold the mappings (classification & inclusion)
   const [mappings, setMappings] = useState(() => {
     try {
-      const cached = localStorage.getItem('finflow_life_opt_mappings');
+      const cached = safeStorage.getItem('finflow_life_opt_mappings');
       if (cached) {
         return JSON.parse(cached);
       }
@@ -147,7 +148,7 @@ export default function LifeOptimization() {
 
       if (updated) {
         setMappings(newMappings);
-        localStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
+        safeStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
       }
     }
   }, [lifeOptimization, categories, allCategories]);
@@ -169,7 +170,7 @@ export default function LifeOptimization() {
 
     if (updated) {
       setMappings(newMappings);
-      localStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
+      safeStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
     }
   }, [allCategories]);
 
@@ -183,7 +184,7 @@ export default function LifeOptimization() {
       }
     };
     setMappings(updated);
-    localStorage.setItem('finflow_life_opt_mappings', JSON.stringify(updated));
+    safeStorage.setItem('finflow_life_opt_mappings', JSON.stringify(updated));
   };
 
   // Math Engine: Group transactions by Month and calculate functional bucket sums

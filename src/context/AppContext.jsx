@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchFinData, updateTransactionCategory } from '../services/api';
 import { MOCK_TRANSACTIONS, MOCK_CATEGORIES, MOCK_BALANCES } from '../services/mockData';
+import { safeStorage } from '../utils/storage';
 
 const AppContext = createContext();
 
@@ -144,7 +145,7 @@ const compressTransactions = (txns) => {
 // Helper to write to localStorage safely without crashing the app if browser storage limit is hit
 const safeSetItem = (key, value) => {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    safeStorage.setItem(key, JSON.stringify(value));
   } catch (err) {
     console.warn(`Failed to write cache for key "${key}" (possibly quota exceeded):`, err);
   }
@@ -153,7 +154,7 @@ const safeSetItem = (key, value) => {
 export const AppProvider = ({ children, setCurrentView }) => {
   const [transactions, setTransactions] = useState(() => {
     try {
-      const cached = localStorage.getItem('finflow_cache_transactions');
+      const cached = safeStorage.getItem('finflow_cache_transactions');
       const parsed = cached ? JSON.parse(cached) : null;
       return Array.isArray(parsed) ? parsed : [];
     } catch {
@@ -163,7 +164,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   const [categories, setCategories] = useState(() => {
     try {
-      const cached = localStorage.getItem('finflow_cache_categories');
+      const cached = safeStorage.getItem('finflow_cache_categories');
       const parsed = cached ? JSON.parse(cached) : null;
       return Array.isArray(parsed) ? parsed : [];
     } catch {
@@ -173,7 +174,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   const [balances, setBalances] = useState(() => {
     try {
-      const cached = localStorage.getItem('finflow_cache_balances');
+      const cached = safeStorage.getItem('finflow_cache_balances');
       const parsed = cached ? JSON.parse(cached) : null;
       return Array.isArray(parsed) ? parsed : [];
     } catch {
@@ -183,7 +184,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   const [lifeOptimization, setLifeOptimization] = useState(() => {
     try {
-      const cached = localStorage.getItem('finflow_cache_life_opt');
+      const cached = safeStorage.getItem('finflow_cache_life_opt');
       const parsed = cached ? JSON.parse(cached) : null;
       return Array.isArray(parsed) ? parsed : [];
     } catch {
@@ -213,7 +214,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   const [isLoading, setIsLoading] = useState(() => {
     try {
-      const cached = localStorage.getItem('finflow_cache_transactions');
+      const cached = safeStorage.getItem('finflow_cache_transactions');
       return cached ? false : true;
     } catch {
       return true;
@@ -222,7 +223,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   const [isMockData, setIsMockData] = useState(() => {
     try {
-      const cached = localStorage.getItem('finflow_cache_transactions');
+      const cached = safeStorage.getItem('finflow_cache_transactions');
       return cached ? false : true;
     } catch {
       return true;
@@ -232,7 +233,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState(null);
   const [lastSync, setLastSync] = useState(() => {
-    return localStorage.getItem('finflow_last_sync') || null;
+    return safeStorage.getItem('finflow_last_sync') || null;
   });
 
   const loadData = async (forceSpinner = false) => {
@@ -257,7 +258,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
       
       const timestamp = new Date().toISOString();
-      localStorage.setItem('finflow_last_sync', timestamp);
+      safeStorage.setItem('finflow_last_sync', timestamp);
       setLastSync(timestamp);
     } catch (err) {
       console.warn("Failed to load live data, falling back to mock/cache:", err);
@@ -298,7 +299,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
       
       const timestamp = new Date().toISOString();
-      localStorage.setItem('finflow_last_sync', timestamp);
+      safeStorage.setItem('finflow_last_sync', timestamp);
       setLastSync(timestamp);
       return true;
     } catch (err) {
@@ -310,11 +311,11 @@ export const AppProvider = ({ children, setCurrentView }) => {
   };
 
   const clearCache = () => {
-    localStorage.removeItem('finflow_cache_transactions');
-    localStorage.removeItem('finflow_cache_categories');
-    localStorage.removeItem('finflow_cache_balances');
-    localStorage.removeItem('finflow_cache_life_opt');
-    localStorage.removeItem('finflow_last_sync');
+    safeStorage.removeItem('finflow_cache_transactions');
+    safeStorage.removeItem('finflow_cache_categories');
+    safeStorage.removeItem('finflow_cache_balances');
+    safeStorage.removeItem('finflow_cache_life_opt');
+    safeStorage.removeItem('finflow_last_sync');
     setTransactions([]);
     setCategories([]);
     setBalances([]);
@@ -349,7 +350,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   // Post API URL to Service Worker for background notifications sync
   useEffect(() => {
-    const url = localStorage.getItem('finflow_api_url');
+    const url = safeStorage.getItem('finflow_api_url');
     if (url && 'serviceWorker' in navigator) {
       navigator.serviceWorker.ready.then(registration => {
         if (registration.active) {
