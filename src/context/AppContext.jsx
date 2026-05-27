@@ -245,6 +245,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const data = await fetchFinData();
       const { txns, cats } = decorateData(data.transactions, data.categories);
       setTransactions(txns);
+      setCategories(cats);
       setBalances(data.balances || []);
       setLifeOptimization(data.lifeOptimization || []);
       setIsMockData(false);

@@ -5,7 +5,7 @@ import { Card, CardContent } from '../components/ui/Card';
 import { SlidersHorizontal, ArrowUpRight, ArrowDownRight, Compass, Shield, Heart, PlusCircle } from 'lucide-react';
 
 export default function LifeOptimization() {
-  const { transactions = [], lifeOptimization = [], isLoading } = useAppContext();
+  const { transactions = [], categories = [], lifeOptimization = [], isLoading } = useAppContext();
   const [showConfig, setShowConfig] = useState(false);
 
   // Extract all distinct category names from transactions list
@@ -47,26 +47,77 @@ export default function LifeOptimization() {
     return {};
   });
 
+  // Compute status of mapping sync from Sheets
+  const syncStatus = useMemo(() => {
+    if (lifeOptimization && lifeOptimization.length > 0) {
+      return {
+        synced: true,
+        source: "'Life_Optimization' Tiller Sheet",
+        count: lifeOptimization.length
+      };
+    }
+    
+    if (categories && categories.length > 0) {
+      const sample = categories[0];
+      const keys = Object.keys(sample);
+      const classKey = keys.find(k => 
+        k.toLowerCase().includes('bucket') || 
+        k.toLowerCase().includes('class') || 
+        k.toLowerCase().includes('assignment')
+      );
+      if (classKey) {
+        const mappedCount = categories.filter(c => c[classKey] !== undefined && c[classKey] !== null && String(c[classKey]).trim() !== '').length;
+        return {
+          synced: true,
+          source: "custom columns in 'Categories' sheet",
+          count: mappedCount || categories.length
+        };
+      }
+    }
+    
+    return {
+      synced: false
+    };
+  }, [lifeOptimization, categories]);
+
   // 1. Overwrite/hydrate local mappings if Tiller Sheet mapping is present
   useEffect(() => {
+    // Collect rows from both lifeOptimization and categories that might contain classifications
+    const sources = [];
     if (lifeOptimization && lifeOptimization.length > 0) {
+      sources.push(...lifeOptimization);
+    }
+    if (categories && categories.length > 0) {
+      sources.push(...categories);
+    }
+
+    if (sources.length > 0) {
       const newMappings = { ...mappings };
       let updated = false;
 
-      lifeOptimization.forEach(row => {
+      sources.forEach(row => {
         const keys = Object.keys(row);
         const catKey = keys.find(k => k.toLowerCase().includes('category'));
-        const classKey = keys.find(k => k.toLowerCase().includes('class') || k.toLowerCase().includes('type') || k.toLowerCase().includes('bucket'));
-        const inclKey = keys.find(k => k.toLowerCase().includes('include') || k.toLowerCase().includes('active') || k.toLowerCase().includes('show'));
+        const classKey = keys.find(k => 
+          k.toLowerCase().includes('bucket') || 
+          k.toLowerCase().includes('class') || 
+          k.toLowerCase().includes('assignment') || 
+          k.toLowerCase().includes('type')
+        );
+        const inclKey = keys.find(k => 
+          k.toLowerCase().includes('include') || 
+          k.toLowerCase().includes('active') || 
+          k.toLowerCase().includes('show')
+        );
 
-        if (catKey) {
+        if (catKey && (classKey || inclKey)) {
           const categoryName = String(row[catKey]).trim();
           if (categoryName) {
             // Casing-agnostic match
             const matchName = allCategories.find(c => c.toLowerCase().trim() === categoryName.toLowerCase()) || categoryName;
 
-            let classification = 'Lifestyle';
-            if (classKey) {
+            let classification = newMappings[matchName]?.classification || 'Lifestyle';
+            if (classKey && row[classKey] !== undefined && row[classKey] !== null && String(row[classKey]).trim() !== '') {
               const val = String(row[classKey]).trim().toLowerCase();
               if (val.includes('income')) classification = 'Income';
               else if (val.includes('compound') || val.includes('saving')) classification = 'Compounding';
@@ -74,11 +125,13 @@ export default function LifeOptimization() {
               else if (val.includes('life') || val.includes('discretionary') || val.includes('style')) classification = 'Lifestyle';
             }
 
-            let included = true;
-            if (inclKey) {
+            let included = newMappings[matchName]?.included !== false; // default true
+            if (inclKey && row[inclKey] !== undefined && row[inclKey] !== null && String(row[inclKey]).trim() !== '') {
               const val = String(row[inclKey]).trim().toLowerCase();
               if (val === 'false' || val === 'no' || val === '0' || val === 'hide' || val === 'unchecked' || val === 'exclude') {
                 included = false;
+              } else if (val === 'true' || val === 'yes' || val === '1' || val === 'show' || val === 'checked' || val === 'include') {
+                included = true;
               }
             }
 
@@ -97,7 +150,7 @@ export default function LifeOptimization() {
         localStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
       }
     }
-  }, [lifeOptimization, allCategories]);
+  }, [lifeOptimization, categories, allCategories]);
 
   // 2. Hydrate smart defaults for any new category seen that is not yet mapped
   useEffect(() => {
@@ -216,13 +269,13 @@ export default function LifeOptimization() {
               You are officially cleared to spend remaining discretionary cash on high-value life upgrades guilt-free.
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
-              {lifeOptimization && lifeOptimization.length > 0 ? (
+              {syncStatus.synced ? (
                 <span className="inline-flex items-center text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full">
-                  ✓ Synced with 'Life_Optimization' Tiller Sheet ({lifeOptimization.length} categories)
+                  ✓ Synced with {syncStatus.source} ({syncStatus.count} categories)
                 </span>
               ) : (
                 <span className="inline-flex items-center text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2.5 py-0.5 rounded-full">
-                  ⚠️ No 'Life_Optimization' sheet found. Using local browser config.
+                  ⚠️ No 'Life_Optimization' sheet or custom columns found. Using local browser config.
                 </span>
               )}
             </div>
