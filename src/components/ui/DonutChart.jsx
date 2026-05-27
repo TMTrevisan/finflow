@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { formatCurrency } from '../../utils/formatting';
+import { formatCurrency, cleanMerchantName, formatDate } from '../../utils/formatting';
 import { getCategoryConfig } from '../../utils/categoryHelpers';
 
 export default function DonutChart({ 
@@ -185,18 +185,22 @@ export default function DonutChart({
               {/* Expanded details list */}
               {isExpanded && categoryTxns.length > 0 && (
                 <div 
-                  className="mt-3.5 pl-11 pr-2 py-2 bg-obsidian-900/60 rounded-xl border border-obsidian-800 space-y-2 max-h-48 overflow-y-auto custom-scrollbar"
+                  className="mt-3.5 px-2 py-2 bg-obsidian-900/60 rounded-xl border border-obsidian-800 space-y-1.5 max-h-96 overflow-y-auto custom-scrollbar w-full"
                   onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inner items
                 >
                   {categoryTxns
                     .sort((a, b) => new Date(b.date) - new Date(a.date))
                     .map(t => (
-                      <div key={t.id} className="flex justify-between items-center text-[10px] text-slate-400 py-1.5 border-b border-obsidian-800/40 last:border-b-0">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-200 truncate">{t.description}</p>
-                          <p className="text-[8px] text-slate-500 mt-0.5">{t.date} • {t.account}</p>
+                      <div key={t.id} className="flex justify-between items-center text-xs text-slate-400 py-3 border-b border-obsidian-800/40 last:border-b-0 w-full px-1">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-200 text-sm sm:text-base truncate">{cleanMerchantName(t.description)}</p>
+                          <p className="text-xs text-slate-500 mt-1 flex flex-wrap gap-1.5 items-center">
+                            <span>{formatDate(t.date)}</span>
+                            <span>•</span>
+                            <span className="truncate">{t.account}</span>
+                          </p>
                         </div>
-                        <span className="font-extrabold text-slate-300 ml-2 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
+                        <span className="font-black text-slate-100 text-sm sm:text-base ml-3 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
                       </div>
                     ))
                   }
