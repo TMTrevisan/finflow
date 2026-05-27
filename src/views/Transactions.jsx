@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { formatCurrency, formatDate, cleanMerchantName } from '../utils/formatting';
+import { formatCurrency, formatDate, cleanMerchantName, getCategoryEmoji } from '../utils/formatting';
 import { CategoryPill } from '../components/ui/CategoryPill';
 import { Search, Filter, ChevronDown, ChevronUp, X, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import { cn } from '../components/ui/Card';
@@ -60,7 +60,17 @@ function getDateRange(preset) {
 }
 
 export default function Transactions() {
-  const { transactions, isLoading, selectedAccount, setSelectedAccount } = useAppContext();
+  const { 
+    transactions, 
+    isLoading, 
+    selectedAccount, 
+    setSelectedAccount,
+    selectedCategory,
+    setSelectedCategory,
+    selectedDateRange,
+    setSelectedDateRange
+  } = useAppContext();
+  
   const [rawSearch, setRawSearch] = useState('');
   const searchTerm = useDebounce(rawSearch, 300);
   const [typeFilter, setTypeFilter] = useState('All'); // All | Income | Expense | Uncategorized
@@ -71,6 +81,8 @@ export default function Transactions() {
   const [maxAmount, setMaxAmount] = useState('');
   const [sortBy, setSortBy] = useState('date_desc');
   const [showFilters, setShowFilters] = useState(false);
+  
+  const searchInputRef = useRef(null);
 
   // Initialize account filter from selectedAccount context
   React.useEffect(() => {
@@ -78,6 +90,38 @@ export default function Transactions() {
       setAccountFilter(selectedAccount);
     }
   }, [selectedAccount]);
+
+  // Sync category filter from context
+  React.useEffect(() => {
+    if (selectedCategory) {
+      setCategoryFilter(selectedCategory);
+      setShowFilters(true);
+    }
+  }, [selectedCategory]);
+
+  // Sync date filter from context
+  React.useEffect(() => {
+    if (selectedDateRange) {
+      setDatePreset('custom');
+    }
+  }, [selectedDateRange]);
+
+  // Keyboard shortcut listener to focus search on alphanumeric keydown
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      const targetTag = e.target.tagName.toLowerCase();
+      if (targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select' || e.target.isContentEditable) {
+        return;
+      }
+      if (/^[a-zA-Z0-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Pick up deep-link category from Budgets navigation
   React.useEffect(() => {
@@ -116,11 +160,13 @@ export default function Transactions() {
     setMaxAmount('');
     setSortBy('date_desc');
     setSelectedAccount(null);
+    setSelectedCategory(null);
+    setSelectedDateRange(null);
     setRawSearch('');
   };
 
   const { reviewTransactions, filteredTransactions } = useMemo(() => {
-    const dateRange = getDateRange(datePreset);
+    const dateRange = datePreset === 'custom' && selectedDateRange ? selectedDateRange : getDateRange(datePreset);
 
     let latestDate = new Date();
     if (transactions.length > 0) {
@@ -216,6 +262,7 @@ export default function Transactions() {
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Search merchant, category, account..."
               value={rawSearch}
@@ -301,7 +348,7 @@ export default function Transactions() {
                   className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50"
                 >
                   <option value="">All Categories</option>
-                  {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  {uniqueCategories.map(c => <option key={c} value={c}>{getCategoryEmoji(c)} {c}</option>)}
                 </select>
               </div>
 

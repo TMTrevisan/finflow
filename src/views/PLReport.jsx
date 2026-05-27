@@ -5,11 +5,30 @@ import { Card, CardContent } from '../components/ui/Card';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function PLReport() {
-  const { transactions, categories, isLoading } = useAppContext();
+  const { transactions, categories, isLoading, navigateToTransactions } = useAppContext();
   
   const [timeframe, setTimeframe] = useState('6M');
   const [rowSortOrder, setRowSortOrder] = useState('alphabetical');
   const [mobileMonthIndex, setMobileMonthIndex] = useState(0);
+
+  const parseMonthYearLabel = (label) => {
+    const [mStr, yStr] = label.split(" '");
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthIdx = monthNames.indexOf(mStr);
+    const fullYear = 2000 + parseInt(yStr, 10);
+    
+    const start = new Date(fullYear, monthIdx, 1);
+    const end = new Date(fullYear, monthIdx + 1, 0, 23, 59, 59, 999);
+    return { start, end, label };
+  };
+
+  const handleCellClick = (category, monthLabel) => {
+    const parsedRange = parseMonthYearLabel(monthLabel);
+    navigateToTransactions({
+      category,
+      dateRange: parsedRange
+    });
+  };
 
   // 1. Get the list of months chronologically based on transactions and timeframe
   const months = useMemo(() => {
@@ -263,7 +282,11 @@ export default function PLReport() {
                         const val = monthsMap[activeMobileMonth] || 0;
                         if (val === 0) return null;
                         return (
-                          <div key={category} className="flex justify-between items-center text-[11px] text-slate-400">
+                          <div 
+                            key={category} 
+                            onClick={() => handleCellClick(category, activeMobileMonth)}
+                            className="flex justify-between items-center text-[11px] text-slate-400 cursor-pointer hover:text-neon-indigo transition-colors"
+                          >
                             <span className="flex items-center space-x-1.5">
                               <span>{getCategoryEmoji(category)}</span>
                               <span>{category}</span>
@@ -297,7 +320,11 @@ export default function PLReport() {
                         const val = monthsMap[activeMobileMonth] || 0;
                         if (val === 0) return null;
                         return (
-                          <div key={category} className="flex justify-between items-center text-[11px] text-slate-400">
+                          <div 
+                            key={category} 
+                            onClick={() => handleCellClick(category, activeMobileMonth)}
+                            className="flex justify-between items-center text-[11px] text-slate-400 cursor-pointer hover:text-neon-indigo transition-colors"
+                          >
                             <span className="flex items-center space-x-1.5">
                               <span>{getCategoryEmoji(category)}</span>
                               <span>{category}</span>
@@ -367,7 +394,11 @@ export default function PLReport() {
                             <span className="truncate">{category}</span>
                           </td>
                           {months.map(m => (
-                            <td key={m} className="px-4 py-2 text-right">
+                            <td 
+                              key={m} 
+                              onClick={() => monthsMap[m] > 0 && handleCellClick(category, m)}
+                              className={`px-4 py-2 text-right ${monthsMap[m] > 0 ? 'cursor-pointer hover:text-neon-indigo hover:font-bold transition-all' : ''}`}
+                            >
                               {monthsMap[m] > 0 ? formatCurrency(monthsMap[m]) : '—'}
                             </td>
                           ))}
@@ -416,7 +447,11 @@ export default function PLReport() {
                             <span className="truncate">{category}</span>
                           </td>
                           {months.map(m => (
-                            <td key={m} className="px-4 py-2 text-right">
+                            <td 
+                              key={m} 
+                              onClick={() => monthsMap[m] > 0 && handleCellClick(category, m)}
+                              className={`px-4 py-2 text-right ${monthsMap[m] > 0 ? 'cursor-pointer hover:text-neon-indigo hover:font-bold transition-all' : ''}`}
+                            >
                               {monthsMap[m] > 0 ? formatCurrency(monthsMap[m]) : '—'}
                             </td>
                           ))}

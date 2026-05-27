@@ -97,15 +97,28 @@ const decorateData = (rawTxns, rawCats) => {
 
     // Force 401(k), retirement, and investment transfers to be categorized correctly as 'Transfer'
     const nameLower = catName.toLowerCase();
-    if (nameLower.includes('401') || nameLower.includes('retirement') || nameLower.includes('ira') || nameLower.includes('investment')) {
+    const descLower = String(t.description || '').toLowerCase();
+    const amt = Number(t.amount) || 0;
+
+    let finalCategory = t.category;
+
+    if (amt > 0 && (descLower.includes('wife') || descLower.includes('spouse') || descLower.includes('joint') || nameLower.includes('wife') || nameLower.includes('spouse'))) {
+      type = 'Income';
+      group = 'Family Funding';
+      finalCategory = 'Family Funding';
+    } else if (nameLower.includes('401') || nameLower.includes('retirement') || nameLower.includes('ira') || nameLower.includes('investment')) {
       if (!nameLower.includes('income') && !nameLower.includes('dividend') && !nameLower.includes('interest')) {
         type = 'Transfer';
         group = 'Investments';
       }
+    } else if (nameLower.includes('transfer') || descLower.includes('transfer') || nameLower.includes('xfer') || descLower.includes('xfer')) {
+      type = 'Transfer';
+      group = 'Other';
     }
 
     return {
       ...t,
+      category: finalCategory,
       type,
       group
     };
@@ -169,10 +182,20 @@ export const AppProvider = ({ children, setCurrentView }) => {
   });
 
   const [selectedAccount, setSelectedAccount] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedDateRange, setSelectedDateRange] = useState(null);
 
   // Navigation helper — atomically set account filter AND navigate to Transactions
-  const navigateToTransactions = (accountName) => {
-    setSelectedAccount(accountName || null);
+  const navigateToTransactions = (options = {}) => {
+    if (typeof options === 'string') {
+      setSelectedAccount(options);
+      setSelectedCategory(null);
+      setSelectedDateRange(null);
+    } else {
+      setSelectedAccount(options.account || null);
+      setSelectedCategory(options.category || null);
+      setSelectedDateRange(options.dateRange || null);
+    }
     if (setCurrentView) {
       setCurrentView('transactions');
     }
@@ -356,6 +379,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
       lastSync,
       selectedAccount,
       setSelectedAccount,
+      selectedCategory,
+      setSelectedCategory,
+      selectedDateRange,
+      setSelectedDateRange,
       navigateToTransactions,
       syncData,
       clearCache,

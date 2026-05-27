@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import LineChart from '../components/ui/LineChart';
 import { formatCurrency, cleanMerchantName } from '../utils/formatting';
+import { getCategoryConfig } from '../utils/categoryHelpers';
 import { 
   TrendingUp, 
   TrendingDown,
@@ -65,8 +66,8 @@ export default function Dashboard({ setCurrentView }) {
       const val = Number(b.balance) || 0;
       if (b.class === 'Asset') {
         assets += val;
-        if (b.account === 'Marcus Online Savings') {
-          savingsBalance = val;
+        if (b.type?.toLowerCase()?.includes('savings') || b.account?.toLowerCase()?.includes('savings') || b.account?.toLowerCase()?.includes('emergency')) {
+          savingsBalance += val;
         }
       } else if (b.class === 'Liability') {
         liabilities += Math.abs(val);
@@ -83,8 +84,37 @@ export default function Dashboard({ setCurrentView }) {
 
   // Group assets categories dynamically
   const assetCategories = useMemo(() => {
-    const cashAccts = latestBalances.filter(b => b && b.class === 'Asset' && (b.type?.toLowerCase() === 'checking' || b.type?.toLowerCase() === 'savings' || b.type?.toLowerCase() === 'cash'));
-    const investAccts = latestBalances.filter(b => b && b.class === 'Asset' && (b.type?.toLowerCase() === 'investment' || b.type?.toLowerCase() === 'brokerage' || b.type?.toLowerCase()?.includes('401') || b.type?.toLowerCase()?.includes('ira')));
+    const investAccts = latestBalances.filter(b => {
+      if (!b || b.class !== 'Asset') return false;
+      const typeLower = (b.type || '').toLowerCase();
+      const nameLower = (b.account || '').toLowerCase();
+      const instLower = (b.institution || '').toLowerCase();
+      return (
+        typeLower.includes('investment') ||
+        typeLower.includes('brokerage') ||
+        typeLower.includes('retirement') ||
+        typeLower.includes('401') ||
+        typeLower.includes('ira') ||
+        typeLower.includes('529') ||
+        nameLower.includes('fidelity') ||
+        nameLower.includes('etrade') ||
+        nameLower.includes('e*trade') ||
+        nameLower.includes('schwab') ||
+        nameLower.includes('vanguard') ||
+        nameLower.includes('robinhood') ||
+        nameLower.includes('brokerage') ||
+        nameLower.includes('ira') ||
+        nameLower.includes('401k') ||
+        nameLower.includes('401(k)') ||
+        nameLower.includes('529') ||
+        instLower.includes('fidelity') ||
+        instLower.includes('etrade') ||
+        instLower.includes('schwab') ||
+        instLower.includes('vanguard') ||
+        instLower.includes('robinhood')
+      );
+    });
+    const cashAccts = latestBalances.filter(b => b && b.class === 'Asset' && !investAccts.includes(b) && (b.type?.toLowerCase() === 'checking' || b.type?.toLowerCase() === 'savings' || b.type?.toLowerCase() === 'cash' || b.account?.toLowerCase()?.includes('checking') || b.account?.toLowerCase()?.includes('savings')));
     const otherAccts = latestBalances.filter(b => b && b.class === 'Asset' && !cashAccts.includes(b) && !investAccts.includes(b));
 
     const getCatMetrics = (accts, label) => {
@@ -124,7 +154,7 @@ export default function Dashboard({ setCurrentView }) {
 
   // Group liabilities categories dynamically
   const liabilityCategories = useMemo(() => {
-    const cardAccts = latestBalances.filter(b => b && b.class === 'Liability' && b.type?.toLowerCase() === 'credit card');
+    const cardAccts = latestBalances.filter(b => b && b.class === 'Liability' && (b.type?.toLowerCase()?.includes('credit') || b.account?.toLowerCase()?.includes('card') || b.account?.toLowerCase()?.includes('credit')));
     const loanAccts = latestBalances.filter(b => b && b.class === 'Liability' && (b.type?.toLowerCase() === 'loan' || b.type?.toLowerCase()?.includes('student')));
     const mortgageAccts = latestBalances.filter(b => b && b.class === 'Liability' && b.type?.toLowerCase() === 'mortgage');
     const otherAccts = latestBalances.filter(b => b && b.class === 'Liability' && !cardAccts.includes(b) && !loanAccts.includes(b) && !mortgageAccts.includes(b));
@@ -296,6 +326,39 @@ export default function Dashboard({ setCurrentView }) {
       expensesLastMonth,
       ytdNet
     };
+  }, [transactions]);
+
+  const cashFlowCategories = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    const thisMonthExpenses = (transactions || [])
+      .filter(t => {
+        if (!t || !t.date || t.type !== 'Expense') return false;
+        const d = new Date(t.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+      });
+
+    const categoriesMap = {};
+    thisMonthExpenses.forEach(t => {
+      const cat = t.category || 'Uncategorized';
+      categoriesMap[cat] = (categoriesMap[cat] || 0) + Math.abs(Number(t.amount) || 0);
+    });
+
+    const sorted = Object.entries(categoriesMap)
+      .map(([name, value]) => {
+        const config = getCategoryConfig(name);
+        return { name, value, color: config?.color || '#6366F1' };
+      })
+      .sort((a, b) => b.value - a.value);
+
+    const total = sorted.reduce((sum, item) => sum + item.value, 0);
+
+    return sorted.map(item => ({
+      ...item,
+      percentage: total > 0 ? (item.value / total) * 100 : 0
+    }));
   }, [transactions]);
 
   // Account details decorators (simulated sync lag & reconnection status matching screenshot)
@@ -645,17 +708,38 @@ export default function Dashboard({ setCurrentView }) {
                 <span className="text-white font-extrabold">-{formatCurrency(cashFlowMetrics.expensesThisMonth)}</span>
               </div>
               
-              {/* Stacked Proportional Bar (Simulated categories segments: Coral, Red, Orange, Yellow, Lime) */}
-              <div className="w-full h-4 rounded overflow-hidden flex">
-                <div className="h-full bg-rose-500" style={{ width: '45%' }} />
-                <div className="h-full bg-orange-500" style={{ width: '22%' }} />
-                <div className="h-full bg-amber-400" style={{ width: '15%' }} />
-                <div className="h-full bg-yellow-300" style={{ width: '10%' }} />
-                <div className="h-full bg-lime-400" style={{ width: '8%' }} />
+              {/* Stacked Proportional Bar with tooltips */}
+              <div className="w-full h-4 rounded overflow-hidden flex bg-obsidian-950">
+                {cashFlowCategories.length === 0 ? (
+                  <div className="w-full h-full bg-slate-800 flex items-center justify-center text-[10px] text-slate-500 font-semibold">No expenses this month</div>
+                ) : (
+                  cashFlowCategories.slice(0, 5).map(cat => (
+                    <div 
+                      key={cat.name}
+                      className="h-full relative group transition-all cursor-pointer hover:opacity-85"
+                      style={{ 
+                        width: `${cat.percentage}%`,
+                        backgroundColor: cat.color
+                      }}
+                      title={`${cat.name}: ${formatCurrency(cat.value)} (${cat.percentage.toFixed(0)}%)`}
+                    />
+                  ))
+                )}
+              </div>
+
+              {/* Component breakdown display */}
+              <div className="flex flex-wrap gap-x-2.5 gap-y-1 text-[9px] text-slate-450 pt-1">
+                {cashFlowCategories.slice(0, 5).map(cat => (
+                  <div key={cat.name} className="flex items-center space-x-1 hover:text-white transition-colors">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                    <span>{cat.name}</span>
+                    <span className="text-slate-500 font-semibold">{cat.percentage.toFixed(0)}%</span>
+                  </div>
+                ))}
               </div>
 
               {/* Progress Comparison line */}
-              <div className="w-full bg-[#131926] h-1.5 rounded overflow-hidden">
+              <div className="w-full bg-[#131926] h-1.5 rounded overflow-hidden mt-1">
                 <div 
                   className="h-full bg-rose-500 rounded-full" 
                   style={{ width: `${Math.min(100, (cashFlowMetrics.expensesThisMonth / Math.max(cashFlowMetrics.expensesThisMonth, cashFlowMetrics.expensesLastMonth, 1)) * 100)}%` }} 

@@ -95,26 +95,46 @@ export default function Income() {
     return Object.values(groups).sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
   }, [incomeTransactions]);
 
-  // Group by Month to show historical income comparisons (uses all transactions for proper scale, not filtered by this month)
+  // Group by Month/Day for historical chart
   const monthlyIncome = useMemo(() => {
-    const monthlyMap = {};
-    transactions
+    const isDaily = filterType === 'this_month' || filterType === 'last_month';
+    const trendsMap = {};
+
+    const targetTxns = isDaily ? dateFilteredTransactions : transactions;
+
+    targetTxns
       .filter(t => t.type === 'Income')
       .forEach(t => {
-        const date = new Date(t.date);
-        const key = date.toLocaleString('default', { month: 'short', year: '2-digit' });
-        monthlyMap[key] = (monthlyMap[key] || 0) + t.amount;
+        if (!t.date) return;
+        const d = new Date(t.date);
+        if (isNaN(d.getTime())) return;
+
+        let key = '';
+        if (isDaily) {
+          key = t.date; // YYYY-MM-DD
+        } else {
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          key = `${year}-${month}`; // YYYY-MM
+        }
+        trendsMap[key] = (trendsMap[key] || 0) + t.amount;
       });
 
-    // Sort months chronologically
-    return Object.entries(monthlyMap)
-      .map(([month, total]) => ({ month, total }))
-      .sort((a, b) => {
-        const dateA = new Date(a.month + ' 01');
-        const dateB = new Date(b.month + ' 01');
-        return dateA - dateB;
-      });
-  }, [transactions]);
+    return Object.entries(trendsMap)
+      .map(([label, total]) => {
+        let displayLabel = label;
+        if (isDaily) {
+          const d = new Date(label + 'T00:00:00');
+          displayLabel = d.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+        } else {
+          const [year, month] = label.split('-');
+          const d = new Date(Number(year), Number(month) - 1, 1);
+          displayLabel = d.toLocaleDateString('default', { month: 'short', year: '2-digit' });
+        }
+        return { month: displayLabel, total, sortKey: label };
+      })
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  }, [transactions, dateFilteredTransactions, filterType]);
 
   // CSV download function
   const downloadCSV = () => {
@@ -259,7 +279,7 @@ export default function Income() {
 
       {/* Monthly income trends */}
       <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6">
-        <h3 className="text-lg font-bold text-white mb-6">Historical Income Trends</h3>
+        <h3 className="text-lg font-bold text-white mb-6">Historical {filterType === 'this_month' || filterType === 'last_month' ? 'Daily' : 'Monthly'} Trends</h3>
         <div className="flex items-end justify-between gap-4 h-48 pt-6">
           {monthlyIncome.length === 0 ? (
             <p className="text-slate-500 text-sm text-center w-full">No historical income data</p>
