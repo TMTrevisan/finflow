@@ -26,6 +26,7 @@ export default function Subscriptions() {
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'active', 'overdue', 'hidden'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [expandedSub, setExpandedSub] = useState(null);
 
   // Form states for adding manual subscription
   const [newSubName, setNewSubName] = useState('');
@@ -261,6 +262,37 @@ export default function Subscriptions() {
 
     return result;
   }, [transactions, includedCategories, manualSubscriptions, today]);
+
+  // Helper to calculate lifetime and yearly totals for a specific subscription
+  const getSubDetails = useMemo(() => {
+    return (merchantName) => {
+      const matchingTxns = transactions.filter(t => 
+        cleanMerchantName(t.description).toLowerCase() === merchantName.toLowerCase() && t.amount < 0
+      );
+      
+      const totalEver = matchingTxns.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const totalCount = matchingTxns.length;
+      
+      const yearsMap = {};
+      matchingTxns.forEach(t => {
+        const d = new Date(t.date);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          yearsMap[y] = (yearsMap[y] || 0) + Math.abs(t.amount);
+        }
+      });
+      
+      const yearlyBreakdown = Object.entries(yearsMap)
+        .map(([year, total]) => ({ year: parseInt(year), total }))
+        .sort((a, b) => b.year - a.year);
+        
+      return {
+        totalEver,
+        totalCount,
+        yearlyBreakdown
+      };
+    };
+  }, [transactions]);
 
   // Filtering Lists
   const nonHiddenSubs = useMemo(() => {
@@ -505,84 +537,132 @@ export default function Subscriptions() {
           <div className="space-y-3">
             {activeViewItems.map((sub) => {
               const daysLeft = getDaysDiff(today, sub.nextBillDate);
+              const isExpanded = expandedSub === sub.id;
+              const details = isExpanded ? getSubDetails(sub.merchant) : null;
+
               return (
                 <div 
                   key={sub.id} 
-                  className="flex items-center justify-between p-4 bg-[#0B0E14] border border-[#161B26] hover:border-slate-800/80 rounded-2xl transition-all duration-200 group"
+                  className={`flex flex-col p-4 bg-[#0B0E14] border rounded-2xl transition-all duration-200 cursor-pointer ${
+                    isExpanded ? 'border-neon-indigo shadow-lg shadow-neon-indigo/5 bg-[#0e131d]' : 'border-[#161B26] hover:border-slate-800/80'
+                  }`}
+                  onClick={() => setExpandedSub(isExpanded ? null : sub.id)}
                 >
-                  <div className="flex items-center space-x-3.5 min-w-0">
-                    <div className="w-10 h-10 bg-[#131926] border border-slate-800/40 rounded-xl flex items-center justify-center text-lg select-none shrink-0">
-                      {getCategoryEmoji(sub.category)}
+                  {/* Row Summary */}
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center space-x-3.5 min-w-0">
+                      <div className="w-10 h-10 bg-[#131926] border border-slate-800/40 rounded-xl flex items-center justify-center text-lg select-none shrink-0">
+                        {getCategoryEmoji(sub.category)}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-slate-100 group-hover:text-white truncate text-sm">
+                          {sub.merchant}
+                        </h4>
+                        <p className="text-[10px] text-slate-500 truncate flex items-center space-x-1 mt-0.5">
+                          <span>{sub.account || 'Manual'}</span>
+                          <span>•</span>
+                          <span>{sub.category}</span>
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-slate-100 group-hover:text-white truncate text-sm">
-                        {sub.merchant}
-                      </h4>
-                      <p className="text-[10px] text-slate-500 truncate flex items-center space-x-1 mt-0.5">
-                        <span>{sub.account || 'Manual'}</span>
-                        <span>•</span>
-                        <span>{sub.category}</span>
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Middle Info: Billing Schedule & Status */}
-                  <div className="hidden sm:flex items-center space-x-4">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 bg-[#131926] border border-slate-800/80 px-2.5 py-0.5 rounded-full">
-                      {sub.frequency}
-                    </span>
-                    <span className={`text-[10px] font-bold ${
-                      daysLeft < 0 
-                        ? 'text-rose-400 animate-pulse' 
-                        : daysLeft === 0
-                        ? 'text-amber-400'
-                        : 'text-slate-400'
-                    }`}>
-                      {daysLeft < 0 
-                        ? `Overdue by ${Math.abs(daysLeft)}d` 
-                        : daysLeft === 0
-                        ? 'Due today'
-                        : `In ${daysLeft}d (${formatDate(sub.nextBillDate)})`
-                      }
-                    </span>
-                  </div>
-
-                  {/* Right Info: Amount & Actions */}
-                  <div className="flex items-center space-x-4">
-                    <div className="text-right">
-                      <span className="font-bold text-slate-200 text-sm">
-                        -{formatCurrency(sub.amount)}
-                      </span>
-                      <span className="block sm:hidden text-[9px] text-slate-500 mt-0.5 font-medium">
+                    
+                    {/* Middle Info: Billing Schedule & Status */}
+                    <div className="hidden sm:flex items-center space-x-4">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 bg-[#131926] border border-slate-800/80 px-2.5 py-0.5 rounded-full">
                         {sub.frequency}
                       </span>
+                      <span className={`text-[10px] font-bold ${
+                        daysLeft < 0 
+                          ? 'text-rose-400 animate-pulse' 
+                          : daysLeft === 0
+                          ? 'text-amber-400'
+                          : 'text-slate-400'
+                      }`}>
+                        {daysLeft < 0 
+                          ? `Overdue by ${Math.abs(daysLeft)}d` 
+                          : daysLeft === 0
+                          ? 'Due today'
+                          : `In ${daysLeft}d (${formatDate(sub.nextBillDate)})`
+                        }
+                      </span>
                     </div>
 
-                    {/* Actions Menu */}
-                    <div className="flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                      <button
-                        onClick={() => toggleHideSubscription(sub.merchant)}
-                        title={hiddenSubscriptions.includes(sub.merchant) ? "Unhide subscription" : "Hide subscription"}
-                        className="p-1.5 bg-[#131926] hover:bg-[#1A2234] border border-slate-800/50 hover:border-slate-700/80 rounded-lg text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
-                      >
-                        {hiddenSubscriptions.includes(sub.merchant) ? (
-                          <Eye className="w-3.5 h-3.5" />
-                        ) : (
-                          <EyeOff className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                      
-                      {sub.type === 'Manual' && (
+                    {/* Right Info: Amount & Actions */}
+                    <div className="flex items-center space-x-4">
+                      <div className="text-right">
+                        <span className="font-bold text-slate-200 text-sm">
+                          -{formatCurrency(sub.amount)}
+                        </span>
+                        <span className="block sm:hidden text-[9px] text-slate-500 mt-0.5 font-medium">
+                          {sub.frequency}
+                        </span>
+                      </div>
+
+                      {/* Actions Menu */}
+                      <div className="flex items-center space-x-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150" onClick={e => e.stopPropagation()}>
                         <button
-                          onClick={() => deleteManualSubscription(sub.id)}
-                          title="Delete custom subscription"
-                          className="p-1.5 bg-[#131926] hover:bg-rose-500/10 border border-slate-800/50 hover:border-rose-500/30 rounded-lg text-slate-400 hover:text-rose-450 transition-all cursor-pointer"
+                          onClick={() => toggleHideSubscription(sub.merchant)}
+                          title={hiddenSubscriptions.includes(sub.merchant) ? "Unhide subscription" : "Hide subscription"}
+                          className="p-1.5 bg-[#131926] hover:bg-[#1A2234] border border-slate-800/50 hover:border-slate-700/80 rounded-lg text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          {hiddenSubscriptions.includes(sub.merchant) ? (
+                            <Eye className="w-3.5 h-3.5" />
+                          ) : (
+                            <EyeOff className="w-3.5 h-3.5" />
+                          )}
                         </button>
-                      )}
+                        
+                        {sub.type === 'Manual' && (
+                          <button
+                            onClick={() => deleteManualSubscription(sub.id)}
+                            title="Delete custom subscription"
+                            className="p-1.5 bg-[#131926] hover:bg-rose-500/10 border border-slate-800/50 hover:border-rose-500/30 rounded-lg text-slate-400 hover:text-rose-450 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
+
+                  {/* Expanded detail section */}
+                  {isExpanded && details && (
+                    <div 
+                      className="mt-4 pt-4 border-t border-slate-800/40 grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in cursor-default"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {/* Left: Lifetime Spent Summary */}
+                      <div className="space-y-2 bg-[#0B0E14] border border-slate-850 p-3 rounded-xl flex flex-col justify-center">
+                        <div className="flex items-center justify-between text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                          <span>Total Amount Ever</span>
+                          <span className="text-slate-400">{details.totalCount} payments</span>
+                        </div>
+                        <p className="text-xl font-bold text-white tracking-tight mt-1">
+                          {formatCurrency(details.totalEver)}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-medium">Accumulated historical debit volume</p>
+                      </div>
+
+                      {/* Right: Year-over-Year breakdown */}
+                      <div className="space-y-2 bg-[#0B0E14] border border-slate-850 p-3 rounded-xl">
+                        <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">
+                          Amount Spent By Year
+                        </div>
+                        <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                          {details.yearlyBreakdown.length === 0 ? (
+                            <p className="text-[10px] text-slate-500 font-semibold italic text-center py-2">No historical records available</p>
+                          ) : (
+                            details.yearlyBreakdown.map(y => (
+                              <div key={y.year} className="flex justify-between items-center text-[10px] text-slate-400 py-0.5">
+                                <span className="font-bold text-slate-300">{y.year}</span>
+                                <span className="font-extrabold text-slate-200">{formatCurrency(y.total)}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

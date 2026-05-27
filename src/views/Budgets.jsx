@@ -74,6 +74,47 @@ const getCategoryIcon = (name) => {
   return <IconComponent size={14} className="shrink-0" />;
 };
 
+function BudgetProgressBar({ spent, budget }) {
+  const spentAbs = Math.abs(spent);
+  const isOver = spentAbs > budget;
+  
+  if (!isOver) {
+    const progressPercent = budget > 0 ? (spentAbs / budget) * 100 : 0;
+    let barColor = 'bg-neon-emerald shadow-[0_0_8px_rgba(16,185,129,0.2)]';
+    if (progressPercent > 80) {
+      barColor = 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.2)]';
+    }
+    return (
+      <div className="w-full h-1.5 bg-obsidian-900 rounded-full overflow-hidden relative">
+        <div 
+          className={`h-full rounded-full transition-all duration-500 ${barColor}`} 
+          style={{ width: `${Math.min(100, progressPercent)}%` }}
+        />
+      </div>
+    );
+  } else {
+    // Over budget visual: budget point is a vertical tick, excess is pulsing red
+    const budgetPercent = spentAbs > 0 ? (budget / spentAbs) * 100 : 100;
+    const overPercent = 100 - budgetPercent;
+    return (
+      <div className="w-full h-1.5 bg-obsidian-900 rounded-full overflow-hidden relative flex">
+        {/* Budgeted Portion */}
+        <div 
+          className="h-full bg-slate-650 transition-all duration-500" 
+          style={{ width: `${budgetPercent}%` }}
+        />
+        {/* Goal limit line separator */}
+        <div className="w-[1.5px] h-full bg-white z-10 opacity-80" />
+        {/* Over budget portion */}
+        <div 
+          className="h-full bg-neon-crimson animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)] transition-all duration-500" 
+          style={{ width: `${overPercent}%` }}
+        />
+      </div>
+    );
+  }
+}
+
 export default function Budgets({ setCurrentView }) {
   const { categories, transactions, isLoading, isMockData } = useAppContext();
   const [expandedGroups, setExpandedGroups] = useState({
@@ -454,12 +495,9 @@ export default function Budgets({ setCurrentView }) {
 
                           {/* Inline Progress Bar */}
                           <div className="px-1">
-                            <ProgressBar 
-                              value={Math.abs(item.spent)} 
-                              max={item.budget || 1} 
-                              className={`h-1 rounded-full ${
-                                isOver ? 'bg-rose-500' : item.percent > 80 ? 'bg-amber-500' : 'bg-emerald-500'
-                              }`} 
+                            <BudgetProgressBar 
+                              spent={item.spent} 
+                              budget={item.budget || 1} 
                             />
                           </div>
                         </div>

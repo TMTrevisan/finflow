@@ -8,6 +8,14 @@ import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, HelpCircl
 export default function SpendingTrends() {
   const { transactions = [], balances = [], isLoading } = useAppContext();
   const [insightPeriod, setInsightPeriod] = useState('30_days');
+  const [expandedCategories, setExpandedCategories] = useState({});
+
+  const toggleCategoryExpanded = (name) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [name]: !prev[name]
+    }));
+  };
 
   // Find the latest transaction date to use as reference date
   const referenceDate = useMemo(() => {
@@ -219,7 +227,7 @@ export default function SpendingTrends() {
   return (
     <div className="space-y-6 pb-12">
       {/* 1. Spent Cards & Net Worth Header Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 bg-obsidian-850 p-6 rounded-3xl border border-obsidian-800 shadow-xl items-center">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 bg-obsidian-800 p-6 rounded-3xl border border-obsidian-750 shadow-xl items-center">
         <div className="flex flex-col space-y-1 justify-center border-r border-obsidian-700/40 pr-2">
           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Spent Yesterday</span>
           <span className="text-xl font-extrabold text-white">{formatCurrency(spentYesterday)}</span>
@@ -285,7 +293,7 @@ export default function SpendingTrends() {
       </div>
 
       {/* 3. Period Insights Selector Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-obsidian-850 p-4 rounded-3xl border border-obsidian-800">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-obsidian-800 p-4 rounded-3xl border border-obsidian-750">
         <div className="flex items-center space-x-2">
           <span className="text-sm font-semibold text-slate-400">Insights for:</span>
           <select
@@ -335,10 +343,15 @@ export default function SpendingTrends() {
             ) : (
               insightMetrics.incomeBreakdown.map(cat => {
                 const pct = insightMetrics.income > 0 ? (cat.value / insightMetrics.income) * 100 : 0;
+                const isExpanded = !!expandedCategories[cat.name];
                 return (
-                  <div key={cat.name} className="space-y-1.5">
-                    <div className="flex justify-between items-center text-xs font-semibold">
-                      <span className="flex items-center space-x-1.5">
+                  <div key={cat.name} className="space-y-2 p-2 rounded-2xl hover:bg-obsidian-800/30 transition-all border border-transparent hover:border-obsidian-800">
+                    <div 
+                      onClick={() => toggleCategoryExpanded(cat.name)}
+                      className="flex justify-between items-center text-xs font-semibold cursor-pointer select-none"
+                    >
+                      <span className="flex items-center space-x-2">
+                        <span className="text-[9px] text-slate-500 transition-transform duration-200" style={{ display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▶</span>
                         <span>{getCategoryEmoji(cat.name)}</span>
                         <span className="text-slate-300 font-bold">{cat.name}</span>
                       </span>
@@ -351,6 +364,29 @@ export default function SpendingTrends() {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
+                    
+                    {/* Collapsible list of transactions */}
+                    {isExpanded && (
+                      <div className="mt-2.5 pl-6 pr-2 py-2 bg-obsidian-900/50 rounded-xl border border-obsidian-800/80 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                        {transactions
+                          .filter(t => {
+                            if (t.type !== 'Income' || t.category !== cat.name) return false;
+                            const d = new Date(t.date);
+                            return d >= activeRange.start && d <= activeRange.end;
+                          })
+                          .sort((a, b) => new Date(b.date) - new Date(a.date))
+                          .map(t => (
+                            <div key={t.id} className="flex justify-between items-center text-[10px] text-slate-400 py-1.5 border-b border-obsidian-800/40 last:border-b-0">
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-300 truncate">{cleanMerchantName(t.description)}</p>
+                                <p className="text-[8px] text-slate-500 mt-0.5">{t.date} • {t.account}</p>
+                              </div>
+                              <span className="font-extrabold text-slate-200 ml-2 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -370,10 +406,15 @@ export default function SpendingTrends() {
             ) : (
               insightMetrics.expenseBreakdown.map(cat => {
                 const pct = insightMetrics.expense > 0 ? (cat.value / insightMetrics.expense) * 100 : 0;
+                const isExpanded = !!expandedCategories[cat.name];
                 return (
-                  <div key={cat.name} className="space-y-1.5">
-                    <div className="flex justify-between items-center text-xs font-semibold">
-                      <span className="flex items-center space-x-1.5">
+                  <div key={cat.name} className="space-y-2 p-2 rounded-2xl hover:bg-obsidian-800/30 transition-all border border-transparent hover:border-obsidian-800">
+                    <div 
+                      onClick={() => toggleCategoryExpanded(cat.name)}
+                      className="flex justify-between items-center text-xs font-semibold cursor-pointer select-none"
+                    >
+                      <span className="flex items-center space-x-2">
+                        <span className="text-[9px] text-slate-500 transition-transform duration-200" style={{ display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▶</span>
                         <span>{getCategoryEmoji(cat.name)}</span>
                         <span className="text-slate-300 font-bold">{cat.name}</span>
                       </span>
@@ -386,6 +427,29 @@ export default function SpendingTrends() {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
+                    
+                    {/* Collapsible list of transactions */}
+                    {isExpanded && (
+                      <div className="mt-2.5 pl-6 pr-2 py-2 bg-obsidian-900/50 rounded-xl border border-obsidian-800/80 space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+                        {transactions
+                          .filter(t => {
+                            if (t.type !== 'Expense' || t.category !== cat.name) return false;
+                            const d = new Date(t.date);
+                            return d >= activeRange.start && d <= activeRange.end;
+                          })
+                          .sort((a, b) => new Date(b.date) - new Date(a.date))
+                          .map(t => (
+                            <div key={t.id} className="flex justify-between items-center text-[10px] text-slate-400 py-1.5 border-b border-obsidian-800/40 last:border-b-0">
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-300 truncate">{cleanMerchantName(t.description)}</p>
+                                <p className="text-[8px] text-slate-500 mt-0.5">{t.date} • {t.account}</p>
+                              </div>
+                              <span className="font-extrabold text-slate-200 ml-2 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
                   </div>
                 );
               })

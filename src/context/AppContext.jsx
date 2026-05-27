@@ -181,6 +181,16 @@ export const AppProvider = ({ children, setCurrentView }) => {
     }
   });
 
+  const [lifeOptimization, setLifeOptimization] = useState(() => {
+    try {
+      const cached = localStorage.getItem('finflow_cache_life_opt');
+      const parsed = cached ? JSON.parse(cached) : null;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedDateRange, setSelectedDateRange] = useState(null);
@@ -235,14 +245,15 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const data = await fetchFinData();
       const { txns, cats } = decorateData(data.transactions, data.categories);
       setTransactions(txns);
-      setCategories(cats);
       setBalances(data.balances || []);
+      setLifeOptimization(data.lifeOptimization || []);
       setIsMockData(false);
       
       // Save cache
       safeSetItem('finflow_cache_transactions', compressTransactions(txns));
       safeSetItem('finflow_cache_categories', cats);
       safeSetItem('finflow_cache_balances', data.balances || []);
+      safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
       
       const timestamp = new Date().toISOString();
       localStorage.setItem('finflow_last_sync', timestamp);
@@ -276,12 +287,14 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setTransactions(txns);
       setCategories(cats);
       setBalances(data.balances || []);
+      setLifeOptimization(data.lifeOptimization || []);
       setIsMockData(false);
       
       // Save cache
       safeSetItem('finflow_cache_transactions', compressTransactions(txns));
       safeSetItem('finflow_cache_categories', cats);
       safeSetItem('finflow_cache_balances', data.balances || []);
+      safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
       
       const timestamp = new Date().toISOString();
       localStorage.setItem('finflow_last_sync', timestamp);
@@ -299,10 +312,12 @@ export const AppProvider = ({ children, setCurrentView }) => {
     localStorage.removeItem('finflow_cache_transactions');
     localStorage.removeItem('finflow_cache_categories');
     localStorage.removeItem('finflow_cache_balances');
+    localStorage.removeItem('finflow_cache_life_opt');
     localStorage.removeItem('finflow_last_sync');
     setTransactions([]);
     setCategories([]);
     setBalances([]);
+    setLifeOptimization([]);
     setLastSync(null);
     setIsMockData(true);
     
@@ -372,6 +387,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       transactions,
       categories,
       balances,
+      lifeOptimization,
       isLoading,
       isSyncing,
       error,

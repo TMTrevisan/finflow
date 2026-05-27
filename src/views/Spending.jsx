@@ -173,7 +173,7 @@ export default function Spending() {
   return (
     <div className="space-y-6 pb-12">
       {/* Date selector header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-obsidian-850 p-4 rounded-2xl border border-obsidian-800">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-obsidian-800 p-4 rounded-2xl border border-obsidian-750">
         <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Filtered View</h3>
         <DateRangeSelector
           filterType={filterType}
@@ -238,6 +238,7 @@ export default function Spending() {
               size={220} 
               centerLabel="Total Spending"
               centerSublabel="This period"
+              transactions={expenseTransactions}
             />
           </CardContent>
         </Card>

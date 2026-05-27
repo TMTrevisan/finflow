@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { formatCurrency } from '../../utils/formatting';
 
-export default function SankeyDiagram({ transactions, selectedMonth }) {
+export default function SankeyDiagram({ transactions }) {
   const [hoveredNode, setHoveredNode] = useState(null);
   const [hoveredLink, setHoveredLink] = useState(null);
 
@@ -13,14 +13,7 @@ export default function SankeyDiagram({ transactions, selectedMonth }) {
     return `${month} '${year}`;
   };
 
-  // 1. Filter transactions by selected month (if provided)
-  const filteredTxns = useMemo(() => {
-    if (!selectedMonth || selectedMonth === 'All') return transactions;
-    return transactions.filter(t => {
-      const date = new Date(t.date);
-      return getMonthKey(date) === selectedMonth;
-    });
-  }, [transactions, selectedMonth]);
+  const filteredTxns = transactions;
 
   // 2. Compute Nodes and Heights
   const flowData = useMemo(() => {

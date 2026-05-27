@@ -34,7 +34,7 @@ export default function Insights() {
   return (
     <div className="space-y-6 flex flex-col h-full">
       {/* Sticky Tab Navigator */}
-      <div className="sticky top-0 z-30 bg-obsidian-900/95 backdrop-blur pt-2 pb-4 border-b border-obsidian-800 flex items-center overflow-x-auto gap-2 hide-scrollbar">
+      <div className="sticky top-0 z-30 bg-obsidian-900/95 backdrop-blur pt-2 pb-4 border-b border-obsidian-800 flex items-center overflow-x-auto overflow-y-hidden gap-2 hide-scrollbar">
         {TABS.map(tab => (
           <button
             key={tab.id}

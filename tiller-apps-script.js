@@ -44,7 +44,10 @@ function getTillerData() {
   return {
     transactions: getSheetData(ss, 'Transactions'),
     categories: getSheetData(ss, 'Categories'),
-    balances: getSheetData(ss, 'Balance History')
+    balances: getSheetData(ss, 'Balance History'),
+    lifeOptimization: getSheetData(ss, 'Life_Optimization').length > 0 
+      ? getSheetData(ss, 'Life_Optimization') 
+      : getSheetData(ss, 'Life Optimization')
   };
 }
 

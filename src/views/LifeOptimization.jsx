@@ -5,7 +5,7 @@ import { Card, CardContent } from '../components/ui/Card';
 import { SlidersHorizontal, ArrowUpRight, ArrowDownRight, Compass, Shield, Heart, PlusCircle } from 'lucide-react';
 
 export default function LifeOptimization() {
-  const { transactions = [], isLoading } = useAppContext();
+  const { transactions = [], lifeOptimization = [], isLoading } = useAppContext();
   const [showConfig, setShowConfig] = useState(false);
 
   // Extract all distinct category names from transactions list
@@ -47,7 +47,59 @@ export default function LifeOptimization() {
     return {};
   });
 
-  // Hydrate mappings with smart defaults for any new category seen
+  // 1. Overwrite/hydrate local mappings if Tiller Sheet mapping is present
+  useEffect(() => {
+    if (lifeOptimization && lifeOptimization.length > 0) {
+      const newMappings = { ...mappings };
+      let updated = false;
+
+      lifeOptimization.forEach(row => {
+        const keys = Object.keys(row);
+        const catKey = keys.find(k => k.toLowerCase().includes('category'));
+        const classKey = keys.find(k => k.toLowerCase().includes('class') || k.toLowerCase().includes('type') || k.toLowerCase().includes('bucket'));
+        const inclKey = keys.find(k => k.toLowerCase().includes('include') || k.toLowerCase().includes('active') || k.toLowerCase().includes('show'));
+
+        if (catKey) {
+          const categoryName = String(row[catKey]).trim();
+          if (categoryName) {
+            // Casing-agnostic match
+            const matchName = allCategories.find(c => c.toLowerCase().trim() === categoryName.toLowerCase()) || categoryName;
+
+            let classification = 'Lifestyle';
+            if (classKey) {
+              const val = String(row[classKey]).trim().toLowerCase();
+              if (val.includes('income')) classification = 'Income';
+              else if (val.includes('compound') || val.includes('saving')) classification = 'Compounding';
+              else if (val.includes('base') || val.includes('essential') || val.includes('fixed')) classification = 'Baseline';
+              else if (val.includes('life') || val.includes('discretionary') || val.includes('style')) classification = 'Lifestyle';
+            }
+
+            let included = true;
+            if (inclKey) {
+              const val = String(row[inclKey]).trim().toLowerCase();
+              if (val === 'false' || val === 'no' || val === '0' || val === 'hide' || val === 'unchecked' || val === 'exclude') {
+                included = false;
+              }
+            }
+
+            if (!newMappings[matchName] || 
+                newMappings[matchName].classification !== classification || 
+                newMappings[matchName].included !== included) {
+              newMappings[matchName] = { classification, included };
+              updated = true;
+            }
+          }
+        }
+      });
+
+      if (updated) {
+        setMappings(newMappings);
+        localStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
+      }
+    }
+  }, [lifeOptimization, allCategories]);
+
+  // 2. Hydrate smart defaults for any new category seen that is not yet mapped
   useEffect(() => {
     let updated = false;
     const newMappings = { ...mappings };
@@ -56,7 +108,7 @@ export default function LifeOptimization() {
       if (!newMappings[cat]) {
         newMappings[cat] = {
           classification: guessClassification(cat),
-          included: true
+          included: cat.toLowerCase().includes('transfer') || cat.toLowerCase().includes('payment') ? false : true
         };
         updated = true;
       }
@@ -163,6 +215,17 @@ export default function LifeOptimization() {
               When Surplus is positive, your baseline living costs and future compounding security are fully funded. 
               You are officially cleared to spend remaining discretionary cash on high-value life upgrades guilt-free.
             </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {lifeOptimization && lifeOptimization.length > 0 ? (
+                <span className="inline-flex items-center text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full">
+                  ✓ Synced with 'Life_Optimization' Tiller Sheet ({lifeOptimization.length} categories)
+                </span>
+              ) : (
+                <span className="inline-flex items-center text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2.5 py-0.5 rounded-full">
+                  ⚠️ No 'Life_Optimization' sheet found. Using local browser config.
+                </span>
+              )}
+            </div>
           </div>
           <button
             onClick={() => setShowConfig(c => !c)}

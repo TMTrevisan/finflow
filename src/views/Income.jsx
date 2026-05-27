@@ -238,6 +238,7 @@ export default function Income() {
               size={220} 
               centerLabel="Total Income"
               centerSublabel="This period"
+              transactions={incomeTransactions}
             />
           </CardContent>
         </Card>
