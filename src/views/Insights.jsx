@@ -34,16 +34,16 @@ export default function Insights() {
   return (
     <div className="space-y-6 flex flex-col h-full">
       {/* Sticky Tab Navigator */}
-      <div className="sticky top-0 z-30 bg-obsidian-900/95 backdrop-blur pt-2 pb-3.5 border-b border-obsidian-800 flex items-center overflow-x-auto overflow-y-hidden gap-2 px-1 w-full hide-scrollbar scroll-smooth">
+      <div className="sticky top-0 z-30 bg-obsidian-900/95 backdrop-blur py-3 border-b border-obsidian-800 flex items-center overflow-x-auto overflow-y-hidden gap-3 px-2 w-full hide-scrollbar scroll-smooth">
         {TABS.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveSubTab(tab.id)}
             className={cn(
-              "whitespace-nowrap px-4.5 py-2.5 rounded-full text-xs md:text-sm font-bold tracking-normal transition-all border cursor-pointer",
+              "whitespace-nowrap px-4 py-2 rounded-full text-xs md:text-sm font-bold tracking-wide transition-all border cursor-pointer",
               activeSubTab === tab.id
-                ? "bg-neon-indigo/20 text-neon-indigo border-neon-indigo/45"
-                : "bg-obsidian-800 text-slate-350 border-obsidian-700 hover:text-white"
+                ? "bg-neon-indigo/25 text-neon-indigo border-neon-indigo/45 shadow-[0_0_12px_rgba(99,102,241,0.15)]"
+                : "bg-obsidian-800 text-slate-350 border-obsidian-750 hover:text-white hover:bg-obsidian-750"
             )}
           >
             {tab.label}

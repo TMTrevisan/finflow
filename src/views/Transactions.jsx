@@ -81,8 +81,14 @@ export default function Transactions() {
   const [maxAmount, setMaxAmount] = useState('');
   const [sortBy, setSortBy] = useState('date_desc');
   const [showFilters, setShowFilters] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(100);
   
   const searchInputRef = useRef(null);
+
+  // Reset pagination when filters change to ensure snappy performance
+  React.useEffect(() => {
+    setVisibleCount(100);
+  }, [searchTerm, typeFilter, datePreset, accountFilter, categoryFilter, minAmount, maxAmount, sortBy]);
 
   // Initialize account filter from selectedAccount context
   React.useEffect(() => {
@@ -248,6 +254,10 @@ export default function Transactions() {
 
     return { reviewTransactions: applySort(review), filteredTransactions: applySort(standard) };
   }, [transactions, searchTerm, typeFilter, datePreset, accountFilter, categoryFilter, minAmount, maxAmount, sortBy]);
+
+  const slicedTransactions = useMemo(() => {
+    return filteredTransactions.slice(0, visibleCount);
+  }, [filteredTransactions, visibleCount]);
 
   if (isLoading) {
     return <div className="animate-pulse text-slate-500 p-8">Loading Transactions...</div>;
@@ -455,7 +465,6 @@ export default function Transactions() {
           </div>
         </div>
       )}
-
       {/* Standard Transactions Table */}
       <div className="bg-obsidian-800 border border-obsidian-700 rounded-2xl shadow-xl overflow-hidden">
         {/* Desktop View */}
@@ -471,7 +480,7 @@ export default function Transactions() {
               </tr>
             </thead>
             <tbody className="divide-y divide-obsidian-700/50">
-              {filteredTransactions.length === 0 ? (
+              {slicedTransactions.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="px-6 py-12 text-center text-slate-500">
                     No transactions match your filters.
@@ -481,7 +490,7 @@ export default function Transactions() {
                   </td>
                 </tr>
               ) : (
-                filteredTransactions.map(txn => (
+                slicedTransactions.map(txn => (
                   <tr key={txn.id} className="hover:bg-obsidian-700/30 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400">{formatDate(txn.date)}</td>
                     <td className="px-6 py-4">
@@ -505,7 +514,7 @@ export default function Transactions() {
 
         {/* Mobile View */}
         <div className="md:hidden divide-y divide-obsidian-700/50">
-          {filteredTransactions.length === 0 ? (
+          {slicedTransactions.length === 0 ? (
             <div className="p-8 text-center text-slate-500 text-sm">
               No transactions match your filters.
               {activeFilterCount > 0 && (
@@ -513,7 +522,7 @@ export default function Transactions() {
               )}
             </div>
           ) : (
-            filteredTransactions.map(txn => (
+            slicedTransactions.map(txn => (
               <div key={txn.id} className="p-4 flex items-center justify-between hover:bg-obsidian-770 transition-colors">
                 <div className="flex flex-col min-w-0 pr-3">
                   <span className="font-semibold text-slate-100 text-sm truncate">{cleanMerchantName(txn.description)}</span>
@@ -535,6 +544,18 @@ export default function Transactions() {
             ))
           )}
         </div>
+
+        {/* Load More Pagination Trigger */}
+        {filteredTransactions.length > visibleCount && (
+          <div className="p-4 border-t border-obsidian-750 bg-obsidian-850/30 text-center">
+            <button
+              onClick={() => setVisibleCount(prev => prev + 100)}
+              className="px-6 py-2.5 bg-obsidian-800 hover:bg-obsidian-750 border border-obsidian-700 hover:border-obsidian-650 rounded-xl text-xs font-bold text-slate-200 hover:text-white transition-all active:scale-[0.98]"
+            >
+              Load More ({filteredTransactions.length - visibleCount} remaining)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

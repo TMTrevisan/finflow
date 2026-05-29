@@ -112,7 +112,7 @@ export default function DonutChart({
       </div>
 
       {/* Premium Vertical Legend List */}
-      <div className="w-full max-w-xl space-y-3 mt-4">
+      <div className="w-full max-w-2xl space-y-2.5 mt-4">
         {segments.map((segment) => {
           const isHovered = hoveredIndex === segment.index;
           const isExpanded = expandedCategory === segment.name;
@@ -127,7 +127,7 @@ export default function DonutChart({
               key={segment.name}
               onMouseEnter={() => setHoveredIndex(segment.index)}
               onMouseLeave={() => setHoveredIndex(null)}
-              className={`flex flex-col p-3.5 rounded-2xl border transition-all duration-200 ${
+              className={`flex flex-col p-2.5 sm:p-3.5 rounded-2xl border transition-all duration-200 ${
                 transactions.length > 0 ? 'cursor-pointer' : ''
               } ${
                 isHovered || isExpanded
@@ -143,18 +143,18 @@ export default function DonutChart({
               {/* Row: Header Summary */}
               <div className="flex items-center justify-between w-full">
                 {/* Left Side: Icon + Name */}
-                <div className="flex items-center space-x-3.5 min-w-[140px] max-w-[200px]">
+                <div className="flex items-center space-x-2 sm:space-x-3.5 min-w-0 flex-1 mr-2">
                   <div 
-                    className="w-8 h-8 rounded-full flex items-center justify-center bg-obsidian-900 border shrink-0"
+                    className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center bg-obsidian-900 border shrink-0"
                     style={{ borderColor: `${segment.color}25` }}
                   >
                     {IconComponent ? (
-                      <IconComponent size={14} style={{ color: segment.color }} />
+                      <IconComponent size={13} className="sm:w-3.5 sm:h-3.5" style={{ color: segment.color }} />
                     ) : (
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: segment.color }} />
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: segment.color }} />
                     )}
                   </div>
-                  <span className="font-semibold text-sm truncate text-slate-100">{segment.name}</span>
+                  <span className="font-semibold text-xs sm:text-sm truncate text-slate-100">{segment.name}</span>
                 </div>
 
                 {/* Middle: Proportion Progress Bar */}
@@ -171,13 +171,13 @@ export default function DonutChart({
                 </div>
 
                 {/* Right Side: Amount + Percentage */}
-                <div className="flex items-center space-x-3 shrink-0 text-right">
-                  <span className="font-bold text-sm text-white">{formatCurrency(segment.value)}</span>
-                  <span className="text-xs font-semibold text-slate-500 min-w-[36px]">
+                <div className="flex items-center space-x-2 sm:space-x-3 shrink-0 text-right">
+                  <span className="font-bold text-xs sm:text-sm text-white">{formatCurrency(segment.value)}</span>
+                  <span className="text-[10px] sm:text-xs font-semibold text-slate-500 min-w-[28px] sm:min-w-[36px]">
                     {(segment.percent * 100).toFixed(0)}%
                   </span>
                   {transactions.length > 0 && (
-                    <span className="text-[10px] text-slate-600 transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▶</span>
+                    <span className="text-[9px] sm:text-[10px] text-slate-600 transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(90deg)' : 'none' }}>▶</span>
                   )}
                 </div>
               </div>
@@ -185,22 +185,22 @@ export default function DonutChart({
               {/* Expanded details list */}
               {isExpanded && categoryTxns.length > 0 && (
                 <div 
-                  className="mt-3.5 px-2 py-2 bg-obsidian-900/60 rounded-xl border border-obsidian-800 space-y-1.5 max-h-96 overflow-y-auto custom-scrollbar w-full"
+                  className="mt-2.5 px-1 py-1.5 bg-obsidian-900/40 rounded-xl border border-obsidian-800/60 space-y-1 max-h-96 overflow-y-auto custom-scrollbar w-full"
                   onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inner items
                 >
                   {categoryTxns
                     .sort((a, b) => new Date(b.date) - new Date(a.date))
                     .map(t => (
-                      <div key={t.id} className="flex justify-between items-center text-xs text-slate-400 py-3 border-b border-obsidian-800/40 last:border-b-0 w-full px-1">
+                      <div key={t.id} className="flex justify-between items-center text-xs text-slate-400 py-2.5 border-b border-obsidian-800/20 last:border-b-0 w-full px-1.5">
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-slate-200 text-sm sm:text-base truncate">{cleanMerchantName(t.description)}</p>
-                          <p className="text-xs text-slate-500 mt-1 flex flex-wrap gap-1.5 items-center">
+                          <p className="font-bold text-slate-250 text-xs sm:text-sm truncate">{cleanMerchantName(t.description)}</p>
+                          <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 flex flex-wrap gap-1 items-center">
                             <span>{formatDate(t.date)}</span>
                             <span>•</span>
                             <span className="truncate">{t.account}</span>
                           </p>
                         </div>
-                        <span className="font-black text-slate-100 text-sm sm:text-base ml-3 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
+                        <span className="font-black text-slate-100 text-xs sm:text-sm ml-2.5 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
                       </div>
                     ))
                   }
