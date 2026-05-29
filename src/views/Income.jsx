@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Card, CardContent } from '../components/ui/Card';
 import DonutChart from '../components/ui/DonutChart';
+import ContributionSplit from '../components/ui/ContributionSplit';
 import DateRangeSelector from '../components/ui/DateRangeSelector';
 import { filterTransactionsByDateRange } from '../utils/dateFilters';
 import { formatCurrency, cleanMerchantName } from '../utils/formatting';
@@ -229,6 +230,9 @@ export default function Income() {
           </div>
         </Card>
       </div>
+
+      {/* Household Split Card */}
+      <ContributionSplit transactions={incomeTransactions} />
 
       {/* Main Income Breakdown Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

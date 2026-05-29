@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import LineChart from '../components/ui/LineChart';
+import SurplusGoalTracker from '../components/ui/SurplusGoalTracker';
 import { formatCurrency, cleanMerchantName } from '../utils/formatting';
 import { getCategoryConfig } from '../utils/categoryHelpers';
 import { 
@@ -682,6 +683,9 @@ export default function Dashboard({ setCurrentView }) {
 
         {/* Right Column: Dynamic Cash Flow card, Emergency Fund chart & Recent Transactions */}
         <div className="space-y-6">
+          {/* Surplus Investment Goal Tracker */}
+          <SurplusGoalTracker surplusMetrics={surplusMetrics} />
+
           {/* PERMISSION TO SPEND ENGINE SUMMARY CARD */}
           {surplusMetrics && (
             <div 

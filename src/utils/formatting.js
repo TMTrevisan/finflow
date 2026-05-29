@@ -37,15 +37,15 @@ export const getCategoryEmoji = (categoryName) => {
   if (name.includes('grocery') || name.includes('groceries') || name.includes('costco') || name.includes('whole foods')) return '🛒';
   if (name.includes('dining') || name.includes('restaurant') || name.includes('food') || name.includes('cafe') || name.includes('starbucks') || name.includes('eat') || name.includes('bars')) return '🍔';
   if (name.includes('rent') || name.includes('mortgage') || name.includes('housing') || name.includes('home') || name.includes('residence')) return '🏠';
-  if (name.includes('auto') || name.includes('transportation') || name.includes('fuel') || name.includes('gas') || name.includes('uber') || name.includes('car')) return '🚗';
+  if (name.includes('kid') || name.includes('child') || name.includes('daycare') || name.includes('sitter') || name.includes('baby') || name.includes('gear')) return '👶';
+  if (name.includes('auto') || name.includes('transportation') || name.includes('fuel') || name.includes('gas') || name.includes('uber') || /\bcar\b/.test(name) || name.includes('car ')) return '🚗';
   if (name.includes('sub') || name.includes('stream') || name.includes('netflix') || name.includes('spotify') || name.includes('youtube')) return '📺';
   if (name.includes('fit') || name.includes('gym') || name.includes('workout') || name.includes('swim') || name.includes('lesson')) return '💪';
   if (name.includes('utility') || name.includes('utilities') || name.includes('electric') || name.includes('water') || name.includes('power')) return '⚡';
   if (name.includes('internet') || name.includes('cable') || name.includes('wifi') || name.includes('phone')) return '🌐';
   if (name.includes('insurance')) return '🛡️';
   if (name.includes('medical') || name.includes('dental') || name.includes('health') || name.includes('doctor') || name.includes('pharmacy')) return '🏥';
-  if (name.includes('pet') || name.includes('dog') || name.includes('cat') || name.includes('vet')) return '🐶';
-  if (name.includes('kid') || name.includes('child') || name.includes('daycare') || name.includes('sitter') || name.includes('baby') || name.includes('gear')) return '👶';
+  if (name.includes('pet') || name.includes('dog') || /\bcat\b/.test(name) || name.includes('vet')) return '🐶';
   if (name.includes('travel') || name.includes('hotel') || name.includes('flight') || name.includes('trip') || name.includes('vacation')) return '✈️';
   if (name.includes('shop') || name.includes('amazon') || name.includes('target') || name.includes('store') || name.includes('purchase')) return '🛍️';
   if (name.includes('gift') || name.includes('donation') || name.includes('charity')) return '🎁';

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Card, CardContent } from '../components/ui/Card';
 import DonutChart from '../components/ui/DonutChart';
+import AnomalyDetector from '../components/ui/AnomalyDetector';
 import DateRangeSelector from '../components/ui/DateRangeSelector';
 import { filterTransactionsByDateRange } from '../utils/dateFilters';
 import { formatCurrency, cleanMerchantName } from '../utils/formatting';
@@ -229,6 +230,9 @@ export default function Spending() {
           </div>
         </Card>
       </div>
+
+      {/* Spending Alerts (Spikes) */}
+      <AnomalyDetector currentTransactions={expenseTransactions} allTransactions={transactions} />
 
       {/* Main Analysis Block */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
