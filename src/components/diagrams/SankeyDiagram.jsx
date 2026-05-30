@@ -328,7 +328,8 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
   };
 
   const allNodes = [...col1Nodes, col2Node, ...col3Nodes, ...col4Nodes];
-  const surplusValue = totalIncome - totalExpense;
+  const investmentGroupsSum = (groupMap['Investments'] || 0) + (groupMap['Wealth Building'] || 0);
+  const surplusValue = totalIncome - (totalExpense - investmentGroupsSum);
   const surplusRate = totalIncome > 0 ? (surplusValue / totalIncome) * 100 : 0;
 
   return (

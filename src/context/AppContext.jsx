@@ -160,7 +160,7 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
       finalType = 'Income';
       group = 'Family Funding';
       finalCategory = 'Family Funding';
-    } else if (nameLower.includes('401') || nameLower.includes('retirement') || nameLower.includes('ira') || nameLower.includes('investment')) {
+    } else if (nameLower.includes('401') || nameLower.includes('retirement') || nameLower.includes('ira') || nameLower.includes('investment') || nameLower.includes('529')) {
       if (!nameLower.includes('income') && !nameLower.includes('dividend') && !nameLower.includes('interest')) {
         finalType = 'Transfer';
         group = 'Investments';

@@ -82,16 +82,24 @@ export default function CashFlow() {
       .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
     const expenses = dateFilteredTransactions
-      .filter(t => t.type === 'Expense' || (t.type === 'Transfer' && (t.group === 'Investments' || t.group === 'Cash Savings')))
+      .filter(t => (t.type === 'Expense' || t.type === 'Transfer') && 
+                   t.group !== 'Investments' && 
+                   t.group !== 'Wealth Building')
       .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
-    const savings = Math.max(0, income - expenses);
+    const investments = dateFilteredTransactions
+      .filter(t => t.group === 'Investments' || t.group === 'Wealth Building')
+      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+
+    const surplus = income - expenses;
+    const savingsRate = income > 0 ? (surplus / income) * 100 : 0;
 
     return { 
       income, 
       expenses, 
-      savings, 
-      savingsRate: Math.min(100, income > 0 ? (savings / income) * 100 : 0) 
+      investments,
+      surplus, 
+      savingsRate: Math.max(0, Math.min(100, savingsRate))
     };
   }, [dateFilteredTransactions]);
 
@@ -214,19 +222,21 @@ export default function CashFlow() {
         </div>
 
         <div className="bg-[#0B0E14] border border-[#161B26] p-4 rounded-2xl">
-          <div className="flex items-center space-x-1.5 text-neon-indigo mb-1">
+          <div className="flex items-center space-x-1.5 text-neon-emerald mb-1">
             <Waves size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Net Flow</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Operating Surplus</span>
           </div>
-          <p className="text-xl font-bold text-white">{formatCurrency(stats.income - stats.expenses)}</p>
+          <p className={`text-xl font-bold ${stats.surplus >= 0 ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
+            {formatCurrency(stats.surplus)}
+          </p>
         </div>
 
         <div className="bg-[#0B0E14] border border-[#161B26] p-4 rounded-2xl">
-          <div className="flex items-center space-x-1.5 text-neon-emerald mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-neon-emerald shrink-0" />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Savings Rate</span>
+          <div className="flex items-center space-x-1.5 text-neon-indigo mb-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-neon-indigo shrink-0" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Invested & Saved</span>
           </div>
-          <p className="text-xl font-bold text-white">{stats.savingsRate.toFixed(1)}%</p>
+          <p className="text-xl font-bold text-white">{formatCurrency(stats.investments)}</p>
         </div>
       </div>
 
