@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, ShieldCheck, Delete, Fingerprint } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { safeStorage } from '../../utils/storage';
 
 export default function PasscodeLock({ children }) {
   const [passcode, setPasscode] = useState('');
@@ -8,9 +9,9 @@ export default function PasscodeLock({ children }) {
   const [isError, setIsError] = useState(false);
   const [hasPasscode, setHasPasscode] = useState(false);
 
-  // Check if passcode is configured in localStorage
+  // Check if passcode is configured in safeStorage
   useEffect(() => {
-    const configuredPIN = localStorage.getItem('finflow_passcode');
+    const configuredPIN = safeStorage.getItem('finflow_passcode');
     if (configuredPIN) {
       setHasPasscode(true);
       setIsLocked(true);
@@ -21,7 +22,7 @@ export default function PasscodeLock({ children }) {
   }, []);
 
   const handleBiometricAuth = async () => {
-    if (localStorage.getItem('finflow_biometrics_enabled') !== 'true') return;
+    if (safeStorage.getItem('finflow_biometrics_enabled') !== 'true') return;
     
     try {
       const challenge = crypto.getRandomValues(new Uint8Array(32));
@@ -62,7 +63,7 @@ export default function PasscodeLock({ children }) {
 
     if (newPasscode.length === 4) {
       // Validate
-      const storedPIN = localStorage.getItem('finflow_passcode');
+      const storedPIN = safeStorage.getItem('finflow_passcode');
       if (newPasscode === storedPIN) {
         // Correct PIN
         setTimeout(() => {
@@ -161,7 +162,7 @@ export default function PasscodeLock({ children }) {
           ))}
           
           {/* Biometric trigger on the bottom-left button */}
-          {localStorage.getItem('finflow_biometrics_enabled') === 'true' ? (
+          {safeStorage.getItem('finflow_biometrics_enabled') === 'true' ? (
             <button
               onClick={handleBiometricAuth}
               className="aspect-square flex items-center justify-center bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-800/80 active:border-neon-indigo/50 text-neon-indigo rounded-2xl transition-all active:scale-95 shadow-md"

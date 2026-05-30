@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Card, CardContent } from '../components/ui/Card';
 import { cleanMerchantName, formatCurrency } from '../utils/formatting';
+import { safeStorage } from '../utils/storage';
 import { 
   Sparkles, 
   Send, 
@@ -19,7 +20,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default function Assistant() {
   const { transactions, categories, balances } = useAppContext();
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('finflow_gemini_key') || '');
+  const [apiKey, setApiKey] = useState(() => safeStorage.getItem('finflow_gemini_key') || '');
   const [keyInput, setKeyInput] = useState('');
   
   const [chatLog, setChatLog] = useState([
@@ -42,7 +43,7 @@ export default function Assistant() {
   // Handle saving API key inline
   const handleSaveApiKey = () => {
     if (keyInput.trim()) {
-      localStorage.setItem('finflow_gemini_key', keyInput.trim());
+      safeStorage.setItem('finflow_gemini_key', keyInput.trim());
       setApiKey(keyInput.trim());
       setErrorMessage('');
     }
@@ -186,7 +187,7 @@ export default function Assistant() {
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const selectedModel = localStorage.getItem('finflow_gemini_model') || 'gemini-2.5-flash-lite';
+      const selectedModel = safeStorage.getItem('finflow_gemini_model') || 'gemini-2.5-flash-lite';
       const model = genAI.getGenerativeModel({ 
         model: selectedModel,
         systemInstruction: `You are FinFlow Copilot, a brilliant, concise personal financial assistant.
@@ -404,7 +405,7 @@ Rules:
 
         <button
           onClick={() => {
-            localStorage.removeItem('finflow_gemini_key');
+            safeStorage.removeItem('finflow_gemini_key');
             setApiKey('');
           }}
           className="text-[10px] font-bold text-slate-500 hover:text-neon-crimson px-2.5 py-1.5 bg-obsidian-850 hover:bg-neon-crimson/5 rounded-xl border border-obsidian-750 transition-all"

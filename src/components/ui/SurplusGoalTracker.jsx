@@ -2,10 +2,20 @@ import React, { useState } from 'react';
 import { Card, CardContent } from './Card';
 import { formatCurrency } from '../../utils/formatting';
 import { Compass, Sparkles, CheckCircle, Flame } from 'lucide-react';
+import { safeStorage } from '../../utils/storage';
 
 export default function SurplusGoalTracker({ surplusMetrics = {} }) {
-  const [targetGoal, setTargetGoal] = useState(3000); // Configurable target: default $3000/mo
+  const [targetGoal, setTargetGoal] = useState(() => {
+    const saved = safeStorage.getItem('finflow_surplus_target_goal');
+    return saved !== null ? Math.max(0, parseInt(saved) || 0) : 3000;
+  });
   
+  const handleGoalChange = (val) => {
+    const parsed = Math.max(0, parseInt(val) || 0);
+    setTargetGoal(parsed);
+    safeStorage.setItem('finflow_surplus_target_goal', parsed.toString());
+  };
+
   const metrics = surplusMetrics?.rolling || { surplus: 0 };
   const surplus = Math.max(0, metrics.surplus);
   const progressPercent = Math.min(100, targetGoal > 0 ? (surplus / targetGoal) * 100 : 0);
@@ -55,7 +65,7 @@ export default function SurplusGoalTracker({ surplusMetrics = {} }) {
             <input
               type="number"
               value={targetGoal}
-              onChange={(e) => setTargetGoal(Math.max(0, parseInt(e.target.value) || 0))}
+              onChange={(e) => handleGoalChange(e.target.value)}
               className="w-16 bg-obsidian-900 border border-obsidian-800 text-white font-bold rounded px-1 py-0.5 text-center text-xs focus:outline-none focus:border-neon-indigo"
             />
           </div>

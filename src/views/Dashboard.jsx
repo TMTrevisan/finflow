@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import LineChart from '../components/ui/LineChart';
 import SurplusGoalTracker from '../components/ui/SurplusGoalTracker';
@@ -30,6 +30,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function Dashboard({ setCurrentView }) {
   const { balances, transactions, surplusMetrics, isLoading, navigateToTransactions } = useAppContext();
   const [metric, setMetric] = useState('history'); // 'history', 'assets', 'debts'
+  const [chartHeight, setChartHeight] = useState(() => 
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 90 : 130
+  );
+  const [showChart, setShowChart] = useState(() => 
+    typeof window !== 'undefined' && window.innerWidth >= 640
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setChartHeight(window.innerWidth < 640 ? 90 : 130);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const [expandedCategories, setExpandedCategories] = useState({
     'Cash': false,
     'Investments': false,
@@ -430,39 +445,48 @@ export default function Dashboard({ setCurrentView }) {
   return (
     <div className="space-y-6 pb-12 max-w-lg mx-auto md:max-w-none">
       {/* 1. Net Worth History Card */}
-      <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-        <div className="flex flex-col space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-slate-400 font-semibold text-xs tracking-wider uppercase font-display">Net Worth History</h2>
+      <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-4 sm:p-6 shadow-2xl relative overflow-hidden">
+        <div className="flex flex-col space-y-2.5 sm:space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-slate-400 font-semibold text-xs tracking-wider uppercase font-display">Net Worth History</h2>
+              <button 
+                onClick={() => setShowChart(!showChart)}
+                className="p-1 rounded-lg hover:bg-[#131926] text-slate-500 hover:text-slate-350 transition-colors cursor-pointer"
+                title={showChart ? "Collapse Chart" : "Expand Chart"}
+              >
+                {showChart ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </div>
             
             {/* Tab Toggles */}
-            <div className="flex bg-[#131926] p-0.5 rounded-full text-[10px] font-extrabold gap-0.5 border border-slate-800/40">
+            <div className="flex bg-[#131926] p-0.5 rounded-full text-[9px] sm:text-[10px] font-extrabold gap-0.5 border border-slate-800/40">
               <button
                 onClick={() => setMetric('assets')}
-                className={`px-3 py-1 rounded-full flex items-center gap-1 transition-all cursor-pointer ${
+                className={`px-2.5 py-1 sm:px-3 rounded-full flex items-center gap-1 transition-all cursor-pointer ${
                   metric === 'assets'
                     ? 'bg-[#1D273B] text-emerald-400 font-black border border-slate-800/60'
                     : 'text-slate-500 hover:text-slate-350'
                 }`}
               >
-                Assets <span className="bg-[#121724] text-[8px] px-1 rounded text-slate-400 font-semibold">7</span>
+                Assets <span className="bg-[#121724] text-[8px] px-1 rounded text-slate-400 font-semibold hidden sm:inline">7</span>
               </button>
               <button
                 onClick={() => setMetric('debts')}
-                className={`px-3 py-1 rounded-full flex items-center gap-1 transition-all cursor-pointer ${
+                className={`px-2.5 py-1 sm:px-3 rounded-full flex items-center gap-1 transition-all cursor-pointer ${
                   metric === 'debts'
                     ? 'bg-[#1D273B] text-rose-400 font-black border border-slate-800/60'
                     : 'text-slate-500 hover:text-slate-350'
                 }`}
               >
-                Debts <span className="bg-[#121724] text-[8px] px-1 rounded text-slate-400 font-semibold">4</span>
+                Debts <span className="bg-[#121724] text-[8px] px-1 rounded text-slate-400 font-semibold hidden sm:inline">4</span>
               </button>
               <button
                 onClick={() => setMetric('history')}
-                className={`px-3 py-1 rounded-full transition-all cursor-pointer ${
+                className={`px-2.5 py-1 sm:px-3 rounded-full transition-all cursor-pointer ${
                   metric === 'history'
                     ? 'bg-[#1D273B] text-emerald-400 font-black border border-slate-800/60'
-                    : 'text-slate-500 hover:text-slate-300'
+                    : 'text-slate-500 hover:text-slate-330'
                 }`}
               >
                 History
@@ -471,10 +495,10 @@ export default function Dashboard({ setCurrentView }) {
           </div>
 
           {/* Centered current value */}
-          <div className="text-center py-2 space-y-1">
-            <span className="text-[10px] font-black tracking-widest text-slate-500 uppercase">May 26</span>
+          <div className="text-center py-1 sm:py-2 space-y-0.5 sm:space-y-1">
+            <span className="text-[9px] sm:text-[10px] font-black tracking-widest text-slate-500 uppercase">May 26</span>
             <div className="flex items-center justify-center space-x-2">
-              <span className={`text-3xl font-extrabold tracking-tight font-display ${
+              <span className={`text-2xl sm:text-3xl font-extrabold tracking-tight font-display ${
                 metric === 'debts' ? 'text-rose-500' : 'text-[#10B981]'
               }`}>
                 {formatCurrency(activeValue)}
@@ -483,7 +507,7 @@ export default function Dashboard({ setCurrentView }) {
             
             {/* Delta pill */}
             <div className="flex justify-center">
-              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              <span className={`inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-full ${
                 activeDelta.dir === 'up' 
                   ? 'bg-emerald-500/10 text-emerald-400' 
                   : 'bg-rose-500/10 text-rose-400'
@@ -494,18 +518,20 @@ export default function Dashboard({ setCurrentView }) {
           </div>
 
           {/* Sparkline Area Graph */}
-          <div className="w-full pt-2">
-            <LineChart 
-              data={historyData} 
-              height={160} 
-              lineColor={metric === 'debts' ? '#EF4444' : '#10B981'}
-              glowColor={metric === 'debts' ? '#EF4444' : '#10B981'}
-              gradientColor={metric === 'debts' ? '#EF4444' : '#10B981'}
-              fillOpacity={0.08}
-              strokeWidth={2}
-              showGrid={false}
-            />
-          </div>
+          {showChart && (
+            <div className="w-full pt-1">
+              <LineChart 
+                data={historyData} 
+                height={chartHeight} 
+                lineColor={metric === 'debts' ? '#EF4444' : '#10B981'}
+                glowColor={metric === 'debts' ? '#EF4444' : '#10B981'}
+                gradientColor={metric === 'debts' ? '#EF4444' : '#10B981'}
+                fillOpacity={0.08}
+                strokeWidth={2}
+                showGrid={false}
+              />
+            </div>
+          )}
         </div>
       </div>
 
