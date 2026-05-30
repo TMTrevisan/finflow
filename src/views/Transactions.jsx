@@ -61,7 +61,7 @@ function getDateRange(preset) {
 
 export default function Transactions() {
   const { 
-    transactions, 
+    transactions = [], 
     isLoading, 
     selectedAccount, 
     setSelectedAccount,
