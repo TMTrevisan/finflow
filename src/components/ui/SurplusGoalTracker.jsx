@@ -17,8 +17,8 @@ export default function SurplusGoalTracker({ surplusMetrics = {} }) {
   };
 
   const metrics = surplusMetrics?.rolling || { surplus: 0 };
-  const surplus = Math.max(0, metrics.surplus);
-  const progressPercent = Math.min(100, targetGoal > 0 ? (surplus / targetGoal) * 100 : 0);
+  const surplus = metrics.surplus || 0;
+  const progressPercent = Math.min(100, targetGoal > 0 ? (Math.max(0, surplus) / targetGoal) * 100 : 0);
 
   const statusInfo = () => {
     if (progressPercent >= 100) return { label: 'Goal Met!', color: 'text-neon-emerald', icon: CheckCircle };
@@ -45,7 +45,12 @@ export default function SurplusGoalTracker({ surplusMetrics = {} }) {
         {/* Progress bar */}
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs font-semibold">
-            <span className="text-slate-400">Current Surplus: <strong className="text-white">{formatCurrency(surplus)}</strong></span>
+            <span className="text-slate-400">
+              Current Surplus:{' '}
+              <strong className={surplus >= 0 ? 'text-neon-emerald font-extrabold' : 'text-neon-crimson font-extrabold'}>
+                {formatCurrency(surplus)}
+              </strong>
+            </span>
             <span className="text-slate-500">Goal: {formatCurrency(targetGoal)}</span>
           </div>
           

@@ -59,7 +59,7 @@ export const resolveBudget = (categoryObj, targetMonth, targetYear) => {
 };
 
 // Helper to decorate transactions with category type/group
-const decorateData = (rawTxns, rawCats, useCalendarToday) => {
+export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
   const txnsList = (rawTxns || []).filter(t => t && typeof t === 'object');
 
   // Find active month/year based on latest transaction or today

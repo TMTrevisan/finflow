@@ -95,6 +95,48 @@ export default function CashFlow() {
     };
   }, [dateFilteredTransactions]);
 
+  // Grouped Income Sources
+  const incomeSources = useMemo(() => {
+    const map = {};
+    let total = 0;
+    dateFilteredTransactions
+      .filter(t => t.type === 'Income')
+      .forEach(t => {
+        const key = t.category || 'Uncategorized';
+        const amount = Number(t.amount) || 0;
+        map[key] = (map[key] || 0) + amount;
+        total += amount;
+      });
+    return Object.entries(map)
+      .map(([name, value]) => ({
+        name,
+        value,
+        percentage: total > 0 ? (value / total) * 100 : 0
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [dateFilteredTransactions]);
+
+  // Grouped Expense Sources
+  const expenseSources = useMemo(() => {
+    const map = {};
+    let total = 0;
+    dateFilteredTransactions
+      .filter(t => t.type === 'Expense' || (t.type === 'Transfer' && (t.group === 'Investments' || t.group === 'Cash Savings')))
+      .forEach(t => {
+        const key = t.category || 'Uncategorized';
+        const amount = Math.abs(Number(t.amount) || 0);
+        map[key] = (map[key] || 0) + amount;
+        total += amount;
+      });
+    return Object.entries(map)
+      .map(([name, value]) => ({
+        name,
+        value,
+        percentage: total > 0 ? (value / total) * 100 : 0
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [dateFilteredTransactions]);
+
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-6">
@@ -193,51 +235,63 @@ export default function CashFlow() {
         {visualMode === 'sankey' ? (
           <SankeyDiagram transactions={dateFilteredTransactions} />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch animate-fade-in">
-            {/* Income Card */}
-            <Card className="bg-[#0B0E14] border border-[#161B26] p-6 flex flex-col">
-              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <ArrowUpRight className="text-neon-emerald" /> Income Inflow
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start animate-fade-in">
+            {/* Income Sources Card */}
+            <Card className="bg-[#0B0E14] border border-[#161B26] p-6 flex flex-col rounded-3xl">
+              <h3 className="text-base font-extrabold text-white mb-4 flex items-center gap-2">
+                <ArrowUpRight className="text-neon-emerald" /> Income Sources
               </h3>
               <div className="space-y-4 flex-1">
-                {dateFilteredTransactions.filter(t => t.type === 'Income').length === 0 ? (
+                {incomeSources.length === 0 ? (
                   <p className="text-xs text-slate-500 text-center py-10">No income in this period</p>
                 ) : (
-                  dateFilteredTransactions
-                    .filter(t => t.type === 'Income')
-                    .map(t => (
-                      <div key={t.id} className="flex justify-between items-center py-2 border-b border-obsidian-800/30">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-200">{t.description}</p>
-                          <p className="text-[10px] text-slate-500">{t.category} • {t.account}</p>
+                  incomeSources.map(source => (
+                    <div key={source.name} className="space-y-1.5 pb-3 border-b border-obsidian-850 last:border-0 last:pb-0">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-200">{source.name}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-slate-400 font-semibold">{source.percentage.toFixed(0)}%</span>
+                          <span className="font-black text-neon-emerald">{formatCurrency(source.value)}</span>
                         </div>
-                        <span className="font-bold text-neon-emerald text-sm">{formatCurrency(t.amount)}</span>
                       </div>
-                    ))
+                      <div className="h-1.5 w-full bg-obsidian-950 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full rounded-full bg-neon-emerald"
+                          style={{ width: `${source.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </Card>
 
-            {/* Expenses Card */}
-            <Card className="bg-[#0B0E14] border border-[#161B26] p-6 flex flex-col">
-              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <ArrowDownRight className="text-neon-crimson" /> Expenses Outflow
+            {/* Expenses Breakdown Card */}
+            <Card className="bg-[#0B0E14] border border-[#161B26] p-6 flex flex-col rounded-3xl">
+              <h3 className="text-base font-extrabold text-white mb-4 flex items-center gap-2">
+                <ArrowDownRight className="text-neon-crimson" /> Expense Categories
               </h3>
               <div className="space-y-4 flex-1">
-                {dateFilteredTransactions.filter(t => t.type === 'Expense' || (t.type === 'Transfer' && (t.group === 'Investments' || t.group === 'Cash Savings'))).length === 0 ? (
+                {expenseSources.length === 0 ? (
                   <p className="text-xs text-slate-500 text-center py-10">No expenses in this period</p>
                 ) : (
-                  dateFilteredTransactions
-                    .filter(t => t.type === 'Expense' || (t.type === 'Transfer' && (t.group === 'Investments' || t.group === 'Cash Savings')))
-                    .map(t => (
-                      <div key={t.id} className="flex justify-between items-center py-2 border-b border-obsidian-800/30">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-200">{t.description}</p>
-                          <p className="text-[10px] text-slate-500">{t.category} • {t.account}</p>
+                  expenseSources.map(source => (
+                    <div key={source.name} className="space-y-1.5 pb-3 border-b border-obsidian-850 last:border-0 last:pb-0">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-bold text-slate-200">{source.name}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-slate-400 font-semibold">{source.percentage.toFixed(0)}%</span>
+                          <span className="font-black text-slate-350">{formatCurrency(source.value)}</span>
                         </div>
-                        <span className="font-bold text-slate-350 text-sm">{formatCurrency(Math.abs(t.amount))}</span>
                       </div>
-                    ))
+                      <div className="h-1.5 w-full bg-obsidian-950 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full rounded-full bg-neon-crimson"
+                          style={{ width: `${source.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </Card>
