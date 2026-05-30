@@ -152,8 +152,10 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
     return groupsList.map(([name, val]) => {
       const nodeHeight = (val / maxFlow) * heightScale;
       let color = '#F43F5E'; // rose/pink for expenses
-      if (name === 'Net Savings' || name === 'Cash Savings') {
-        color = '#3B82F6'; // blue for savings
+      if (name === 'Net Savings') {
+        color = '#10B981'; // green for dynamic surplus / net savings
+      } else if (name === 'Cash Savings') {
+        color = '#3B82F6'; // blue for cash savings
       } else if (name === 'Investments') {
         color = '#8B5CF6'; // purple for investments
       }
