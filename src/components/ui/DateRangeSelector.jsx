@@ -6,6 +6,9 @@ import { getDateRangeLabel } from '../../utils/dateFilters';
 const FILTER_OPTIONS = [
   { id: 'this_week', name: 'This Week' },
   { id: 'this_month', name: 'This Month' },
+  { id: 'last_month', name: 'Last Month' },
+  { id: 'last_3_months', name: 'Last 3 Months' },
+  { id: 'last_6_months', name: 'Last 6 Months' },
   { id: 'this_quarter', name: 'This Quarter' },
   { id: 'ytd', name: 'Year to Date (YTD)' },
   { id: 'last_year', name: 'Last Year' },
@@ -23,7 +26,7 @@ export default function DateRangeSelector({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
-  const { transactions } = useAppContext();
+  const { transactions = [] } = useAppContext();
 
   // Close dropdown on click outside
   useEffect(() => {

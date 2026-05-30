@@ -7,7 +7,7 @@ import { getCategoryEmoji } from '../../utils/formatting';
 import { BottomSheet } from './BottomSheet';
 
 export function CategoryPill({ transaction }) {
-  const { categories, updateCategory } = useAppContext();
+  const { categories = [], updateCategory } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);

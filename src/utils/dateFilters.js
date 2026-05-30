@@ -29,6 +29,21 @@ export const filterTransactionsByDateRange = (transactions, filterType, customSt
       endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       break;
     }
+    case 'last_month': {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      break;
+    }
+    case 'last_3_months': {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      break;
+    }
+    case 'last_6_months': {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      break;
+    }
     case 'this_quarter': {
       const quarter = Math.floor(now.getMonth() / 3);
       startDate = new Date(now.getFullYear(), quarter * 3, 1);
@@ -90,6 +105,19 @@ export const getDateRangeLabel = (filterType, customStart, customEnd, transactio
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
       const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       return `${formatDate(start)} - ${formatDate(end)}`;
+    }
+    case 'last_month': {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      return `${formatDate(start)} - ${formatDate(end)}`;
+    }
+    case 'last_3_months': {
+      const start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      return `${formatDate(start)} - ${formatDate(now)}`;
+    }
+    case 'last_6_months': {
+      const start = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      return `${formatDate(start)} - ${formatDate(now)}`;
     }
     case 'this_quarter': {
       const quarter = Math.floor(now.getMonth() / 3);
