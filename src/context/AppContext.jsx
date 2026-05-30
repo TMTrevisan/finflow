@@ -150,6 +150,42 @@ const compressTransactions = (txns) => {
   }));
 };
 
+// Helper to compress category data before writing to localStorage
+const compressCategories = (cats) => {
+  const monthsList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  return (cats || []).map(c => {
+    const compressed = {
+      id: c.id,
+      category: c.category,
+      group: c.group,
+      type: c.type,
+      budget: c.budget
+    };
+    // Keep month-specific budgets if they exist
+    Object.keys(c || {}).forEach(k => {
+      const lowerK = k.toLowerCase();
+      if (monthsList.some(m => lowerK.includes(m))) {
+        compressed[k] = c[k];
+      }
+    });
+    return compressed;
+  });
+};
+
+// Helper to compress balance data before writing to localStorage
+const compressBalances = (balances) => {
+  return (balances || []).map(b => ({
+    id: b.id,
+    date: b.date,
+    institution: b.institution,
+    account: b.account,
+    account_id: b.account_id,
+    balance: b.balance,
+    class: b.class,
+    type: b.type
+  }));
+};
+
 // Helper to write to localStorage safely without crashing the app if browser storage limit is hit
 const safeSetItem = (key, value) => {
   try {
@@ -273,8 +309,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
       
       // Save cache
       safeSetItem('finflow_cache_transactions', compressTransactions(data.transactions));
-      safeSetItem('finflow_cache_categories', data.categories || []);
-      safeSetItem('finflow_cache_balances', data.balances || []);
+      safeSetItem('finflow_cache_categories', compressCategories(data.categories || []));
+      safeSetItem('finflow_cache_balances', compressBalances(data.balances || []));
       safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
       
       const timestamp = new Date().toISOString();
@@ -312,8 +348,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
       
       // Save cache
       safeSetItem('finflow_cache_transactions', compressTransactions(data.transactions));
-      safeSetItem('finflow_cache_categories', data.categories || []);
-      safeSetItem('finflow_cache_balances', data.balances || []);
+      safeSetItem('finflow_cache_categories', compressCategories(data.categories || []));
+      safeSetItem('finflow_cache_balances', compressBalances(data.balances || []));
       safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
       
       const timestamp = new Date().toISOString();

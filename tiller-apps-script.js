@@ -51,6 +51,59 @@ function getTillerData() {
   };
 }
 
+function findHeaderRowIndex(data, sheetName) {
+  const lowerSheet = sheetName.toLowerCase().trim();
+  
+  // Define standard columns we expect for each sheet type
+  let expectedHeaders = [];
+  if (lowerSheet.indexOf('transaction') !== -1) {
+    expectedHeaders = ['date', 'amount', 'description', 'category'];
+  } else if (lowerSheet.indexOf('category') !== -1) {
+    expectedHeaders = ['category', 'group', 'type'];
+  } else if (lowerSheet.indexOf('balance') !== -1) {
+    expectedHeaders = ['date', 'account', 'balance', 'institution'];
+  } else if (lowerSheet.indexOf('life') !== -1) {
+    expectedHeaders = ['category', 'classification'];
+  }
+
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    // Count how many non-empty string cells are in this row
+    const nonEmptyCells = row.filter(val => val !== null && String(val).trim() !== '');
+    if (nonEmptyCells.length < 3) continue; // Headers usually have at least 3 columns
+    
+    // Check if the row contains any of our expected header names
+    const rowStrings = row.map(val => String(val || '').toLowerCase().trim());
+    
+    // Count matches with expected headers
+    const matches = expectedHeaders.filter(h => rowStrings.indexOf(h) !== -1);
+    
+    // If it matches at least 2 expected headers, it's definitely the header row
+    if (matches.length >= 2) {
+      return i;
+    }
+    
+    // Fallback: if we don't have expected headers, but the row has many cells, and the next row has data
+    if (nonEmptyCells.length >= 4) {
+      // Let's make sure it's not a row of numbers/dates (which would be data, not headers)
+      const hasOnlyNumbers = nonEmptyCells.every(val => !isNaN(val) || val instanceof Date);
+      if (!hasOnlyNumbers) {
+        return i;
+      }
+    }
+  }
+  
+  // Fallback to the first row that has any non-empty cell if we find nothing else
+  for (let i = 0; i < data.length; i++) {
+    const nonEmptyCells = data[i].filter(val => val !== null && String(val).trim() !== '');
+    if (nonEmptyCells.length > 0) {
+      return i;
+    }
+  }
+  
+  return -1;
+}
+
 function getSheetData(ss, sheetName) {
   // Try to find sheet case-insensitively and trim spaces
   let sheet = ss.getSheetByName(sheetName);
@@ -64,19 +117,18 @@ function getSheetData(ss, sheetName) {
   const data = sheet.getDataRange().getValues();
   if (data.length === 0) return [];
   
-  // Find the first row that is not entirely empty as the header row (skips blank lines)
-  let headerIndex = -1;
-  for (let i = 0; i < data.length; i++) {
-    if (data[i].some(val => val !== null && val !== '')) {
-      headerIndex = i;
-      break;
-    }
-  }
+  // Find the header row
+  const headerIndex = findHeaderRowIndex(data, sheetName);
   
   if (headerIndex === -1 || headerIndex === data.length - 1) return [];
   
   const headers = data[headerIndex];
   const rows = data.slice(headerIndex + 1);
+  
+  const lowerSheet = sheetName.toLowerCase().trim();
+  const isTxns = lowerSheet.indexOf('transaction') !== -1;
+  const isCats = lowerSheet.indexOf('category') !== -1;
+  const monthsList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
   
   return rows
     .filter(row => row.some(val => val !== null && val !== '')) // skip completely empty rows
@@ -85,6 +137,17 @@ function getSheetData(ss, sheetName) {
       headers.forEach((header, i) => {
         let key = String(header || '').toLowerCase().trim().replace(/\s+/g, '_');
         if (key) {
+          // Compress columns at source
+          if (isTxns) {
+            if (['date', 'description', 'category', 'amount', 'account'].indexOf(key) === -1) {
+              return;
+            }
+          } else if (isCats) {
+            const isMonthKey = monthsList.some(m => key.indexOf(m) !== -1);
+            if (['category', 'group', 'type', 'budget'].indexOf(key) === -1 && !isMonthKey) {
+              return;
+            }
+          }
           rowData[key] = row[i];
         }
       });
@@ -105,13 +168,7 @@ function getBalancesData(ss) {
   if (data.length === 0) return [];
   
   // Find the header row
-  let headerIndex = -1;
-  for (let i = 0; i < data.length; i++) {
-    if (data[i].some(val => val !== null && val !== '')) {
-      headerIndex = i;
-      break;
-    }
-  }
+  const headerIndex = findHeaderRowIndex(data, 'Balance History');
   
   if (headerIndex === -1 || headerIndex === data.length - 1) return [];
   
@@ -125,7 +182,10 @@ function getBalancesData(ss) {
       headers.forEach((header, i) => {
         let key = String(header || '').toLowerCase().trim().replace(/\s+/g, '_');
         if (key) {
-          rowData[key] = row[i];
+          // Keep only necessary columns for balance history
+          if (['date', 'institution', 'account', 'account_id', 'balance', 'class', 'type'].indexOf(key) !== -1) {
+            rowData[key] = row[i];
+          }
         }
       });
       return rowData;
