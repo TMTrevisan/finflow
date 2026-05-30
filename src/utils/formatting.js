@@ -14,6 +14,24 @@ export const cleanMerchantName = (description) => {
   if (!description) return '';
   
   let cleaned = description;
+  const lower = description.toLowerCase();
+  
+  // Specific Payroll/Employer / Tax Refund Mappings
+  if (lower.includes('becton dickinson') || lower.includes('becton')) {
+    return 'Becton Dickinson';
+  }
+  if (lower.includes('kaitlyn trevisan') && (lower.includes('payroll') || lower.includes('ayroll') || lower.includes('cerx'))) {
+    return 'Kaitlyn Trevisan Payroll';
+  }
+  if (lower.includes('trevisan,todd') || (lower.includes('todd trevisan') && (lower.includes('zik') || lower.includes('ppd')))) {
+    return 'Todd Trevisan Payroll';
+  }
+  if (lower.includes('todd michael trevisan') && (lower.includes('ppd') || lower.includes('bc'))) {
+    return 'Todd Trevisan Payroll';
+  }
+  if (lower.includes('franchise tax bd') || lower.includes('casttaxrfd')) {
+    return 'Franchise Tax Board';
+  }
   
   // Strip prefixes like TST*, SQ*, SP*, PAYPAL*, AMZN MKTP, etc.
   cleaned = cleaned.replace(/^(tst\*|sq\s*\*|sp\s*\*|paypal\s*\*|amzn\s*mktp\s*us\*|opos\s*\*|pending\s*-|purchase\s*at\s*|authorized\s*on\s*\d{2}\/\d{2}\s*)/i, '');
@@ -23,6 +41,8 @@ export const cleanMerchantName = (description) => {
   cleaned = cleaned.replace(/\b\d{3}-\d{3}-\d{4}\b/g, ''); 
   cleaned = cleaned.replace(/\s+[A-Z]{2}\b/g, ''); 
   cleaned = cleaned.replace(/\b\d{5}\b/g, ''); 
+  cleaned = cleaned.replace(/\bppd\b/i, '');
+  cleaned = cleaned.replace(/id:\s*[x\d]+/i, '');
   
   // Clean up double spaces and trim
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
