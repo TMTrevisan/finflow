@@ -2,6 +2,7 @@ import React, { useState, Suspense, lazy, useEffect } from 'react';
 import Layout from './components/layout/Layout';
 import PasscodeLock from './components/ui/PasscodeLock';
 import { AppProvider } from './context/AppContext';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 
 // Helper to catch chunk load errors and reload the page automatically to fetch latest deployment files
 const safeLazy = (importFn) => {
@@ -97,9 +98,11 @@ function App() {
     <AppProvider setCurrentView={setCurrentView}>
       <PasscodeLock>
         <Layout currentView={currentView} setCurrentView={setCurrentView}>
-          <Suspense fallback={<LoadingFallback />}>
-            {renderView()}
-          </Suspense>
+          <ErrorBoundary key={currentView}>
+            <Suspense fallback={<LoadingFallback />}>
+              {renderView()}
+            </Suspense>
+          </ErrorBoundary>
         </Layout>
       </PasscodeLock>
     </AppProvider>

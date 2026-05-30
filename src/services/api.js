@@ -22,15 +22,26 @@ const delay = (ms) => new Promise(res => setTimeout(res, ms));
 export const fetchFinData = async () => {
   const url = getApiUrl('getData');
   if (url) {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch live data (HTTP ${response.status}). Check Google Apps Script permissions.`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch live data (HTTP ${response.status}). Check Google Apps Script permissions.`);
+      }
+      const result = await response.json();
+      if (result.error) {
+        throw new Error(`Apps Script Error: ${result.error}`);
+      }
+      return result;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('Sync timed out after 20s. Google Apps Script may be cold-starting — try again in a moment.');
+      }
+      throw err;
     }
-    const result = await response.json();
-    if (result.error) {
-      throw new Error(`Apps Script Error: ${result.error}`);
-    }
-    return result;
   }
   
   // No API_URL defined, simulate network delay and return mock data

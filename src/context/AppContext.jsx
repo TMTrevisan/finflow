@@ -343,13 +343,18 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setBalances(data.balances || []);
       setLifeOptimization(data.lifeOptimization || []);
       setIsMockData(false);
-      
-      // Save cache
-      safeSetItem('finflow_cache_transactions', compressTransactions(data.transactions));
-      safeSetItem('finflow_cache_categories', compressCategories(data.categories || []));
+
+      // IMPORTANT: Write *decorated* (normalized) data to cache, not raw Tiller data.
+      // This ensures ISO timestamps and Tiller sign convention never persist in localStorage.
+      // On next load, decorateData sees already-clean data and its normalization is a no-op.
+      const { transactions: decoratedTxns, categories: decoratedCats } = decorateData(
+        data.transactions || [], data.categories || [], useCalendarToday
+      );
+      safeSetItem('finflow_cache_transactions', compressTransactions(decoratedTxns));
+      safeSetItem('finflow_cache_categories', compressCategories(decoratedCats));
       safeSetItem('finflow_cache_balances', compressBalances(data.balances || []));
       safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
-      
+
       const timestamp = new Date().toISOString();
       safeStorage.setItem('finflow_last_sync', timestamp);
       setLastSync(timestamp);
@@ -382,13 +387,16 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setBalances(data.balances || []);
       setLifeOptimization(data.lifeOptimization || []);
       setIsMockData(false);
-      
-      // Save cache
-      safeSetItem('finflow_cache_transactions', compressTransactions(data.transactions));
-      safeSetItem('finflow_cache_categories', compressCategories(data.categories || []));
+
+      // IMPORTANT: Write decorated (normalized) data to cache — same rationale as loadData
+      const { transactions: decoratedTxns, categories: decoratedCats } = decorateData(
+        data.transactions || [], data.categories || [], useCalendarToday
+      );
+      safeSetItem('finflow_cache_transactions', compressTransactions(decoratedTxns));
+      safeSetItem('finflow_cache_categories', compressCategories(decoratedCats));
       safeSetItem('finflow_cache_balances', compressBalances(data.balances || []));
       safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
-      
+
       const timestamp = new Date().toISOString();
       safeStorage.setItem('finflow_last_sync', timestamp);
       setLastSync(timestamp);
@@ -487,12 +495,59 @@ export const AppProvider = ({ children, setCurrentView }) => {
       if (cached) mappings = JSON.parse(cached);
     } catch {}
 
-    const getClassification = (cat) => {
+    // Classify a transaction using its already-decorated type/group fields as the primary
+    // signal, falling back to category-name keywords only for Baseline vs Lifestyle.
+    // This fixes Surplus Goal = $0 when real Tiller categories like "Direct Deposit" are used.
+    const getClassification = (txn) => {
+      const cat = txn.category;
+      // User-defined override from Life Optimization mappings
+      if (mappings[cat]) return mappings[cat].classification;
+
+      // PRIMARY: use already-decorated type/group from decorateData
+      if (txn.type === 'Income') return 'Income';
+      if (txn.type === 'Transfer') return 'Lifestyle'; // transfers are cost-neutral for surplus
+      if (txn.group === 'Investments') return 'Compounding';
+
+      // SECONDARY: keyword matching on category name for Baseline vs Lifestyle
+      const name = String(cat || '').toLowerCase();
+      if (
+        name.includes('grocer') || name.includes('rent') || name.includes('mortgage') ||
+        name.includes('utilit') || name.includes('electric') || name.includes('gas') ||
+        name.includes('water') || name.includes('power') || name.includes('internet') ||
+        name.includes('phone') || name.includes('insurance') || name.includes('medical') ||
+        name.includes('doctor') || name.includes('health') || name.includes('daycare') ||
+        name.includes('childcare') || name.includes('care')
+      ) return 'Baseline';
+
+      // TERTIARY: keyword matching for Compounding (savings/investment categories)
+      if (
+        name.includes('401') || name.includes('ira') || name.includes('retirement') ||
+        name.includes('invest') || name.includes('savings') || name.includes('hsa') ||
+        name.includes('529') || name.includes('compounding') || name.includes('stock')
+      ) return 'Compounding';
+
+      return 'Lifestyle';
+    };
+
+    // Classify a category row (no txn object) — used for budget projections
+    const getClassificationByName = (cat) => {
       if (mappings[cat]) return mappings[cat].classification;
       const name = String(cat || '').toLowerCase();
-      if (name.includes('paycheck') || name.includes('salary') || name.includes('bonus') || name.includes('dividend') || name.includes('interest') || name.includes('deposit') || name.includes('wages') || name.includes('family funding')) return 'Income';
-      if (name.includes('401') || name.includes('ira') || name.includes('retirement') || name.includes('invest') || name.includes('savings') || name.includes('hsa') || name.includes('529') || name.includes('compounding') || name.includes('stock')) return 'Compounding';
-      if (name.includes('grocer') || name.includes('rent') || name.includes('mortgage') || name.includes('utilit') || name.includes('electric') || name.includes('gas') || name.includes('water') || name.includes('power') || name.includes('internet') || name.includes('phone') || name.includes('insurance') || name.includes('medical') || name.includes('doctor') || name.includes('health') || name.includes('care') || name.includes('daycare') || name.includes('childcare')) return 'Baseline';
+      if (name.includes('paycheck') || name.includes('salary') || name.includes('bonus') ||
+          name.includes('dividend') || name.includes('interest') || name.includes('deposit') ||
+          name.includes('wages') || name.includes('family funding') || name.includes('income'))
+        return 'Income';
+      if (name.includes('401') || name.includes('ira') || name.includes('retirement') ||
+          name.includes('invest') || name.includes('savings') || name.includes('hsa') ||
+          name.includes('529') || name.includes('compounding') || name.includes('stock'))
+        return 'Compounding';
+      if (name.includes('grocer') || name.includes('rent') || name.includes('mortgage') ||
+          name.includes('utilit') || name.includes('electric') || name.includes('gas') ||
+          name.includes('water') || name.includes('power') || name.includes('internet') ||
+          name.includes('phone') || name.includes('insurance') || name.includes('medical') ||
+          name.includes('doctor') || name.includes('health') || name.includes('daycare') ||
+          name.includes('childcare'))
+        return 'Baseline';
       return 'Lifestyle';
     };
 
@@ -526,13 +581,13 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const d = new Date(t.date);
       if (d < rollingStart || d > refDate) return;
 
-      const classification = getClassification(t.category);
+      const classification = getClassification(t);
       const amountVal = Number(t.amount) || 0;
 
       if (classification === 'Income') {
-        rollingIncome += amountVal;
+        rollingIncome += amountVal; // already positive after decoration
       } else {
-        const netExpense = -amountVal;
+        const netExpense = Math.abs(amountVal); // expenses are negative after decoration
         if (classification === 'Compounding') rollingCompounding += netExpense;
         else if (classification === 'Baseline') rollingBaseline += netExpense;
         else if (classification === 'Lifestyle') rollingLifestyle += netExpense;
@@ -555,13 +610,13 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const d = new Date(t.date);
       if (d.getMonth() !== currentMonth || d.getFullYear() !== currentYear) return;
 
-      const classification = getClassification(t.category);
+      const classification = getClassification(t);
       const amountVal = Number(t.amount) || 0;
 
       if (classification === 'Income') {
         actualIncome += amountVal;
       } else {
-        const netExpense = -amountVal;
+        const netExpense = Math.abs(amountVal);
         if (classification === 'Compounding') actualCompounding += netExpense;
         else if (classification === 'Baseline') actualBaseline += netExpense;
         else if (classification === 'Lifestyle') actualLifestyle += netExpense;
@@ -574,7 +629,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
     (categories || []).forEach(c => {
       if (!c.category || !isIncluded(c.category)) return;
-      const classification = getClassification(c.category);
+      const classification = getClassificationByName(c.category);
       const budgetVal = Number(c.budget) || 0;
 
       if (classification === 'Income') {
