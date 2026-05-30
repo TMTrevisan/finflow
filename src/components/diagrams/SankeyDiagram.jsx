@@ -57,7 +57,9 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       }
     });
 
-    const totalSavings = Math.max(0, totalIncome - totalExpense);
+    const investmentGroupsSum = (groupMap['Investments'] || 0) + (groupMap['Wealth Building'] || 0);
+    const surplusValue = totalIncome - (totalExpense - investmentGroupsSum);
+    const totalSavings = Math.max(0, surplusValue);
 
     return {
       incomeMap,
@@ -94,7 +96,8 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
   const col3X = margin.left + 2 * columnGap;
   const col4X = margin.left + 3 * columnGap;
 
-  const maxFlow = Math.max(totalIncome, totalExpense) || 1;
+  const totalRightSide = totalExpense + (totalSavings > 0 ? totalSavings : 0);
+  const maxFlow = Math.max(totalIncome, totalRightSide) || 1;
   
   // Calculate spacing and dynamically clip heightScale to prevent vertical container overflow
   const totalSpacing = (categoryCount - 1) * 8 + (groupCount - 1) * 6;
