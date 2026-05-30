@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import SankeyDiagram from '../components/diagrams/SankeyDiagram';
 import DateRangeSelector from '../components/ui/DateRangeSelector';

@@ -23,7 +23,12 @@ import {
   RefreshCw,
   Compass,
   Heart,
-  Shield
+  Shield,
+  PiggyBank,
+  CreditCard,
+  Landmark,
+  Building2,
+  Wallet
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
