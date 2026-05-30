@@ -13,8 +13,12 @@ import {
   KeyRound,
   Brain,
   Fingerprint,
-  Bell
+  Bell,
+  Calendar
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { BottomSheet } from '../components/ui/BottomSheet';
+
 
 export default function Settings() {
   const { 
@@ -26,7 +30,9 @@ export default function Settings() {
     categories, 
     balances,
     isMockData,
-    isSyncing
+    isSyncing,
+    useCalendarToday,
+    setUseCalendarToday
   } = useAppContext();
 
   // URL state
@@ -47,6 +53,31 @@ export default function Settings() {
     return localStorage.getItem('finflow_gemini_key') || '';
   });
   const [geminiMessage, setGeminiMessage] = useState(null);
+
+  // Mobile and Modal states
+  const [isMobile, setIsMobile] = useState(false);
+  const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
+  const [isConfirmingClearCache, setIsConfirmingClearCache] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsConfirmingClearCache(false);
+      }
+    };
+    if (isConfirmingClearCache) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isConfirmingClearCache]);
+
 
   // Biometrics state
   const [biometricsEnabled, setBiometricsEnabled] = useState(() => {
@@ -280,6 +311,51 @@ export default function Settings() {
           </div>
         </Card>
 
+        {/* Period Anchoring Card */}
+        <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-neon-indigo/10 rounded-xl text-neon-indigo">
+                <Calendar size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Period Anchoring</h3>
+                <p className="text-xs text-slate-500">Select how "this month" is defined for budgets and cash flow.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="flex items-start space-x-3 bg-obsidian-800/30 p-3 rounded-xl border border-obsidian-850 cursor-pointer select-none">
+                <input
+                  type="radio"
+                  name="period-anchor"
+                  checked={useCalendarToday}
+                  onChange={() => setUseCalendarToday(true)}
+                  className="mt-0.5 border-slate-700 text-neon-indigo focus:ring-neon-indigo bg-obsidian-800"
+                />
+                <div>
+                  <span className="text-xs font-bold text-white block">Use Calendar Month (Today)</span>
+                  <span className="text-[10px] text-slate-400">Anchor dates around the actual current calendar date ({new Date().toLocaleDateString()}).</span>
+                </div>
+              </label>
+
+              <label className="flex items-start space-x-3 bg-obsidian-800/30 p-3 rounded-xl border border-obsidian-850 cursor-pointer select-none">
+                <input
+                  type="radio"
+                  name="period-anchor"
+                  checked={!useCalendarToday}
+                  onChange={() => setUseCalendarToday(false)}
+                  className="mt-0.5 border-slate-700 text-neon-indigo focus:ring-neon-indigo bg-obsidian-800"
+                />
+                <div>
+                  <span className="text-xs font-bold text-white block">Use Latest Transaction Date</span>
+                  <span className="text-[10px] text-slate-400">Anchor dates around the latest transaction in your sheets (best for stale data).</span>
+                </div>
+              </label>
+            </div>
+          </div>
+        </Card>
+
         {/* Security Settings Card */}
         <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 flex flex-col justify-between">
           <div className="space-y-4">
@@ -389,18 +465,73 @@ export default function Settings() {
 
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">AI LLM Model</label>
-              <select
-                value={geminiModel}
-                onChange={(e) => setGeminiModel(e.target.value)}
-                className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow appearance-none"
-              >
-                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Recommended - Fast & Stable)</option>
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash (Balanced - Stable)</option>
-                <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast)</option>
-                <option value="gemini-flash-lite-latest">Gemini Flash Lite Latest (Alias - Lowest Cost)</option>
-                <option value="gemini-flash-latest">Gemini Flash Latest (Alias - High Performance)</option>
-              </select>
+              {isMobile ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsModelSheetOpen(true)}
+                    className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs text-left focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow flex items-center justify-between"
+                  >
+                    <span>
+                      {geminiModel === 'gemini-2.5-flash-lite' && 'Gemini 2.5 Flash Lite (Recommended)'}
+                      {geminiModel === 'gemini-2.5-flash' && 'Gemini 2.5 Flash (Balanced)'}
+                      {geminiModel === 'gemini-2.0-flash' && 'Gemini 2.0 Flash (Fast)'}
+                      {geminiModel === 'gemini-flash-lite-latest' && 'Gemini Flash Lite Latest'}
+                      {geminiModel === 'gemini-flash-latest' && 'Gemini Flash Latest'}
+                    </span>
+                    <span className="text-slate-500 text-[10px]">Tap to change</span>
+                  </button>
+                  <BottomSheet
+                    isOpen={isModelSheetOpen}
+                    onClose={() => setIsModelSheetOpen(false)}
+                    title="Select AI LLM Model"
+                  >
+                    <div className="space-y-2">
+                      {[
+                        { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite (Recommended - Fast & Stable)' },
+                        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Balanced - Stable)' },
+                        { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Fast)' },
+                        { value: 'gemini-flash-lite-latest', label: 'Gemini Flash Lite Latest (Alias - Lowest Cost)' },
+                        { value: 'gemini-flash-latest', label: 'Gemini Flash Latest (Alias - High Performance)' }
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setGeminiModel(opt.value);
+                            localStorage.setItem('finflow_gemini_model', opt.value);
+                            setIsModelSheetOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-3.5 text-sm rounded-2xl transition-colors border ${
+                            geminiModel === opt.value
+                              ? 'bg-neon-indigo/20 text-neon-indigo font-medium border-neon-indigo/35'
+                              : 'bg-obsidian-800 text-slate-350 hover:bg-obsidian-700 hover:text-white border-obsidian-750'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </BottomSheet>
+                </>
+              ) : (
+                <select
+                  value={geminiModel}
+                  onChange={(e) => {
+                    setGeminiModel(e.target.value);
+                    localStorage.setItem('finflow_gemini_model', e.target.value);
+                  }}
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow appearance-none"
+                >
+                  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Recommended - Fast & Stable)</option>
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (Balanced - Stable)</option>
+                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast)</option>
+                  <option value="gemini-flash-lite-latest">Gemini Flash Lite Latest (Alias - Lowest Cost)</option>
+                  <option value="gemini-flash-latest">Gemini Flash Latest (Alias - High Performance)</option>
+                </select>
+              )}
             </div>
+
 
             {geminiMessage && (
               <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
@@ -571,7 +702,7 @@ export default function Settings() {
             </div>
             <div className="flex space-x-3">
               <button
-                onClick={clearCache}
+                onClick={() => setIsConfirmingClearCache(true)}
                 className="flex items-center space-x-1.5 px-3 py-1.5 bg-neon-crimson/10 border border-neon-crimson/25 hover:bg-neon-crimson/25 text-neon-crimson rounded-xl text-xs font-bold transition-colors"
               >
                 <Trash2 size={14} />
@@ -589,6 +720,89 @@ export default function Settings() {
           </div>
         </Card>
       </div>
+
+      {/* Clear Cache Confirmation Dialog Modal */}
+      <AnimatePresence>
+        {isConfirmingClearCache && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsConfirmingClearCache(false)}
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            />
+            
+            {/* Modal Card */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="clear-cache-title"
+              className="relative bg-obsidian-900 border border-obsidian-750 rounded-3xl p-6 shadow-2xl max-w-md w-full overflow-hidden z-10 text-left"
+            >
+              <div className="flex items-center space-x-3 mb-4 text-neon-crimson">
+                <AlertTriangle size={24} />
+                <h3 id="clear-cache-title" className="text-lg font-bold text-white font-display">
+                  Clear Cached Data?
+                </h3>
+              </div>
+              
+              <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                You are about to clear the offline sync database cache. This is a safe action, but please review what will be deleted versus what remains intact.
+              </p>
+
+              <div className="space-y-3 mb-6">
+                {/* What is cleared */}
+                <div className="bg-neon-crimson/5 border border-neon-crimson/15 p-3 rounded-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neon-crimson block mb-1">
+                    Will Be Cleared
+                  </span>
+                  <ul className="text-slate-300 text-xs list-disc pl-4 space-y-1">
+                    <li>Transactions cache ({transactionCount} records)</li>
+                    <li>Balances &amp; categories ({balanceCount} accounts, {categoryCount} items)</li>
+                    <li>Life optimization cache</li>
+                    <li>Sync status metrics &amp; timestamps</li>
+                  </ul>
+                </div>
+
+                {/* What remains */}
+                <div className="bg-neon-indigo/5 border border-neon-indigo/15 p-3 rounded-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neon-indigo block mb-1">
+                    Remains Safe &amp; Intact
+                  </span>
+                  <ul className="text-slate-300 text-xs list-disc pl-4 space-y-1">
+                    <li>Google Apps Script Connection URL</li>
+                    <li>Gemini AI API Key</li>
+                    <li>PIN Shield &amp; Biometric settings</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 justify-end">
+                <button
+                  onClick={() => setIsConfirmingClearCache(false)}
+                  className="px-4 py-2 bg-obsidian-800 border border-obsidian-750 text-slate-350 hover:text-white rounded-xl text-xs font-bold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    clearCache();
+                    setIsConfirmingClearCache(false);
+                  }}
+                  className="px-4 py-2 bg-neon-crimson hover:bg-neon-crimson-hover text-white text-xs font-bold rounded-xl transition-all shadow-md"
+                >
+                  Clear Cache
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

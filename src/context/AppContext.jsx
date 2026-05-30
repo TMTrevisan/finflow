@@ -38,23 +38,30 @@ export const resolveBudget = (categoryObj, targetMonth, targetYear) => {
 };
 
 // Helper to decorate transactions with category type/group
-const decorateData = (rawTxns, rawCats) => {
-  // Find active month/year based on latest transaction
+const decorateData = (rawTxns, rawCats, useCalendarToday) => {
+  // Find active month/year based on latest transaction or today
   let activeMonth = 'may';
   let activeYear = 2026;
   
-  const txnsList = (rawTxns || []).filter(t => t && typeof t === 'object');
-  if (txnsList.length > 0) {
-    const validDates = txnsList
-      .map(t => t.date ? new Date(t.date) : null)
-      .filter(d => d && !isNaN(d.getTime()))
-      .sort((a, b) => b - a);
-      
-    if (validDates.length > 0) {
-      const latestDate = validDates[0];
-      const monthsList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-      activeMonth = monthsList[latestDate.getMonth()];
-      activeYear = latestDate.getFullYear();
+  if (useCalendarToday) {
+    const today = new Date();
+    const monthsList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    activeMonth = monthsList[today.getMonth()];
+    activeYear = today.getFullYear();
+  } else {
+    const txnsList = (rawTxns || []).filter(t => t && typeof t === 'object');
+    if (txnsList.length > 0) {
+      const validDates = txnsList
+        .map(t => t.date ? new Date(t.date) : null)
+        .filter(d => d && !isNaN(d.getTime()))
+        .sort((a, b) => b - a);
+        
+      if (validDates.length > 0) {
+        const latestDate = validDates[0];
+        const monthsList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        activeMonth = monthsList[latestDate.getMonth()];
+        activeYear = latestDate.getFullYear();
+      }
     }
   }
 
@@ -152,7 +159,7 @@ const safeSetItem = (key, value) => {
 };
 
 export const AppProvider = ({ children, setCurrentView }) => {
-  const [transactions, setTransactions] = useState(() => {
+  const [rawTransactions, setRawTransactions] = useState(() => {
     try {
       const cached = safeStorage.getItem('finflow_cache_transactions');
       const parsed = cached ? JSON.parse(cached) : null;
@@ -162,7 +169,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     }
   });
 
-  const [categories, setCategories] = useState(() => {
+  const [rawCategories, setRawCategories] = useState(() => {
     try {
       const cached = safeStorage.getItem('finflow_cache_categories');
       const parsed = cached ? JSON.parse(cached) : null;
@@ -171,6 +178,19 @@ export const AppProvider = ({ children, setCurrentView }) => {
       return [];
     }
   });
+
+  const [useCalendarToday, setUseCalendarToday] = useState(() => {
+    return safeStorage.getItem('finflow_use_calendar_today') === 'true';
+  });
+
+  const handleSetUseCalendarToday = (val) => {
+    setUseCalendarToday(val);
+    safeStorage.setItem('finflow_use_calendar_today', val ? 'true' : 'false');
+  };
+
+  const { transactions, categories } = useMemo(() => {
+    return decorateData(rawTransactions, rawCategories, useCalendarToday);
+  }, [rawTransactions, rawCategories, useCalendarToday]);
 
   const [balances, setBalances] = useState(() => {
     try {
@@ -237,23 +257,22 @@ export const AppProvider = ({ children, setCurrentView }) => {
   });
 
   const loadData = async (forceSpinner = false) => {
-    const hasCache = transactions.length > 0;
+    const hasCache = rawTransactions.length > 0;
     if (!hasCache || forceSpinner) {
       setIsLoading(true);
     }
     setError(null);
     try {
       const data = await fetchFinData();
-      const { txns, cats } = decorateData(data.transactions, data.categories);
-      setTransactions(txns);
-      setCategories(cats);
+      setRawTransactions(data.transactions || []);
+      setRawCategories(data.categories || []);
       setBalances(data.balances || []);
       setLifeOptimization(data.lifeOptimization || []);
       setIsMockData(false);
       
       // Save cache
-      safeSetItem('finflow_cache_transactions', compressTransactions(txns));
-      safeSetItem('finflow_cache_categories', cats);
+      safeSetItem('finflow_cache_transactions', compressTransactions(data.transactions));
+      safeSetItem('finflow_cache_categories', data.categories || []);
       safeSetItem('finflow_cache_balances', data.balances || []);
       safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
       
@@ -264,9 +283,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
       console.warn("Failed to load live data, falling back to mock/cache:", err);
       if (!hasCache) {
         setError(err.message);
-        const { txns, cats } = decorateData(MOCK_TRANSACTIONS, MOCK_CATEGORIES);
-        setTransactions(txns);
-        setCategories(cats);
+        setRawTransactions(MOCK_TRANSACTIONS);
+        setRawCategories(MOCK_CATEGORIES);
         setBalances(MOCK_BALANCES);
         setIsMockData(true);
       } else {
@@ -285,16 +303,15 @@ export const AppProvider = ({ children, setCurrentView }) => {
     setError(null);
     try {
       const data = await fetchFinData();
-      const { txns, cats } = decorateData(data.transactions, data.categories);
-      setTransactions(txns);
-      setCategories(cats);
+      setRawTransactions(data.transactions || []);
+      setRawCategories(data.categories || []);
       setBalances(data.balances || []);
       setLifeOptimization(data.lifeOptimization || []);
       setIsMockData(false);
       
       // Save cache
-      safeSetItem('finflow_cache_transactions', compressTransactions(txns));
-      safeSetItem('finflow_cache_categories', cats);
+      safeSetItem('finflow_cache_transactions', compressTransactions(data.transactions));
+      safeSetItem('finflow_cache_categories', data.categories || []);
       safeSetItem('finflow_cache_balances', data.balances || []);
       safeSetItem('finflow_cache_life_opt', data.lifeOptimization || []);
       
@@ -316,23 +333,22 @@ export const AppProvider = ({ children, setCurrentView }) => {
     safeStorage.removeItem('finflow_cache_balances');
     safeStorage.removeItem('finflow_cache_life_opt');
     safeStorage.removeItem('finflow_last_sync');
-    setTransactions([]);
-    setCategories([]);
+    setRawTransactions([]);
+    setRawCategories([]);
     setBalances([]);
     setLifeOptimization([]);
     setLastSync(null);
     setIsMockData(true);
     
     // Load mock fallback
-    const { txns, cats } = decorateData(MOCK_TRANSACTIONS, MOCK_CATEGORIES);
-    setTransactions(txns);
-    setCategories(cats);
+    setRawTransactions(MOCK_TRANSACTIONS);
+    setRawCategories(MOCK_CATEGORIES);
     setBalances(MOCK_BALANCES);
   };
 
   const updateCategory = async (transactionId, newCategory) => {
     // Optimistic update
-    setTransactions(prev => {
+    setRawTransactions(prev => {
       const updated = prev.map(txn => 
         txn.id === transactionId ? { ...txn, category: newCategory } : txn
       );
@@ -412,12 +428,14 @@ export const AppProvider = ({ children, setCurrentView }) => {
     };
 
     let refDate = new Date();
-    const validTxnDates = (transactions || [])
-      .map(t => t.date ? new Date(t.date) : null)
-      .filter(d => d && !isNaN(d.getTime()))
-      .sort((a, b) => b - a);
-    if (validTxnDates.length > 0) {
-      refDate = validTxnDates[0];
+    if (!useCalendarToday) {
+      const validTxnDates = (transactions || [])
+        .map(t => t.date ? new Date(t.date) : null)
+        .filter(d => d && !isNaN(d.getTime()))
+        .sort((a, b) => b - a);
+      if (validTxnDates.length > 0) {
+        refDate = validTxnDates[0];
+      }
     }
 
     // A. ROLLING 30-DAY
@@ -517,7 +535,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
         actualCompounding
       }
     };
-  }, [transactions, categories]);
+  }, [transactions, categories, useCalendarToday]);
 
   useEffect(() => {
     loadData();
@@ -545,7 +563,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
       syncData,
       clearCache,
       loadData,
-      updateCategory
+      updateCategory,
+      useCalendarToday,
+      setUseCalendarToday: handleSetUseCalendarToday
     }}>
       {children}
     </AppContext.Provider>

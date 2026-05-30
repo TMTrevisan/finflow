@@ -27,6 +27,7 @@ const YearlyInsights = safeLazy(() => import('./views/YearlyInsights'));
 const Insights = safeLazy(() => import('./views/Insights'));
 const Assistant = safeLazy(() => import('./views/Assistant'));
 const Subscriptions = safeLazy(() => import('./views/Subscriptions'));
+const Accounts = safeLazy(() => import('./views/Accounts'));
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-full w-full min-h-[300px]">
@@ -43,7 +44,7 @@ function App() {
     const validViews = [
       'dashboard', 'assistant', 'spending', 'income', 'transactions', 
       'budgets', 'subscriptions', 'cashflow', 'settings', 'plreport', 
-      'yearly', 'insights'
+      'yearly', 'insights', 'accounts'
     ];
     return validViews.includes(hash) ? hash : 'dashboard';
   };
@@ -62,7 +63,7 @@ function App() {
       const validViews = [
         'dashboard', 'assistant', 'spending', 'income', 'transactions', 
         'budgets', 'subscriptions', 'cashflow', 'settings', 'plreport', 
-        'yearly', 'insights'
+        'yearly', 'insights', 'accounts'
       ];
       if (validViews.includes(hash) && hash !== currentView) {
         setCurrentView(hash);
@@ -87,6 +88,7 @@ function App() {
       case 'plreport': return <PLReport />;
       case 'yearly': return <YearlyInsights />;
       case 'insights': return <Insights />;
+      case 'accounts': return <Accounts setCurrentView={setCurrentView} />;
       default: return <Dashboard setCurrentView={setCurrentView} />;
     }
   };

@@ -1,10 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { LayoutDashboard, ReceiptText, PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings, Table, Calendar, Sparkles, CalendarRange, Compass } from 'lucide-react';
+import { 
+  LayoutDashboard, ReceiptText, PieChart, Waves, ArrowDownRight, 
+  ArrowUpRight, Settings, Table, Calendar, Sparkles, CalendarRange, 
+  Compass, Landmark 
+} from 'lucide-react';
 import { haptics } from '../../utils/haptics';
-
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'accounts', label: 'Accounts', icon: Landmark },
   { id: 'assistant', label: 'Copilot AI', icon: Sparkles },
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
   { id: 'insights', label: 'Insights', icon: Compass },

@@ -328,9 +328,37 @@ export default function SankeyDiagram({ transactions }) {
   };
 
   const allNodes = [...col1Nodes, col2Node, ...col3Nodes, ...col4Nodes];
+  const surplusValue = totalIncome - totalExpense;
+  const surplusRate = totalIncome > 0 ? (surplusValue / totalIncome) * 100 : 0;
 
   return (
     <div className="bg-obsidian-800/40 border border-obsidian-700/60 rounded-3xl p-6 shadow-xl overflow-hidden relative">
+      {/* Dynamic Surplus Header Panel */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b border-obsidian-750 pb-5">
+        <div>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Sankey Flow Analysis</span>
+          <div className="flex items-baseline space-x-2 mt-1">
+            <h4 className="text-sm font-semibold text-slate-350">Dynamic Surplus:</h4>
+            <span className={`text-xl font-black font-display ${surplusValue >= 0 ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
+              {formatCurrency(surplusValue)}
+            </span>
+            <span className="text-xs font-bold text-slate-500">
+              (Savings Rate: {surplusRate.toFixed(1)}%)
+            </span>
+          </div>
+        </div>
+        <div className="flex space-x-6 text-xs text-slate-400">
+          <div>
+            <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">Total Inflow</span>
+            <span className="text-white font-bold text-sm">{formatCurrency(totalIncome)}</span>
+          </div>
+          <div>
+            <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">Total Outflow</span>
+            <span className="text-white font-bold text-sm">{formatCurrency(totalExpense)}</span>
+          </div>
+        </div>
+      </div>
+
       <div className="w-full overflow-x-auto hide-scrollbar">
         <div className="min-w-[1050px] relative">
           <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none">
@@ -343,6 +371,7 @@ export default function SankeyDiagram({ transactions }) {
                 </linearGradient>
               ))}
             </defs>
+
 
             {/* Render Link Ribbons */}
             <g>

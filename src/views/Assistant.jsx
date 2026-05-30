@@ -22,7 +22,20 @@ export default function Assistant() {
   const { transactions, categories, balances } = useAppContext();
   const [apiKey, setApiKey] = useState(() => safeStorage.getItem('finflow_gemini_key') || '');
   const [keyInput, setKeyInput] = useState('');
-  
+  const [showSharedContext, setShowSharedContext] = useState(false);
+  const [redactSensitiveData, setRedactSensitiveData] = useState(() => safeStorage.getItem('finflow_ai_redact') === 'true');
+  const [aggregateOnlyMode, setAggregateOnlyMode] = useState(() => safeStorage.getItem('finflow_ai_aggregate_only') === 'true');
+
+  const handleToggleRedact = (val) => {
+    setRedactSensitiveData(val);
+    safeStorage.setItem('finflow_ai_redact', val ? 'true' : 'false');
+  };
+
+  const handleToggleAggregateOnly = (val) => {
+    setAggregateOnlyMode(val);
+    safeStorage.setItem('finflow_ai_aggregate_only', val ? 'true' : 'false');
+  };
+
   const [chatLog, setChatLog] = useState([
     {
       role: 'model',
@@ -72,9 +85,9 @@ export default function Assistant() {
     });
     const latestBalances = Array.from(latestMap.values());
 
-    const accountsData = latestBalances.map(b => ({
-      inst: b.institution,
-      name: b.account,
+    const accountsData = aggregateOnlyMode ? [] : latestBalances.map((b, idx) => ({
+      inst: redactSensitiveData ? `Institution ${idx + 1}` : b.institution,
+      name: redactSensitiveData ? `${b.class} Account ${idx + 1}` : b.account,
       bal: b.balance,
       cls: b.class,
       typ: b.type
@@ -131,32 +144,63 @@ export default function Assistant() {
       }
     });
 
+    // Calculate dynamic totals for the current active month (matching date preset anchor context)
+    const latestDate = transactions.length > 0 ? new Date(Math.max(...transactions.map(t => new Date(t.date).getTime()))) : new Date();
+    const currentMonth = latestDate.getMonth();
+    const currentYear = latestDate.getFullYear();
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const activeMonthLabel = `${monthNames[currentMonth]} ${currentYear}`;
+
+    let currentMonthIncome = 0;
+    let currentMonthExpenses = 0;
+
+    transactions.forEach(t => {
+      if (!t.date) return;
+      const d = new Date(t.date);
+      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+        const val = Number(t.amount) || 0;
+        if (t.type === 'Income') {
+          currentMonthIncome += val;
+        } else if (t.type === 'Expense' || (t.type === 'Transfer' && (t.group === 'Investments' || t.group === 'Cash Savings'))) {
+          currentMonthExpenses += Math.abs(val);
+        }
+      }
+    });
+
     // 2. Budget limits and actual spends this month
     const budgetData = categories.map(c => {
       const actualSpend = transactions
-        .filter(t => t.category?.toLowerCase() === c.category?.toLowerCase() && t.type === 'Expense')
+        .filter(t => 
+          t.category?.toLowerCase() === c.category?.toLowerCase() && 
+          t.type === 'Expense' &&
+          (() => {
+            if (!t.date) return false;
+            const d = new Date(t.date);
+            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+          })()
+        )
         .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
       return {
-        cat: c.category,
-        grp: c.group,
+        cat: redactSensitiveData ? `Category ${c.category ? c.category.slice(0, 3) : ''}` : c.category,
+        grp: redactSensitiveData ? 'Group' : c.group,
         typ: c.type,
         lim: c.budget,
         spent: actualSpend
       };
     }).filter(b => b.lim > 0 || b.spent > 0);
 
-    // 3. Recent Transactions (last 25 rows for size safety)
-    const sortedTxns = [...transactions]
+    // 3. Recent Transactions (last 100 rows for visibility of recent weeks)
+    const sortedTxns = aggregateOnlyMode ? [] : [...transactions]
       .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 25)
-      .map(t => ({
+      .slice(0, 100)
+      .map((t, idx) => ({
         d: t.date,
-        m: cleanMerchantName(t.description),
-        c: t.category,
+        m: redactSensitiveData ? `${t.type} txn #${idx + 1}` : cleanMerchantName(t.description),
+        c: redactSensitiveData ? `Category` : t.category,
         a: t.amount,
         t: t.type,
-        ac: t.account
+        ac: redactSensitiveData ? `Account` : t.account
       }));
 
     return {
@@ -167,11 +211,17 @@ export default function Assistant() {
         loan: loanTotal,
         nw: (cashTotal + investTotal) - (Math.abs(creditTotal) + Math.abs(loanTotal))
       },
+      currentMonth: {
+        label: activeMonthLabel,
+        income: currentMonthIncome,
+        expenses: currentMonthExpenses,
+        netSurplus: currentMonthIncome - currentMonthExpenses
+      },
       accts: accountsData,
       budgets: budgetData,
       txns: sortedTxns
     };
-  }, [transactions, categories, balances]);
+  }, [transactions, categories, balances, redactSensitiveData, aggregateOnlyMode]);
 
   const handleSendMessage = async (textToSend) => {
     const promptText = textToSend || userInput;
@@ -199,8 +249,9 @@ ${JSON.stringify(financialContext)}
 
 Key Mappings:
 - net: Net worth summary (nw: Net Worth, cash: Total Cash, debt: Credit Card Debt, inv: Investments, loan: Loans).
+- currentMonth: Calculated totals for the active month (label: Month Name, income: Total Earned, expenses: Total Spent, netSurplus: Earned minus Spent).
 - accts: Active accounts (inst: Institution, name: Account Name, bal: Balance, cls: Class, typ: Type).
-- budgets: Category Budgets (cat: Category Name, grp: Group, typ: Type, lim: Budget Limit, spent: Actual Spent).
+- budgets: Category Budgets (cat: Category Name, grp: Group, typ: Type, lim: Budget Limit, spent: Actual Spent). Note: These are cumulative category budgets and spends, DO NOT sum all categories to calculate monthly totals as categories may overlap or contain historical/rollover entries. Refer to currentMonth variables for exact month metrics.
 - txns: Recent Transactions (d: Date, m: Merchant Name, c: Category, a: Amount, t: Type, ac: Account Name).
 
 Rules:
@@ -208,7 +259,7 @@ Rules:
 2. Format currency nicely using standard dollar signs (e.g. $125.40).
 3. Keep responses highly glanceable and direct. Use markdown tables, bold highlights, and bullet points.
 4. If a user asks about historical trends outside the provided data, specify that your visibility is currently set to recent syncs.
-5. Answer questions with actionable analysis (e.g., if groceries spend is high, note how much budget remains).
+5. Answer questions with actionable analysis. Compare the user's current month income/expenses directly using the pre-calculated currentMonth variables (do not try to compute month aggregates manually from categories).
 6. CRITICAL: At the very end of your response, always propose 2-3 context-appropriate follow-up questions the user might want to ask next. Format these suggestions exactly like: <suggestions>Question 1|Question 2|Question 3</suggestions>`
       });
 
@@ -336,7 +387,7 @@ Rules:
   // If no API Key is configured, show onboarding
   if (!apiKey) {
     return (
-      <div className="flex flex-col items-center justify-center max-w-lg mx-auto h-[70vh] px-6 text-center space-y-6">
+      <div className="flex flex-col items-center justify-center max-w-lg mx-auto min-h-[70vh] py-8 px-6 text-center space-y-6 animate-fade-in">
         <div className="bg-obsidian-800 p-5 rounded-3xl border border-obsidian-750/80 shadow-2xl relative">
           <div className="absolute -top-3 -right-3 bg-neon-indigo p-1.5 rounded-xl text-white shadow-glow">
             <Sparkles size={16} />
@@ -347,8 +398,29 @@ Rules:
         <div className="space-y-2">
           <h1 className="text-2xl font-black text-white font-display">Configure FinFlow Copilot</h1>
           <p className="text-sm text-slate-400">
-            To query your local budget database with natural language, connect a Google Gemini API Key.
+            Query your local budget database with natural language via a Google Gemini API Key.
           </p>
+        </div>
+
+        {/* Detailed Security & Trust Policy Panel */}
+        <div className="bg-obsidian-850/80 border border-obsidian-800 rounded-2xl p-4 text-left space-y-3 text-xs w-full">
+          <h3 className="font-bold text-white flex items-center gap-1.5">
+            <Check size={14} className="text-neon-emerald" /> AI Safety &amp; Trust Guidelines
+          </h3>
+          <ul className="space-y-2 text-slate-400 list-disc pl-4">
+            <li>
+              <strong>Direct Connection:</strong> Your API Key and financial prompts are sent directly to Google Gemini. No intermediate servers store or process your data.
+            </li>
+            <li>
+              <strong>Obfuscation Controls:</strong> Enable redact mode to anonymize merchant descriptions and account names before they leave your device.
+            </li>
+            <li>
+              <strong>Aggregation Restrictions:</strong> Limit the context to high-level balances and budget totals, omitting individual transaction feeds.
+            </li>
+            <li>
+              <strong>Local Storage:</strong> Your key is stored securely in your browser's private local storage. Dismantling the key clears all settings instantly.
+            </li>
+          </ul>
         </div>
 
         <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-5 w-full space-y-4">
@@ -406,11 +478,15 @@ Rules:
         <button
           onClick={() => {
             safeStorage.removeItem('finflow_gemini_key');
+            safeStorage.removeItem('finflow_ai_redact');
+            safeStorage.removeItem('finflow_ai_aggregate_only');
             setApiKey('');
+            setRedactSensitiveData(false);
+            setAggregateOnlyMode(false);
           }}
-          className="text-[10px] font-bold text-slate-500 hover:text-neon-crimson px-2.5 py-1.5 bg-obsidian-850 hover:bg-neon-crimson/5 rounded-xl border border-obsidian-750 transition-all"
+          className="text-[10px] font-bold text-slate-500 hover:text-neon-crimson px-2.5 py-1.5 bg-obsidian-850 hover:bg-neon-crimson/5 rounded-xl border border-obsidian-750 transition-all animate-fade-in"
         >
-          Disconnect Key
+          Wipe API Key &amp; Settings
         </button>
       </div>
 
@@ -488,7 +564,68 @@ Rules:
       </div>
 
       {/* Input bar */}
-      <div className="pt-2 shrink-0">
+      <div className="pt-2 shrink-0 space-y-3">
+        {/* Privacy & Trust Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 bg-obsidian-850/60 p-3 rounded-2xl border border-obsidian-800/80 text-xs">
+          <div className="flex items-center gap-4 flex-wrap">
+            <label className="flex items-center space-x-2 text-slate-350 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={redactSensitiveData}
+                onChange={(e) => handleToggleRedact(e.target.checked)}
+                className="rounded border-slate-700 text-neon-indigo focus:ring-neon-indigo bg-obsidian-800 w-3.5 h-3.5"
+              />
+              <span>Redact Sensitive Details</span>
+            </label>
+            
+            <label className="flex items-center space-x-2 text-slate-350 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={aggregateOnlyMode}
+                onChange={(e) => handleToggleAggregateOnly(e.target.checked)}
+                className="rounded border-slate-700 text-neon-indigo focus:ring-neon-indigo bg-obsidian-800 w-3.5 h-3.5"
+              />
+              <span>Limit to Aggregates</span>
+            </label>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => {
+                setChatLog([
+                  {
+                    role: 'model',
+                    content: "Hello! I'm your FinFlow Copilot. I have analyzed your accounts, category budgets, and transaction history. Ask me anything about your finances!"
+                  }
+                ]);
+              }}
+              className="text-[10px] font-bold text-slate-400 hover:text-white px-2.5 py-1.5 bg-obsidian-800 rounded-lg border border-obsidian-750 transition-all"
+            >
+              Clear Chat
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSharedContext(!showSharedContext)}
+              className="flex items-center space-x-1.5 text-[10px] font-bold text-slate-400 hover:text-white px-2.5 py-1.5 bg-obsidian-800 rounded-lg border border-obsidian-750 transition-all"
+            >
+              <span>{showSharedContext ? 'Hide Payload' : 'Show Payload'}</span>
+            </button>
+          </div>
+        </div>
+
+        {showSharedContext && (
+          <div className="mt-2 p-3 bg-obsidian-900 border border-obsidian-750 rounded-xl max-h-48 overflow-y-auto text-[10px] text-slate-400 font-mono space-y-2 select-all">
+            <div className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1 border-b border-obsidian-800 pb-1">
+              Gemini Prompt Context (Anonymized &amp; Compressed Snapshot)
+            </div>
+            <pre className="whitespace-pre-wrap">
+              {JSON.stringify(financialContext, null, 2)}
+            </pre>
+          </div>
+        )}
+
         {errorMessage && (
           <div className="mb-2 p-3 rounded-xl border bg-neon-crimson/10 border-neon-crimson/20 text-neon-crimson text-xs flex items-center space-x-2 animate-bounce">
             <AlertCircle size={14} className="shrink-0" />
@@ -520,6 +657,7 @@ Rules:
           </button>
         </form>
       </div>
+
     </div>
   );
 }

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, ReceiptText, Sparkles, MoreHorizontal, X,
   PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings, Table,
-  Calendar, CalendarRange, Compass
+  Calendar, CalendarRange, Compass, Landmark 
 } from 'lucide-react';
 import { haptics } from '../../utils/haptics';
 
@@ -30,6 +30,7 @@ const MORE_SECTIONS = [
   {
     label: 'Tools',
     items: [
+      { id: 'accounts', label: 'Accounts', icon: Landmark, desc: 'All connected accounts' },
       { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange, desc: 'Recurring charges' },
       { id: 'settings', label: 'Settings', icon: Settings, desc: 'App configuration' },
     ]
@@ -38,6 +39,55 @@ const MORE_SECTIONS = [
 
 export default function BottomNav({ currentView, setCurrentView }) {
   const [showMore, setShowMore] = useState(false);
+  const drawerRef = useRef(null);
+
+  // Close on Escape key press and manage body scroll
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setShowMore(false);
+    };
+    if (showMore) {
+      window.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [showMore]);
+
+  // Trap focus inside drawer
+  useEffect(() => {
+    if (!showMore) return;
+    const focusableElements = drawerRef.current?.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex="0"]'
+    );
+    if (!focusableElements || focusableElements.length === 0) return;
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    const handleTab = (e) => {
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          lastElement.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          firstElement.focus();
+          e.preventDefault();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleTab);
+    firstElement.focus();
+
+    return () => {
+      window.removeEventListener('keydown', handleTab);
+    };
+  }, [showMore]);
 
   const handleNav = (id) => {
     haptics.light();
@@ -65,6 +115,10 @@ export default function BottomNav({ currentView, setCurrentView }) {
       <AnimatePresence>
         {showMore && (
           <motion.div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="more-drawer-title"
             initial={{ opacity: 0, y: '100%' }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: '100%' }}
@@ -73,10 +127,11 @@ export default function BottomNav({ currentView, setCurrentView }) {
           >
             {/* Drawer Header */}
             <div className="flex items-center justify-between px-6 pt-12 pb-4 border-b border-obsidian-700/50">
-              <h2 className="text-xl font-bold text-white">All Views</h2>
+              <h2 id="more-drawer-title" className="text-xl font-bold text-white">All Views</h2>
               <button
                 onClick={() => setShowMore(false)}
                 className="p-2 rounded-xl bg-obsidian-800 border border-obsidian-700 text-slate-400 hover:text-white transition-colors"
+                aria-label="Close menu"
               >
                 <X size={20} />
               </button>

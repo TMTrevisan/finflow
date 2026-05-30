@@ -121,6 +121,8 @@ export default function Transactions() {
       }
       if (/^[a-zA-Z0-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (searchInputRef.current) {
+          e.preventDefault();
+          setRawSearch(prev => prev + e.key);
           searchInputRef.current.focus();
         }
       }
@@ -275,7 +277,7 @@ export default function Transactions() {
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="Search merchant, category, account..."
+              placeholder="Search transactions... (press any key to start typing)"
               value={rawSearch}
               onChange={(e) => setRawSearch(e.target.value)}
               className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
@@ -492,7 +494,7 @@ export default function Transactions() {
                 </tr>
               ) : (
                 slicedTransactions.map(txn => (
-                  <tr key={txn.id} className="hover:bg-obsidian-700/30 transition-colors">
+                  <tr key={txn.id} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 53px' }} className="hover:bg-obsidian-700/30 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400">{formatDate(txn.date)}</td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-white truncate">{cleanMerchantName(txn.description)}</div>
@@ -524,7 +526,7 @@ export default function Transactions() {
             </div>
           ) : (
             slicedTransactions.map(txn => (
-              <div key={txn.id} className="p-4 flex items-center justify-between hover:bg-obsidian-770 transition-colors">
+              <div key={txn.id} style={{ contentVisibility: 'auto', containIntrinsicSize: '0 80px' }} className="p-4 flex items-center justify-between hover:bg-obsidian-770 transition-colors">
                 <div className="flex flex-col min-w-0 pr-3">
                   <span className="font-semibold text-slate-100 text-sm truncate">{cleanMerchantName(txn.description)}</span>
                   <div className="flex items-center gap-1.5 mt-0.5">

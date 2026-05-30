@@ -4,10 +4,22 @@ import { formatCurrency, getCategoryEmoji } from '../utils/formatting';
 import { Card, CardContent } from '../components/ui/Card';
 import { SlidersHorizontal, ArrowUpRight, ArrowDownRight, Compass, Shield, Heart, PlusCircle } from 'lucide-react';
 import { safeStorage } from '../utils/storage';
+import { BottomSheet } from '../components/ui/BottomSheet';
+
 
 export default function LifeOptimization() {
   const { transactions = [], categories = [], lifeOptimization = [], surplusMetrics, isLoading } = useAppContext();
   const [showConfig, setShowConfig] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [activeCategoryToMap, setActiveCategoryToMap] = useState(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
 
   // Extract all distinct category names from transactions list
   const allCategories = useMemo(() => {
@@ -442,17 +454,34 @@ export default function LifeOptimization() {
                     <span className="text-xs font-bold text-slate-300 truncate">{getCategoryEmoji(cat)} {cat}</span>
                   </div>
 
-                  <select
-                    value={mapping.classification}
-                    disabled={!mapping.included}
-                    onChange={(e) => handleMappingChange(cat, 'classification', e.target.value)}
-                    className="bg-obsidian-800 border border-obsidian-750 text-slate-200 font-semibold rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <option value="Income">💰 Income</option>
-                    <option value="Compounding">📈 Compounding</option>
-                    <option value="Baseline">🏠 Baseline</option>
-                    <option value="Lifestyle">🍔 Lifestyle</option>
-                  </select>
+                  {isMobile ? (
+                    <button
+                      type="button"
+                      disabled={!mapping.included}
+                      onClick={() => setActiveCategoryToMap(cat)}
+                      className="bg-obsidian-800 border border-obsidian-750 text-slate-200 font-semibold rounded-lg px-2.5 py-1.5 text-[10px] disabled:opacity-30 disabled:cursor-not-allowed text-left flex items-center justify-between min-w-[100px]"
+                    >
+                      <span>
+                        {mapping.classification === 'Income' && '💰 Income'}
+                        {mapping.classification === 'Compounding' && '📈 Compounding'}
+                        {mapping.classification === 'Baseline' && '🏠 Baseline'}
+                        {mapping.classification === 'Lifestyle' && '🍔 Lifestyle'}
+                      </span>
+                    </button>
+                  ) : (
+                    <select
+                      value={mapping.classification}
+                      disabled={!mapping.included}
+                      onChange={(e) => handleMappingChange(cat, 'classification', e.target.value)}
+                      className="bg-obsidian-800 border border-obsidian-750 text-slate-200 font-semibold rounded-lg px-2 py-1 text-[10px] focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <option value="Income">💰 Income</option>
+                      <option value="Compounding">📈 Compounding</option>
+                      <option value="Baseline">🏠 Baseline</option>
+                      <option value="Lifestyle">🍔 Lifestyle</option>
+                    </select>
+                  )}
+
                 </div>
               );
             })}
@@ -517,6 +546,39 @@ export default function LifeOptimization() {
           </table>
         </div>
       </div>
+
+      <BottomSheet
+        isOpen={activeCategoryToMap !== null}
+        onClose={() => setActiveCategoryToMap(null)}
+        title={`Classify ${activeCategoryToMap}`}
+      >
+        {activeCategoryToMap && (
+          <div className="space-y-2">
+            {[
+              { value: 'Income', label: '💰 Income (Wages, dividends, payouts)' },
+              { value: 'Compounding', label: '📈 Compounding (Retirement, investments, savings)' },
+              { value: 'Baseline', label: '🏠 Baseline (Housing, groceries, bills)' },
+              { value: 'Lifestyle', label: '🍔 Lifestyle (Dining, leisure, discretionary)' }
+            ].map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  handleMappingChange(activeCategoryToMap, 'classification', opt.value);
+                  setActiveCategoryToMap(null);
+                }}
+                className={`w-full text-left px-4 py-3.5 text-sm rounded-2xl transition-colors border ${
+                  mappings[activeCategoryToMap]?.classification === opt.value
+                    ? 'bg-neon-indigo/20 text-neon-indigo font-medium border-neon-indigo/35'
+                    : 'bg-obsidian-800 text-slate-350 hover:bg-obsidian-700 hover:text-white border-obsidian-750'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </BottomSheet>
     </div>
   );
 }

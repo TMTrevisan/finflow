@@ -4,9 +4,24 @@ import { useAppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Header({ title, currentView, setCurrentView }) {
-  const { syncData, isSyncing, error, isMockData } = useAppContext();
+  const { syncData, isSyncing, error, isMockData, lastSync } = useAppContext();
   const [showToast, setShowToast] = useState(false);
   const [showErrorToast, setShowErrorToast] = useState(false);
+  const [syncTimeLabel, setSyncTimeLabel] = useState('Live Synced');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const isStale = lastSync && (Date.now() - new Date(lastSync).getTime() > 24 * 60 * 60 * 1000);
 
   useEffect(() => {
     if (error) {
@@ -16,12 +31,94 @@ export default function Header({ title, currentView, setCurrentView }) {
     }
   }, [error]);
 
+  // Update sync relative label periodically
+  useEffect(() => {
+    const updateLabel = () => {
+      if (!isOnline) {
+        setSyncTimeLabel('Offline (Local Cache)');
+        return;
+      }
+      if (isSyncing) {
+        setSyncTimeLabel('Syncing...');
+        return;
+      }
+      if (isMockData) {
+        setSyncTimeLabel('Demo Mode');
+        return;
+      }
+      if (isStale) {
+        setSyncTimeLabel('Stale Data (>24h)');
+        return;
+      }
+      if (error) {
+        setSyncTimeLabel('Sync Failed');
+        return;
+      }
+      if (!lastSync) {
+        setSyncTimeLabel('Live Synced');
+        return;
+      }
+
+      const diffMs = Date.now() - new Date(lastSync).getTime();
+      const secondsAgo = Math.floor(diffMs / 1000);
+      if (secondsAgo < 10) {
+        setSyncTimeLabel('Just Synced');
+      } else if (secondsAgo < 60) {
+        setSyncTimeLabel('Synced <1m ago');
+      } else {
+        const minutesAgo = Math.floor(secondsAgo / 60);
+        if (minutesAgo < 60) {
+          setSyncTimeLabel(`Synced ${minutesAgo}m ago`);
+        } else {
+          const hoursAgo = Math.floor(minutesAgo / 60);
+          if (hoursAgo < 24) {
+            setSyncTimeLabel(`Synced ${hoursAgo}h ago`);
+          } else {
+            setSyncTimeLabel(`Synced ${new Date(lastSync).toLocaleDateString()}`);
+          }
+        }
+      }
+    };
+
+    updateLabel();
+    const interval = setInterval(updateLabel, 10000);
+    return () => clearInterval(interval);
+  }, [isSyncing, isMockData, error, lastSync, isOnline, isStale]);
+
   const handleSync = async () => {
+    if (!isOnline) return;
     const success = await syncData();
     if (success) {
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     }
+  };
+
+  const getStatusStyles = () => {
+    if (!isOnline) return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+    if (isSyncing) return 'bg-neon-indigo/10 text-neon-indigo border-neon-indigo/20';
+    if (isMockData) return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+    if (isStale) return 'bg-neon-crimson/10 text-neon-crimson border-neon-crimson/20';
+    if (error) return 'bg-neon-crimson/10 text-neon-crimson border-neon-crimson/20';
+    return 'bg-neon-emerald/10 text-neon-emerald border-neon-emerald/20';
+  };
+
+  const getDotStyles = () => {
+    if (!isOnline) return 'bg-amber-500';
+    if (isSyncing) return 'bg-neon-indigo';
+    if (isMockData) return 'bg-yellow-400';
+    if (isStale) return 'bg-neon-crimson';
+    if (error) return 'bg-neon-crimson';
+    return 'bg-neon-emerald';
+  };
+
+  const getTooltipText = () => {
+    if (!isOnline) return 'App is running in offline mode. Changes are saved to local cache.';
+    if (isSyncing) return 'Fetching latest transactions and balances from server.';
+    if (isMockData) return 'Displaying generated mock financial data for exploration.';
+    if (isStale) return 'Data has not been synced in over 24 hours. Click Sync Data to update.';
+    if (error) return `Last sync attempt failed: ${error}`;
+    return `Connected. Displaying up-to-date data synced at ${lastSync ? new Date(lastSync).toLocaleTimeString() : 'start'}.`;
   };
 
   return (
@@ -33,15 +130,16 @@ export default function Header({ title, currentView, setCurrentView }) {
       
       <div className="flex items-center space-x-4">
         {/* Dynamic Connection/Sync Status Indicator */}
-        <div className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
-          isMockData 
-            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
-            : 'bg-neon-emerald/10 text-neon-emerald border-neon-emerald/20'
-        }`}>
-          <span className={`w-2 h-2 rounded-full ${
-            isMockData ? 'bg-amber-400 animate-pulse' : 'bg-neon-emerald animate-pulse'
-          }`}></span>
-          <span>{isMockData ? 'Demo Mode' : 'Live Synced'}</span>
+        <div 
+          title={getTooltipText()}
+          className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-colors duration-300 cursor-help ${getStatusStyles()}`}
+        >
+          <span className="relative flex h-2 w-2">
+            {/* Pulsing ring animation */}
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${getDotStyles()}`}></span>
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${getDotStyles()}`}></span>
+          </span>
+          <span>{syncTimeLabel}</span>
         </div>
 
         <button 

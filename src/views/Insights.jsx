@@ -5,6 +5,7 @@ import Spending from './Spending';
 import Income from './Income';
 import PLReport from './PLReport';
 import YearlyInsights from './YearlyInsights';
+import ContributionsSurplus from './ContributionsSurplus';
 import { cn } from '../components/ui/Card';
 
 export default function Insights() {
@@ -13,6 +14,7 @@ export default function Insights() {
   const TABS = [
     { id: 'spending_trends', label: 'Spending Trends' },
     { id: 'life_optimization', label: 'Permission to Spend' },
+    { id: 'contributions_surplus', label: 'Contributions & Surplus' },
     { id: 'spending', label: 'Spending Breakdown' },
     { id: 'income', label: 'Income Breakdown' },
     { id: 'pl', label: 'P&L Report' },
@@ -23,6 +25,7 @@ export default function Insights() {
     switch (activeSubTab) {
       case 'spending_trends': return <SpendingTrends />;
       case 'life_optimization': return <LifeOptimization />;
+      case 'contributions_surplus': return <ContributionsSurplus />;
       case 'spending': return <Spending />;
       case 'income': return <Income />;
       case 'pl': return <PLReport />;

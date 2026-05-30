@@ -4,12 +4,22 @@ import { useAppContext } from '../../context/AppContext';
 import { ChevronDown } from 'lucide-react';
 import { cn } from './Card';
 import { getCategoryEmoji } from '../../utils/formatting';
+import { BottomSheet } from './BottomSheet';
 
 export function CategoryPill({ transaction }) {
   const { categories, updateCategory } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const dropdownRef = useRef(null);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Group categories for dropdown
   const groupedCategories = categories.reduce((acc, cat) => {
@@ -58,7 +68,7 @@ export function CategoryPill({ transaction }) {
       </button>
 
       <AnimatePresence>
-        {isOpen && (
+        {isOpen && !isMobile && (
           <motion.div
             initial={{ opacity: 0, y: -5, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -93,6 +103,39 @@ export function CategoryPill({ transaction }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <BottomSheet
+        isOpen={isOpen && isMobile}
+        onClose={() => setIsOpen(false)}
+        title="Select Category"
+      >
+        <div className="space-y-4">
+          {Object.entries(groupedCategories).map(([group, cats]) => (
+            <div key={group} className="space-y-2">
+              <div className="px-1 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                {group}
+              </div>
+              <div className="grid grid-cols-1 gap-1.5">
+                {cats.map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => handleSelect(cat.category)}
+                    className={cn(
+                      "w-full text-left px-4 py-3.5 text-sm rounded-2xl transition-colors flex items-center space-x-3 border",
+                      cat.category === transaction.category
+                        ? "bg-neon-indigo/20 text-neon-indigo font-medium border-neon-indigo/35"
+                        : "bg-obsidian-800 text-slate-300 hover:bg-obsidian-700 hover:text-white border-obsidian-750"
+                    )}
+                  >
+                    <span className="text-lg">{getCategoryEmoji(cat.category)}</span>
+                    <span>{cat.category}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </BottomSheet>
     </div>
   );
 }
