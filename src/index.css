@@ -1,32 +1,109 @@
 @import "tailwindcss";
 
 @theme {
-  --color-obsidian-900: #0B0F19;
-  --color-obsidian-800: #121826;
-  --color-obsidian-700: #1A2234;
+  /* Dynamic colors tied to CSS custom properties */
+  --color-obsidian-950: var(--obsidian-950);
+  --color-obsidian-900: var(--obsidian-900);
+  --color-obsidian-850: var(--obsidian-850);
+  --color-obsidian-800: var(--obsidian-800);
+  --color-obsidian-750: var(--obsidian-750);
+  --color-obsidian-700: var(--obsidian-700);
   
   --color-neon-emerald: #10B981;
   --color-neon-indigo: #6366F1;
   --color-neon-violet: #8B5CF6;
   --color-neon-crimson: #EF4444;
 
-  --color-slate-400: #94A3B8;
-  --color-slate-500: #64748B;
+  --color-slate-400: var(--slate-400);
+  --color-slate-500: var(--slate-500);
+}
+
+:root {
+  /* Dark Mode Variables (Default) */
+  --obsidian-950: #05070A;
+  --obsidian-900: #0B0F19;
+  --obsidian-850: #0F1422;
+  --obsidian-800: #121826;
+  --obsidian-750: #161D2D;
+  --obsidian-700: #1A2234;
+
+  --slate-400: #94A3B8;
+  --slate-500: #64748B;
+
+  --background: #000000;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --card-bg: #0B0E14;
+  --card-border: #161B26;
+  --bg-nested: #070A10;
+}
+
+.light {
+  /* Premium, harmonized Light Mode Variables */
+  --obsidian-950: #FFFFFF;
+  --obsidian-900: #FFFFFF;
+  --obsidian-850: #F8FAFC;
+  --obsidian-800: #F1F5F9;
+  --obsidian-750: #E2E8F0;
+  --obsidian-700: #CBD5E1;
+
+  --slate-400: #475569;
+  --slate-500: #64748B;
+
+  --background: #F8FAFC;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --card-bg: #FFFFFF;
+  --card-border: #E2E8F0;
+  --bg-nested: #F1F5F9;
 }
 
 @layer base {
   body {
-    background-color: #000000;
-    color: #F8FAFC;
+    background-color: var(--background);
+    color: var(--text-primary);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     letter-spacing: 0.015em;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
   }
   
   h1, h2, h3, h4, h5, h6 {
     letter-spacing: -0.01em;
     line-height: 1.25;
+  }
+
+  /* Override all hardcoded background/border color utility classes dynamically in Light Mode */
+  .light .bg-\[\#0B0E14\] {
+    background-color: var(--card-bg) !important;
+  }
+  .light .border-\[\#161B26\] {
+    border-color: var(--card-border) !important;
+  }
+  .light .bg-\[\#070A10\]\/50 {
+    background-color: var(--bg-nested) !important;
+  }
+  .light .bg-slate-800\/5 {
+    background-color: var(--obsidian-800) !important;
+  }
+  .light .bg-slate-800\/10 {
+    background-color: var(--obsidian-800) !important;
+  }
+  .light .bg-slate-800\/15 {
+    background-color: var(--obsidian-750) !important;
+  }
+  .light .text-white {
+    color: var(--text-primary) !important;
+  }
+  .light .text-slate-100 {
+    color: var(--text-primary) !important;
+  }
+  .light .text-slate-200 {
+    color: var(--text-primary) !important;
+  }
+  .light .text-slate-300 {
+    color: var(--text-primary) !important;
   }
 }

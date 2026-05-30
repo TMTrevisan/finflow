@@ -1,10 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Bell, AlertTriangle, Settings, Search } from 'lucide-react';
+import { RefreshCw, Bell, AlertTriangle, Settings, Search, Sun, Moon } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Header({ title, currentView, setCurrentView }) {
   const { syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen } = useAppContext();
+  
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('finflow_theme') || 'dark';
+  });
+
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('light');
+      root.classList.remove('dark');
+      document.body.classList.add('light');
+    } else {
+      root.classList.add('dark');
+      root.classList.remove('light');
+      document.body.classList.remove('light');
+    }
+    localStorage.setItem('finflow_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -161,6 +183,14 @@ export default function Header({ title, currentView, setCurrentView }) {
           title="Settings"
         >
           <Settings size={20} />
+        </button>
+
+        <button 
+          onClick={toggleTheme}
+          className="p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
+          title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+        >
+          {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
         </button>
 
         <button 
