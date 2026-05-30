@@ -9,31 +9,52 @@ const AppContext = createContext();
 export const resolveBudget = (categoryObj, targetMonth, targetYear) => {
   if (!categoryObj || typeof categoryObj !== 'object') return 0;
   const keys = Object.keys(categoryObj);
-  
-  // 1. Try exact month and year match (e.g. "dec" and "2023")
-  let match = keys.find(k => {
-    const lower = k.toLowerCase();
-    return lower.includes(targetMonth.toLowerCase()) && lower.includes(String(targetYear));
-  });
-  if (match) return parseFloat(categoryObj[match]) || 0;
-  
-  // 2. Try month match regardless of year
-  match = keys.find(k => k.toLowerCase().includes(targetMonth.toLowerCase()));
-  if (match) return parseFloat(categoryObj[match]) || 0;
-  
-  // 3. Fallback to default budget key
+
+  // Month name lookup — use index for exact matching (avoids 'mar' matching 'summary')
+  const MONTH_NAMES = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const targetMonthLower = String(targetMonth || '').toLowerCase();
+  const targetMonthIdx = MONTH_NAMES.indexOf(targetMonthLower);
+
+  // Parse a key into { month: 0-11, year: YYYY } or null
+  const parseKeyDate = (key) => {
+    const lower = key.toLowerCase();
+    let monthIdx = -1;
+    for (let i = 0; i < MONTH_NAMES.length; i++) {
+      // Match the 3-letter abbreviation surrounded by non-alpha chars (word boundary)
+      const pattern = new RegExp(`(?:^|[^a-z])${MONTH_NAMES[i]}(?:[^a-z]|$)`);
+      if (pattern.test(lower)) { monthIdx = i; break; }
+    }
+    const yearMatch = lower.match(/\d{4}/);
+    if (monthIdx >= 0 && yearMatch) return { month: monthIdx, year: parseInt(yearMatch[0]) };
+    if (monthIdx >= 0) return { month: monthIdx, year: null };
+    return null;
+  };
+
+  // 1. Try exact month + year match
+  if (targetMonthIdx >= 0) {
+    const exact = keys.find(k => {
+      const parsed = parseKeyDate(k);
+      return parsed && parsed.month === targetMonthIdx && parsed.year === targetYear;
+    });
+    if (exact) return parseFloat(categoryObj[exact]) || 0;
+
+    // 2. Try month match regardless of year
+    const monthOnly = keys.find(k => {
+      const parsed = parseKeyDate(k);
+      return parsed && parsed.month === targetMonthIdx;
+    });
+    if (monthOnly) return parseFloat(categoryObj[monthOnly]) || 0;
+  }
+
+  // 3. Fallback to explicit budget key
   if ('budget' in categoryObj) {
     return parseFloat(categoryObj.budget) || 0;
   }
-  
-  // 4. Fallback to any date-like key
-  const monthsList = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-  const dateKey = keys.find(k => {
-    const lower = k.toLowerCase();
-    return monthsList.some(m => lower.includes(m));
-  });
-  if (dateKey) return parseFloat(categoryObj[dateKey]) || 0;
-  
+
+  // 4. Fallback to any date-keyed column
+  const anyDateKey = keys.find(k => parseKeyDate(k) !== null);
+  if (anyDateKey) return parseFloat(categoryObj[anyDateKey]) || 0;
+
   return 0;
 };
 
@@ -666,6 +687,16 @@ export const AppProvider = ({ children, setCurrentView }) => {
     };
   }, [transactions, categories, useCalendarToday]);
 
+  // Shared reference date: latest transaction date (or today if useCalendarToday).
+  // Exposed in context so all views use the same "current" period.
+  const referenceDate = useMemo(() => {
+    if (useCalendarToday) return new Date();
+    const dates = (transactions || [])
+      .map(t => t.date ? new Date(t.date) : null)
+      .filter(d => d && !isNaN(d.getTime()));
+    return dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : new Date();
+  }, [transactions, useCalendarToday]);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -694,7 +725,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
       loadData,
       updateCategory,
       useCalendarToday,
-      setUseCalendarToday: handleSetUseCalendarToday
+      setUseCalendarToday: handleSetUseCalendarToday,
+      referenceDate,
     }}>
       {children}
     </AppContext.Provider>

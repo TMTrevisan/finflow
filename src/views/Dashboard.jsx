@@ -32,6 +32,34 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Helper for relative dates: Today, Yesterday, Nd ago, or MMM DD
+const formatRelativeDate = (dateStr) => {
+  if (!dateStr) return '';
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    
+    const txnDate = new Date(year, month, day);
+    const today = new Date();
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const txnMidnight = new Date(txnDate.getFullYear(), txnDate.getMonth(), txnDate.getDate());
+    
+    const diffTime = todayMidnight - txnMidnight;
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays > 1 && diffDays < 7) return `${diffDays}d ago`;
+    
+    return txnDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch (e) {
+    return dateStr;
+  }
+};
+
 export default function Dashboard({ setCurrentView }) {
   const { balances = [], transactions = [], surplusMetrics, isLoading, navigateToTransactions } = useAppContext();
   const [metric, setMetric] = useState('history'); // 'history', 'assets', 'debts'
@@ -1022,12 +1050,20 @@ export default function Dashboard({ setCurrentView }) {
                     <Heart size={10} className="text-neon-indigo" />
                     <span>A: Rolling 30d</span>
                   </span>
-                  <p className={`text-lg font-black tracking-tight ${surplusMetrics.rolling.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatCurrency(surplusMetrics.rolling.surplus)}
+                  <p className={`text-sm font-black tracking-tight ${surplusMetrics.rolling.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {surplusMetrics.rolling.surplus >= 0 
+                      ? formatCurrency(surplusMetrics.rolling.surplus) 
+                      : `Over budget by ${formatCurrency(Math.abs(surplusMetrics.rolling.surplus))}`}
                   </p>
                   <span className="text-[9px] font-bold text-slate-450 block leading-tight">
                     {surplusMetrics.rolling.surplus >= 0 ? '✓ Clear to Spend' : '⚠️ Deficit'}
                   </span>
+                  <div className="w-full h-1 bg-obsidian-950 rounded-full overflow-hidden mt-1">
+                    <div 
+                      className={`h-full rounded-full ${surplusMetrics.rolling.surplus >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                      style={{ width: `${Math.min(100, ((surplusMetrics.rolling.baseline + surplusMetrics.rolling.compounding) / Math.max(surplusMetrics.rolling.income, 1)) * 100)}%` }}
+                    />
+                  </div>
                 </div>
 
                 {/* Option B: Blended Projected */}
@@ -1036,12 +1072,20 @@ export default function Dashboard({ setCurrentView }) {
                     <Shield size={10} className="text-neon-indigo" />
                     <span>B: Proj Month</span>
                   </span>
-                  <p className={`text-lg font-black tracking-tight ${surplusMetrics.projected.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatCurrency(surplusMetrics.projected.surplus)}
+                  <p className={`text-sm font-black tracking-tight ${surplusMetrics.projected.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {surplusMetrics.projected.surplus >= 0 
+                      ? formatCurrency(surplusMetrics.projected.surplus) 
+                      : `Over budget by ${formatCurrency(Math.abs(surplusMetrics.projected.surplus))}`}
                   </p>
                   <span className="text-[9px] font-bold text-slate-455 block leading-tight">
                     {surplusMetrics.projected.surplus >= 0 ? '✓ Budget Cleared' : '⚠️ Proj Deficit'}
                   </span>
+                  <div className="w-full h-1 bg-obsidian-950 rounded-full overflow-hidden mt-1">
+                    <div 
+                      className={`h-full rounded-full ${surplusMetrics.projected.surplus >= 0 ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                      style={{ width: `${Math.min(100, ((surplusMetrics.projected.baseline + surplusMetrics.projected.compounding) / Math.max(surplusMetrics.projected.income, 1)) * 100)}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1192,7 +1236,7 @@ export default function Dashboard({ setCurrentView }) {
                   <div className="min-w-0 pr-4">
                     <p className="text-xs font-bold text-slate-200 truncate">{cleanMerchantName(txn.description)}</p>
                     <p className="text-[10px] text-slate-550 mt-1 truncate">
-                      {txn.date} • {txn.category} • {txn.account}
+                      {formatRelativeDate(txn.date)} • {txn.category} • {txn.account}
                     </p>
                   </div>
                   <span className={`text-xs font-extrabold shrink-0 ${

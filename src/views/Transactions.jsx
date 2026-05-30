@@ -4,16 +4,7 @@ import { formatCurrency, formatDate, cleanMerchantName, getCategoryEmoji } from 
 import { CategoryPill } from '../components/ui/CategoryPill';
 import { Search, Filter, ChevronDown, ChevronUp, X, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import { cn } from '../components/ui/Card';
-
-// Debounce hook
-function useDebounce(value, delay) {
-  const [debouncedValue, setDebouncedValue] = React.useState(value);
-  React.useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
+import { useDebounce } from '../utils/hooks';
 
 const DATE_PRESETS = [
   { id: 'all', label: 'All Time' },
@@ -32,9 +23,10 @@ const SORT_OPTIONS = [
   { id: 'merchant_asc', label: 'Merchant A→Z' },
 ];
 
-function getDateRange(preset) {
-  const now = new Date();
-  const start = new Date();
+function getDateRange(preset, refDate) {
+  // Use the provided reference date (from context) so all views agree on "this month"
+  const now = refDate instanceof Date && !isNaN(refDate) ? refDate : new Date();
+  const start = new Date(now);
   switch (preset) {
     case 'this_month':
       start.setDate(1);
@@ -68,7 +60,8 @@ export default function Transactions() {
     selectedCategory,
     setSelectedCategory,
     selectedDateRange,
-    setSelectedDateRange
+    setSelectedDateRange,
+    referenceDate,
   } = useAppContext();
   
   const [rawSearch, setRawSearch] = useState('');
@@ -174,7 +167,7 @@ export default function Transactions() {
   };
 
   const { reviewTransactions, filteredTransactions } = useMemo(() => {
-    const dateRange = datePreset === 'custom' && selectedDateRange ? selectedDateRange : getDateRange(datePreset);
+    const dateRange = datePreset === 'custom' && selectedDateRange ? selectedDateRange : getDateRange(datePreset, referenceDate);
 
     let latestDate = new Date();
     if (transactions.length > 0) {
@@ -431,12 +424,29 @@ export default function Transactions() {
         )}
       </div>
 
-      {/* Results count */}
-      <div className="flex items-center justify-between text-xs text-slate-500">
-        <span>{filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}</span>
-        {filteredTransactions.length > 0 && (
-          <span>Total: <strong className="text-slate-300">{formatCurrency(filteredTransactions.reduce((s, t) => s + t.amount, 0))}</strong></span>
-        )}
+      {/* Results count + inflow/outflow/net summary */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-xs text-slate-500">
+          <span>{filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}</span>
+        </div>
+        {filteredTransactions.length > 0 && (() => {
+          const totalInflow = filteredTransactions
+            .filter(t => t.type === 'Income')
+            .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+          const totalOutflow = filteredTransactions
+            .filter(t => t.type === 'Expense')
+            .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+          const net = totalInflow - totalOutflow;
+          return (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-semibold">
+              <span className="text-emerald-400">↑ {formatCurrency(totalInflow)} <span className="text-slate-500 font-normal">in</span></span>
+              <span className="text-rose-400">↓ {formatCurrency(totalOutflow)} <span className="text-slate-500 font-normal">out</span></span>
+              <span className={net >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+                Net: <strong>{net >= 0 ? '+' : ''}{formatCurrency(net)}</strong>
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Needs Review Section */}
