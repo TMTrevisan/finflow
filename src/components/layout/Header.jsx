@@ -1,10 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Bell, AlertTriangle, Settings } from 'lucide-react';
+import { RefreshCw, Bell, AlertTriangle, Settings, Search } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Header({ title, currentView, setCurrentView }) {
-  const { syncData, isSyncing, error, isMockData, lastSync } = useAppContext();
+  const { syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen } = useAppContext();
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setGlobalSearchOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setGlobalSearchOpen]);
   const [showToast, setShowToast] = useState(false);
   const [showErrorToast, setShowErrorToast] = useState(false);
   const [syncTimeLabel, setSyncTimeLabel] = useState('Live Synced');
@@ -150,6 +161,14 @@ export default function Header({ title, currentView, setCurrentView }) {
           title="Settings"
         >
           <Settings size={20} />
+        </button>
+
+        <button 
+          onClick={() => setGlobalSearchOpen(true)}
+          className="p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
+          title="Search (Cmd+K)"
+        >
+          <Search size={20} />
         </button>
 
         <button 

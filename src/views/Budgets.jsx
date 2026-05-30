@@ -500,6 +500,19 @@ export default function Budgets({ setCurrentView }) {
                               budget={item.budget || 1} 
                             />
                           </div>
+
+                          {/* MoM Delta Badge */}
+                          {(() => {
+                            const mom = getMoMDelta(item.category, item.spent, item.budget, item.lastMonthSpent);
+                            if (!mom) return null;
+                            return (
+                              <div className="px-1 mt-1.5">
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-block border ${mom.color}`}>
+                                  {mom.text}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}

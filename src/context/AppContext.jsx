@@ -310,6 +310,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedDateRange, setSelectedDateRange] = useState(null);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
 
   // Navigation helper — atomically set account filter AND navigate to Transactions
   const navigateToTransactions = (options = {}) => {
@@ -727,6 +729,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
       useCalendarToday,
       setUseCalendarToday: handleSetUseCalendarToday,
       referenceDate,
+      globalSearchOpen,
+      setGlobalSearchOpen,
+      globalSearchQuery,
+      setGlobalSearchQuery,
     }}>
       {children}
     </AppContext.Provider>

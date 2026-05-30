@@ -134,6 +134,20 @@ export default function Transactions() {
     }
   }, []);
 
+  // Pick up deep-link search query from GlobalSearch
+  React.useEffect(() => {
+    const checkSearchDeepLink = () => {
+      const searchVal = sessionStorage.getItem('finflow_transactions_search');
+      if (searchVal) {
+        setRawSearch(searchVal);
+        sessionStorage.removeItem('finflow_transactions_search');
+      }
+    };
+    checkSearchDeepLink();
+    window.addEventListener('storage', checkSearchDeepLink);
+    return () => window.removeEventListener('storage', checkSearchDeepLink);
+  }, []);
+
   // Unique accounts and categories for dropdowns
   const { uniqueAccounts, uniqueCategories } = useMemo(() => {
     const accounts = [...new Set(transactions.map(t => t.account).filter(Boolean))].sort();

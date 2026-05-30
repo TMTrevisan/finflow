@@ -3,6 +3,8 @@ import Layout from './components/layout/Layout';
 import PasscodeLock from './components/ui/PasscodeLock';
 import { AppProvider } from './context/AppContext';
 import ErrorBoundary from './components/ui/ErrorBoundary';
+import GlobalSearch from './components/ui/GlobalSearch';
+import OnboardingModal from './components/ui/OnboardingModal';
 
 // Helper to catch chunk load errors and reload the page automatically to fetch latest deployment files
 const safeLazy = (importFn) => {
@@ -97,6 +99,8 @@ function App() {
   return (
     <AppProvider setCurrentView={setCurrentView}>
       <PasscodeLock>
+        <GlobalSearch />
+        <OnboardingModal />
         <Layout currentView={currentView} setCurrentView={setCurrentView}>
           <ErrorBoundary key={currentView}>
             <Suspense fallback={<LoadingFallback />}>

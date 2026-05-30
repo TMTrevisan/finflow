@@ -6,13 +6,17 @@ import { filterTransactionsByDateRange } from '../utils/dateFilters';
 import { formatCurrency } from '../utils/formatting';
 import { Waves, Grid, CalendarDays, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
+import { useWindowWidth } from '../utils/hooks';
 
 export default function CashFlow() {
   const { transactions = [], isLoading } = useAppContext();
+  const width = useWindowWidth();
   const [filterType, setFilterType] = useState('this_month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [visualMode, setVisualMode] = useState('sankey'); // sankey, grid
+  const [visualMode, setVisualMode] = useState(() => 
+    typeof window !== 'undefined' && window.innerWidth < 480 ? 'grid' : 'sankey'
+  );
   const [activeSankeyFilter, setActiveSankeyFilter] = useState(null);
 
   // Date filtered transactions
@@ -116,29 +120,36 @@ export default function CashFlow() {
         </div>
 
         {/* Toggle visualizer */}
-        <div className="flex bg-obsidian-800 p-1 rounded-xl border border-obsidian-750">
-          <button
-            onClick={() => setVisualMode('sankey')}
-            className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              visualMode === 'sankey' 
-                ? 'bg-neon-indigo/15 text-neon-indigo shadow' 
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Waves size={14} />
-            <span>Sankey Flow</span>
-          </button>
-          <button
-            onClick={() => setVisualMode('grid')}
-            className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              visualMode === 'grid' 
-                ? 'bg-neon-indigo/15 text-neon-indigo shadow' 
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Grid size={14} />
-            <span>Grid Table</span>
-          </button>
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="flex bg-obsidian-800 p-1 rounded-xl border border-obsidian-750">
+            <button
+              onClick={() => setVisualMode('sankey')}
+              className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                visualMode === 'sankey' 
+                  ? 'bg-neon-indigo/15 text-neon-indigo shadow' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Waves size={14} />
+              <span>Sankey Flow</span>
+            </button>
+            <button
+              onClick={() => setVisualMode('grid')}
+              className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                visualMode === 'grid' 
+                  ? 'bg-neon-indigo/15 text-neon-indigo shadow' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Grid size={14} />
+              <span>Grid Table</span>
+            </button>
+          </div>
+          {width < 480 && visualMode === 'grid' && (
+            <span className="text-[9px] text-slate-500 font-semibold italic text-center">
+              💡 Tap "Sankey Flow" above to view flow diagram (best on desktop)
+            </span>
+          )}
         </div>
       </div>
 
