@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { formatCurrency } from '../../utils/formatting';
+import { formatCurrency, cleanMerchantName } from '../../utils/formatting';
 
 export default function SankeyDiagram({ transactions, onSelectNode, activeFilter }) {
   const [hoveredNode, setHoveredNode] = useState(null);
@@ -31,7 +31,11 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       const type = t.type || '';
       
       if (type === 'Income') {
-        incomeMap[catName] = (incomeMap[catName] || 0) + amount;
+        const catNameLower = catName.toLowerCase();
+        const sourceName = (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income')
+          ? cleanMerchantName(t.description)
+          : catName;
+        incomeMap[sourceName] = (incomeMap[sourceName] || 0) + amount;
         totalIncome += amount;
       } else if (type === 'Expense') {
         const absVal = Math.abs(amount);

@@ -3,7 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import SankeyDiagram from '../components/diagrams/SankeyDiagram';
 import DateRangeSelector from '../components/ui/DateRangeSelector';
 import { filterTransactionsByDateRange } from '../utils/dateFilters';
-import { formatCurrency } from '../utils/formatting';
+import { formatCurrency, cleanMerchantName } from '../utils/formatting';
 import { Waves, Grid, CalendarDays, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { useWindowWidth } from '../utils/hooks';
@@ -82,9 +82,7 @@ export default function CashFlow() {
       .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
     const expenses = dateFilteredTransactions
-      .filter(t => (t.type === 'Expense' || t.type === 'Transfer') && 
-                   t.group !== 'Investments' && 
-                   t.group !== 'Wealth Building')
+      .filter(t => t.type === 'Expense')
       .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
     const investments = dateFilteredTransactions
@@ -110,7 +108,11 @@ export default function CashFlow() {
     dateFilteredTransactions
       .filter(t => t.type === 'Income')
       .forEach(t => {
-        const key = t.category || 'Uncategorized';
+        const catName = t.category || 'Uncategorized';
+        const catNameLower = catName.toLowerCase();
+        const key = (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income')
+          ? cleanMerchantName(t.description)
+          : catName;
         const amount = Number(t.amount) || 0;
         map[key] = (map[key] || 0) + amount;
         total += amount;
