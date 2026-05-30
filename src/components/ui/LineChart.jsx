@@ -101,6 +101,9 @@ export default function LineChart({
     setHoveredPoint(null);
   };
 
+  // Unique ID for gradient/glow so multiple charts don't conflict
+  const chartId = useMemo(() => Math.random().toString(36).substr(2, 9), []);
+
   if (!data || data.length === 0) {
     return (
       <div className="flex items-center justify-center bg-obsidian-800/10 rounded-2xl border border-obsidian-800/40" style={{ height }}>
@@ -108,9 +111,6 @@ export default function LineChart({
       </div>
     );
   }
-
-  // Unique ID for gradient/glow so multiple charts don't conflict
-  const chartId = useMemo(() => Math.random().toString(36).substr(2, 9), []);
 
   return (
     <div className="relative w-full">

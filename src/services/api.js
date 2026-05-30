@@ -1,11 +1,20 @@
 import { MOCK_TRANSACTIONS, MOCK_CATEGORIES, MOCK_BALANCES } from './mockData';
+import { safeStorage } from '../utils/storage';
 
 const getApiUrl = (action) => {
   const envUrl = import.meta.env.VITE_API_URL;
-  const localUrl = localStorage.getItem('finflow_api_url');
+  const localUrl = safeStorage.getItem('finflow_api_url');
   const apiUrl = localUrl || envUrl || null;
   if (!apiUrl) return null;
-  return `${apiUrl}?action=${action}`;
+  
+  try {
+    const url = new URL(apiUrl);
+    url.searchParams.set('action', action);
+    return url.toString();
+  } catch (e) {
+    const separator = apiUrl.includes('?') ? '&' : '?';
+    return `${apiUrl}${separator}action=${encodeURIComponent(action)}`;
+  }
 };
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms));

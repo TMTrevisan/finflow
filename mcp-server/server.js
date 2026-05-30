@@ -669,6 +669,11 @@ async function runTool(toolName, args) {
   }
 }
 
+// Helper to format currency values in USD
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+}
+
 // Helper to clean merchant strings
 function cleanMerchantName(description) {
   if (!description) return '';

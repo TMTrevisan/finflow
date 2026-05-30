@@ -237,9 +237,10 @@ export default function Transactions() {
 
       if (!applyCommonFilters(txn)) return false;
 
-      const cleanedDesc = cleanMerchantName(txn.description);
+      const merchantName = txn.description || '';
+      const cleanedDesc = cleanMerchantName(merchantName);
       const matchesSearch = !searchTerm ||
-        txn.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        merchantName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         cleanedDesc.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (txn.account || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (txn.category || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -253,7 +254,7 @@ export default function Transactions() {
     });
 
     return { reviewTransactions: applySort(review), filteredTransactions: applySort(standard) };
-  }, [transactions, searchTerm, typeFilter, datePreset, accountFilter, categoryFilter, minAmount, maxAmount, sortBy]);
+  }, [transactions, searchTerm, typeFilter, datePreset, selectedDateRange, accountFilter, categoryFilter, minAmount, maxAmount, sortBy]);
 
   const slicedTransactions = useMemo(() => {
     return filteredTransactions.slice(0, visibleCount);

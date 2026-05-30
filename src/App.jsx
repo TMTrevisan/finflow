@@ -1,4 +1,4 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, Suspense, lazy, useEffect } from 'react';
 import Layout from './components/layout/Layout';
 import PasscodeLock from './components/ui/PasscodeLock';
 import { AppProvider } from './context/AppContext';
@@ -38,7 +38,40 @@ const LoadingFallback = () => (
 );
 
 function App() {
-  const [currentView, setCurrentView] = useState('dashboard');
+  const getInitialView = () => {
+    const hash = window.location.hash.replace('#', '');
+    const validViews = [
+      'dashboard', 'assistant', 'spending', 'income', 'transactions', 
+      'budgets', 'subscriptions', 'cashflow', 'settings', 'plreport', 
+      'yearly', 'insights'
+    ];
+    return validViews.includes(hash) ? hash : 'dashboard';
+  };
+
+  const [currentView, setCurrentView] = useState(getInitialView);
+
+  // Sync hash with currentView
+  useEffect(() => {
+    window.location.hash = currentView;
+  }, [currentView]);
+
+  // Sync currentView with hash changes (e.g. back button or deep links)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      const validViews = [
+        'dashboard', 'assistant', 'spending', 'income', 'transactions', 
+        'budgets', 'subscriptions', 'cashflow', 'settings', 'plreport', 
+        'yearly', 'insights'
+      ];
+      if (validViews.includes(hash) && hash !== currentView) {
+        setCurrentView(hash);
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentView]);
 
   const renderView = () => {
     switch (currentView) {

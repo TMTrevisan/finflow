@@ -352,11 +352,20 @@ export const AppProvider = ({ children, setCurrentView }) => {
   useEffect(() => {
     const url = safeStorage.getItem('finflow_api_url');
     if (url && 'serviceWorker' in navigator) {
+      let swUrl = url;
+      try {
+        const urlObj = new URL(url);
+        urlObj.searchParams.set('action', 'getData');
+        swUrl = urlObj.toString();
+      } catch (e) {
+        const separator = url.includes('?') ? '&' : '?';
+        swUrl = `${url}${separator}action=getData`;
+      }
       navigator.serviceWorker.ready.then(registration => {
         if (registration.active) {
           registration.active.postMessage({
             type: 'SET_API_URL',
-            url: `${url}?action=getData`
+            url: swUrl
           });
         }
       });
