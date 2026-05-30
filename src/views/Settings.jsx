@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
+import { safeStorage } from '../utils/storage';
 import { Card, CardContent } from '../components/ui/Card';
 import { 
   Link, 
@@ -37,20 +38,20 @@ export default function Settings() {
 
   // URL state
   const [apiUrlInput, setApiUrlInput] = useState(() => {
-    return localStorage.getItem('finflow_api_url') || '';
+    return safeStorage.getItem('finflow_api_url') || '';
   });
   const [urlMessage, setUrlMessage] = useState(null);
 
   // Passcode state
   const [passcodeEnabled, setPasscodeEnabled] = useState(() => {
-    return !!localStorage.getItem('finflow_passcode');
+    return !!safeStorage.getItem('finflow_passcode');
   });
   const [pinInput, setPinInput] = useState('');
   const [passcodeMessage, setPasscodeMessage] = useState(null);
 
   // Gemini API key state
   const [geminiKeyInput, setGeminiKeyInput] = useState(() => {
-    return localStorage.getItem('finflow_gemini_key') || '';
+    return safeStorage.getItem('finflow_gemini_key') || '';
   });
   const [geminiMessage, setGeminiMessage] = useState(null);
 
@@ -81,7 +82,7 @@ export default function Settings() {
 
   // Biometrics state
   const [biometricsEnabled, setBiometricsEnabled] = useState(() => {
-    return localStorage.getItem('finflow_biometrics_enabled') === 'true';
+    return safeStorage.getItem('finflow_biometrics_enabled') === 'true';
   });
   const [biometricsSupported, setBiometricsSupported] = useState(false);
   const [biometricsMessage, setBiometricsMessage] = useState(null);
@@ -109,9 +110,9 @@ export default function Settings() {
   const cacheSizeEstimate = useMemo(() => {
     let charCount = 0;
     try {
-      charCount += (localStorage.getItem('finflow_cache_transactions') || '').length;
-      charCount += (localStorage.getItem('finflow_cache_categories') || '').length;
-      charCount += (localStorage.getItem('finflow_cache_balances') || '').length;
+      charCount += (safeStorage.getItem('finflow_cache_transactions') || '').length;
+      charCount += (safeStorage.getItem('finflow_cache_categories') || '').length;
+      charCount += (safeStorage.getItem('finflow_cache_balances') || '').length;
     } catch (e) {}
     // Estimate bytes (utf-16 characters = 2 bytes)
     const kb = (charCount * 2) / 1024;
@@ -121,24 +122,24 @@ export default function Settings() {
   const handleSaveUrl = async () => {
     setUrlMessage({ type: 'info', text: 'Saving and validating connection...' });
     if (!apiUrlInput.trim()) {
-      localStorage.removeItem('finflow_api_url');
+      safeStorage.removeItem('finflow_api_url');
       setUrlMessage({ type: 'success', text: 'URL cleared. App will fall back to local .env or Mock Data.' });
       loadData(true);
       return;
     }
 
     try {
-      const previousUrl = localStorage.getItem('finflow_api_url');
-      localStorage.setItem('finflow_api_url', apiUrlInput.trim());
+      const previousUrl = safeStorage.getItem('finflow_api_url');
+      safeStorage.setItem('finflow_api_url', apiUrlInput.trim());
       
       const success = await syncData();
       if (success) {
         setUrlMessage({ type: 'success', text: 'Connection verified! Your sheet is successfully connected.' });
       } else {
         if (previousUrl) {
-          localStorage.setItem('finflow_api_url', previousUrl);
+          safeStorage.setItem('finflow_api_url', previousUrl);
         } else {
-          localStorage.removeItem('finflow_api_url');
+          safeStorage.removeItem('finflow_api_url');
         }
         setUrlMessage({ type: 'error', text: 'Connection failed. Verify the URL is correct and Apps Script is deployed as "Anyone".' });
       }
@@ -148,9 +149,9 @@ export default function Settings() {
   };
 
   const handleTogglePasscode = () => {
-    const isCurrentlyEnabled = !!localStorage.getItem('finflow_passcode');
+    const isCurrentlyEnabled = !!safeStorage.getItem('finflow_passcode');
     if (isCurrentlyEnabled) {
-      localStorage.removeItem('finflow_passcode');
+      safeStorage.removeItem('finflow_passcode');
       setPasscodeEnabled(false);
       setPinInput('');
       setPasscodeMessage({ type: 'success', text: 'PIN Passcode disabled successfully.' });
@@ -159,7 +160,7 @@ export default function Settings() {
         setPasscodeMessage({ type: 'error', text: 'Please enter a valid 4-digit numeric PIN.' });
         return;
       }
-      localStorage.setItem('finflow_passcode', pinInput);
+      safeStorage.setItem('finflow_passcode', pinInput);
       setPasscodeEnabled(true);
       setPasscodeMessage({ type: 'success', text: `PIN Passcode configured! Next time you open the app, you will need this PIN.` });
     }
@@ -167,23 +168,23 @@ export default function Settings() {
 
   // Gemini AI model state
   const [geminiModel, setGeminiModel] = useState(() => {
-    return localStorage.getItem('finflow_gemini_model') || 'gemini-2.5-flash-lite';
+    return safeStorage.getItem('finflow_gemini_model') || 'gemini-2.5-flash-lite';
   });
 
   const handleSaveGeminiKey = () => {
-    localStorage.setItem('finflow_gemini_model', geminiModel);
+    safeStorage.setItem('finflow_gemini_model', geminiModel);
     if (geminiKeyInput.trim()) {
-      localStorage.setItem('finflow_gemini_key', geminiKeyInput.trim());
+      safeStorage.setItem('finflow_gemini_key', geminiKeyInput.trim());
       setGeminiMessage({ type: 'success', text: 'Gemini settings saved successfully!' });
     } else {
-      localStorage.removeItem('finflow_gemini_key');
+      safeStorage.removeItem('finflow_gemini_key');
       setGeminiMessage({ type: 'info', text: 'Gemini API Key cleared.' });
     }
   };
 
   const handleToggleBiometrics = async () => {
     if (biometricsEnabled) {
-      localStorage.removeItem('finflow_biometrics_enabled');
+      safeStorage.removeItem('finflow_biometrics_enabled');
       setBiometricsEnabled(false);
       setBiometricsMessage({ type: 'success', text: 'Biometric unlock disabled.' });
       return;
@@ -212,7 +213,7 @@ export default function Settings() {
         }
       });
 
-      localStorage.setItem('finflow_biometrics_enabled', 'true');
+      safeStorage.setItem('finflow_biometrics_enabled', 'true');
       setBiometricsEnabled(true);
       setBiometricsMessage({ type: 'success', text: 'Biometrics registered! You can now unlock with TouchID/FaceID.' });
     } catch (err) {
@@ -499,7 +500,7 @@ export default function Settings() {
                           type="button"
                           onClick={() => {
                             setGeminiModel(opt.value);
-                            localStorage.setItem('finflow_gemini_model', opt.value);
+                            safeStorage.setItem('finflow_gemini_model', opt.value);
                             setIsModelSheetOpen(false);
                           }}
                           className={`w-full text-left px-4 py-3.5 text-sm rounded-2xl transition-colors border ${
@@ -519,7 +520,7 @@ export default function Settings() {
                   value={geminiModel}
                   onChange={(e) => {
                     setGeminiModel(e.target.value);
-                    localStorage.setItem('finflow_gemini_model', e.target.value);
+                    safeStorage.setItem('finflow_gemini_model', e.target.value);
                   }}
                   className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow appearance-none"
                 >
