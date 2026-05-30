@@ -38,6 +38,31 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
+  // Network-First for HTML/navigation requests to prevent cached index.html from fetching dead hashed assets
+  const isNavigation = e.request.mode === 'navigate' || 
+                       e.request.url === self.location.origin || 
+                       e.request.url === self.location.origin + '/' ||
+                       e.request.url.endsWith('/index.html');
+
+  if (isNavigation) {
+    e.respondWith(
+      fetch(e.request)
+        .then((networkResponse) => {
+          if (networkResponse.status === 200) {
+            caches.open(CACHE_NAME)
+              .then((cache) => cache.put(e.request, networkResponse.clone()))
+              .catch(() => {});
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(e.request).then((cached) => cached || caches.match('/index.html'));
+        })
+    );
+    return;
+  }
+
+  // Stale-While-Revalidate for other static assets
   e.respondWith(
     caches.match(e.request)
       .then((cachedResponse) => {

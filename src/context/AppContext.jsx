@@ -92,14 +92,38 @@ const decorateData = (rawTxns, rawCats, useCalendarToday) => {
       group = catMeta.group || group;
     }
     
-    // Sign-based fallback
+    // Normalize date: Tiller/Google Sheets returns ISO timestamps (e.g. "2026-05-28T07:00:00.000Z")
+    // Parse them into local YYYY-MM-DD so month/date filters work correctly in any timezone
+    let normalizedDate = t.date;
+    if (normalizedDate && typeof normalizedDate === 'string' && normalizedDate.includes('T')) {
+      const d = new Date(normalizedDate);
+      if (!isNaN(d.getTime())) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        normalizedDate = `${y}-${m}-${day}`;
+      }
+    } else if (normalizedDate instanceof Date) {
+      const y = normalizedDate.getFullYear();
+      const m = String(normalizedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(normalizedDate.getDate()).padStart(2, '0');
+      normalizedDate = `${y}-${m}-${day}`;
+    }
+
+    // Normalize Tiller's sign convention:
+    // Tiller stores EXPENSES as positive numbers and INCOME as negative numbers.
+    // The app's UI calculations assume INCOME is positive and EXPENSES are negative.
+    // Flip the sign to match UI expectations after we know the type.
+    let rawAmt = Number(t.amount) || 0;
+
+    // Sign-based fallback for type detection (using Tiller convention: negative = income)
     if (!type) {
-      const amt = Number(t.amount) || 0;
       if (catName === 'uncategorized' || !catName) {
-        type = amt < 0 ? 'Expense' : 'Income';
+        // Tiller: negative amount = credit/income, positive = debit/expense
+        type = rawAmt < 0 ? 'Income' : 'Expense';
         group = 'Uncategorized';
       } else {
-        type = amt < 0 ? 'Expense' : 'Income';
+        type = rawAmt < 0 ? 'Income' : 'Expense';
         group = 'Other';
       }
     }
@@ -107,33 +131,46 @@ const decorateData = (rawTxns, rawCats, useCalendarToday) => {
     // Force 401(k), retirement, and investment transfers to be categorized correctly as 'Transfer'
     const nameLower = catName.toLowerCase();
     const descLower = String(t.description || '').toLowerCase();
-    const amt = Number(t.amount) || 0;
 
     let finalCategory = t.category;
+    let finalType = type;
 
-    if (amt > 0 && (descLower.includes('wife') || descLower.includes('spouse') || descLower.includes('joint') || nameLower.includes('wife') || nameLower.includes('spouse'))) {
-      type = 'Income';
+    if (rawAmt < 0 && (descLower.includes('wife') || descLower.includes('spouse') || descLower.includes('joint') || nameLower.includes('wife') || nameLower.includes('spouse'))) {
+      finalType = 'Income';
       group = 'Family Funding';
       finalCategory = 'Family Funding';
     } else if (nameLower.includes('401') || nameLower.includes('retirement') || nameLower.includes('ira') || nameLower.includes('investment')) {
       if (!nameLower.includes('income') && !nameLower.includes('dividend') && !nameLower.includes('interest')) {
-        type = 'Transfer';
+        finalType = 'Transfer';
         group = 'Investments';
       }
     } else if (nameLower.includes('transfer') || descLower.includes('transfer') || nameLower.includes('xfer') || descLower.includes('xfer')) {
-      type = 'Transfer';
+      finalType = 'Transfer';
       group = 'Other';
+    }
+
+    // Flip amount so Income is positive, Expense is negative (standard UI convention)
+    // Only flip if amount sign doesn't already match the type (handles mock data that's already normalized)
+    let normalizedAmt = rawAmt;
+    if (finalType === 'Income' && rawAmt < 0) {
+      normalizedAmt = -rawAmt; // make positive
+    } else if (finalType === 'Expense' && rawAmt > 0) {
+      normalizedAmt = -rawAmt; // make negative
+    } else if (finalType === 'Transfer' && rawAmt > 0) {
+      normalizedAmt = -rawAmt; // transfers are outflows, make negative
     }
 
     return {
       ...t,
+      date: normalizedDate,
+      amount: normalizedAmt,
       category: finalCategory,
-      type,
+      type: finalType,
       group
     };
   });
 
-  return { txns, cats };
+  return { transactions: txns, categories: cats };
 };
 
 // Helper to compress transaction data before writing to localStorage
