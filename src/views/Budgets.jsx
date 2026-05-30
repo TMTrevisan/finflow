@@ -313,6 +313,32 @@ export default function Budgets({ setCurrentView }) {
     return allItems.sort((a, b) => b.remaining - a.remaining).slice(0, 12);
   }, [finalGroups, isMockData]);
 
+  // Helper to compute Month-over-Month Delta badge
+  const getMoMDelta = (categoryName, currentSpent, budgetVal, lastMonthSpentVal) => {
+    let lastMonthSpent = lastMonthSpentVal || 0;
+    if (isMockData) {
+      const hash = categoryName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const factor = 0.75 + (hash % 5) * 0.1;
+      lastMonthSpent = -(budgetVal * factor);
+    }
+    const currentAbs = Math.abs(currentSpent);
+    const lastAbs = Math.abs(lastMonthSpent);
+    if (lastAbs === 0) return null;
+    const diff = currentAbs - lastAbs;
+    const diffStr = formatCurrency(Math.abs(diff));
+    if (diff > 0) {
+      return {
+        text: `↑ ${diffStr} more than last month`,
+        color: 'text-rose-500 bg-rose-500/10 border border-rose-500/20'
+      };
+    } else {
+      return {
+        text: `↓ ${diffStr} less than last month`,
+        color: 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+      };
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-6 p-4">
