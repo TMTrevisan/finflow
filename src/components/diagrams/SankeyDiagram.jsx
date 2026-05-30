@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { formatCurrency } from '../../utils/formatting';
 
-export default function SankeyDiagram({ transactions }) {
+export default function SankeyDiagram({ transactions, onSelectNode, activeFilter }) {
   const [hoveredNode, setHoveredNode] = useState(null);
   const [hoveredLink, setHoveredLink] = useState(null);
 
@@ -345,6 +345,14 @@ export default function SankeyDiagram({ transactions }) {
             <span className="text-xs font-bold text-slate-500">
               (Savings Rate: {surplusRate.toFixed(1)}%)
             </span>
+            {activeFilter && (
+              <button 
+                onClick={() => onSelectNode && onSelectNode(null, null)}
+                className="ml-4 text-[10px] font-black uppercase text-neon-indigo hover:text-white bg-neon-indigo/15 border border-neon-indigo/30 px-2 py-0.5 rounded-full transition-all"
+              >
+                Clear Filter: {activeFilter.name || 'Link'} ✕
+              </button>
+            )}
           </div>
         </div>
         <div className="flex space-x-6 text-xs text-slate-400">
@@ -376,8 +384,12 @@ export default function SankeyDiagram({ transactions }) {
             {/* Render Link Ribbons */}
             <g>
               {links.map((link) => {
+                const isActiveFilter = activeFilter && activeFilter.type === 'link' && 
+                                       activeFilter.source === link.sourceName && 
+                                       activeFilter.target === link.targetName;
                 const isHovered = hoveredLink === link.id || 
-                                  (hoveredNode && (link.sourceId === hoveredNode || link.targetId === hoveredNode));
+                                  (hoveredNode && (link.sourceId === hoveredNode || link.targetId === hoveredNode)) ||
+                                  isActiveFilter;
                 
                 return (
                   <path
@@ -387,8 +399,9 @@ export default function SankeyDiagram({ transactions }) {
                     className="transition-all duration-200 cursor-pointer"
                     onMouseEnter={() => setHoveredLink(link.id)}
                     onMouseLeave={() => setHoveredLink(null)}
+                    onClick={() => onSelectNode && onSelectNode('link', { source: link.sourceName, target: link.targetName })}
                     style={{
-                      opacity: isHovered ? 0.9 : hoveredNode || hoveredLink ? 0.12 : 0.55,
+                      opacity: isHovered ? 0.95 : hoveredNode || hoveredLink || activeFilter ? 0.12 : 0.55,
                     }}
                   />
                 );
@@ -403,7 +416,8 @@ export default function SankeyDiagram({ transactions }) {
                   links.find(l => l.id === hoveredLink)?.sourceId === node.id ||
                   links.find(l => l.id === hoveredLink)?.targetId === node.id
                 );
-                const highlight = isHovered || isLinked;
+                const isActiveFilter = activeFilter && activeFilter.name === node.name && activeFilter.type === node.type;
+                const highlight = isHovered || isLinked || isActiveFilter;
 
                 return (
                   <g 
@@ -411,6 +425,7 @@ export default function SankeyDiagram({ transactions }) {
                     className="cursor-pointer"
                     onMouseEnter={() => setHoveredNode(node.id)}
                     onMouseLeave={() => setHoveredNode(null)}
+                    onClick={() => onSelectNode && onSelectNode(node.type, node.name)}
                   >
                     {/* Node bar */}
                     <rect
@@ -422,7 +437,9 @@ export default function SankeyDiagram({ transactions }) {
                       rx="3"
                       style={{
                         filter: highlight ? `drop-shadow(0px 0px 5px ${node.color})` : 'none',
-                        opacity: highlight || (!hoveredNode && !hoveredLink) ? 1 : 0.45
+                        opacity: highlight || (!hoveredNode && !hoveredLink && !activeFilter) ? 1 : 0.45,
+                        stroke: isActiveFilter ? '#FFFFFF' : 'none',
+                        strokeWidth: isActiveFilter ? 1.5 : 0
                       }}
                       className="transition-all duration-200"
                     />

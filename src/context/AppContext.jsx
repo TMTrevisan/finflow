@@ -39,6 +39,8 @@ export const resolveBudget = (categoryObj, targetMonth, targetYear) => {
 
 // Helper to decorate transactions with category type/group
 const decorateData = (rawTxns, rawCats, useCalendarToday) => {
+  const txnsList = (rawTxns || []).filter(t => t && typeof t === 'object');
+
   // Find active month/year based on latest transaction or today
   let activeMonth = 'may';
   let activeYear = 2026;
@@ -49,7 +51,6 @@ const decorateData = (rawTxns, rawCats, useCalendarToday) => {
     activeMonth = monthsList[today.getMonth()];
     activeYear = today.getFullYear();
   } else {
-    const txnsList = (rawTxns || []).filter(t => t && typeof t === 'object');
     if (txnsList.length > 0) {
       const validDates = txnsList
         .map(t => t.date ? new Date(t.date) : null)

@@ -13,11 +13,63 @@ export default function CashFlow() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
   const [visualMode, setVisualMode] = useState('sankey'); // sankey, grid
+  const [activeSankeyFilter, setActiveSankeyFilter] = useState(null);
 
   // Date filtered transactions
   const dateFilteredTransactions = useMemo(() => {
     return filterTransactionsByDateRange(transactions, filterType, customStart, customEnd);
   }, [transactions, filterType, customStart, customEnd]);
+
+  // Handle Sankey Node selection callback
+  const handleSelectSankeyNode = (type, name) => {
+    if (type === null) {
+      setActiveSankeyFilter(null);
+    } else {
+      setActiveSankeyFilter({ type, name });
+    }
+  };
+
+  // Re-filter transactions specifically for the dynamic drill-down list
+  const sankeyFilteredTransactions = useMemo(() => {
+    if (!activeSankeyFilter) return dateFilteredTransactions;
+    const { type, name } = activeSankeyFilter;
+    
+    return dateFilteredTransactions.filter(t => {
+      if (type === 'source') {
+        return t.type === 'Income' && t.category === name;
+      }
+      if (type === 'pool') {
+        return t.type === 'Income';
+      }
+      if (type === 'group') {
+        if (name === 'Net Savings') {
+          // Savings matches the net surplus from all accounts (Income minus expenses/transfers)
+          return false;
+        }
+        return t.group === name;
+      }
+      if (type === 'category') {
+        return t.category === name;
+      }
+      if (type === 'link') {
+        const { source, target } = name;
+        if (source === 'Total Income') {
+          if (target === 'Net Savings') return false;
+          return t.group === target;
+        }
+        if (target === 'Total Income') {
+          return t.category === source && t.type === 'Income';
+        }
+        return t.group === source && t.category === target;
+      }
+      return true;
+    });
+  }, [dateFilteredTransactions, activeSankeyFilter]);
+
+  // Reset active filter when date range changes
+  useEffect(() => {
+    setActiveSankeyFilter(null);
+  }, [filterType, customStart, customEnd]);
 
   // Aggregate stats for summary cards
   const stats = useMemo(() => {
@@ -30,7 +82,6 @@ export default function CashFlow() {
       .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
 
     const savings = Math.max(0, income - expenses);
-    const savingsRate = income > 0 ? (savings / income) * 105 : 0; // standard display formula
 
     return { 
       income, 
