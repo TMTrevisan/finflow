@@ -94,85 +94,91 @@ export default function LifeOptimization() {
     }
 
     if (sources.length > 0) {
-      const newMappings = { ...mappings };
-      let updated = false;
+      setMappings(prevMappings => {
+        const newMappings = { ...prevMappings };
+        let updated = false;
 
-      sources.forEach(row => {
-        const keys = Object.keys(row);
-        const catKey = keys.find(k => k.toLowerCase().includes('category'));
-        const classKey = keys.find(k => 
-          k.toLowerCase().includes('bucket') || 
-          k.toLowerCase().includes('class') || 
-          k.toLowerCase().includes('assignment') || 
-          k.toLowerCase().includes('type')
-        );
-        const inclKey = keys.find(k => 
-          k.toLowerCase().includes('include') || 
-          k.toLowerCase().includes('active') || 
-          k.toLowerCase().includes('show')
-        );
+        sources.forEach(row => {
+          const keys = Object.keys(row);
+          const catKey = keys.find(k => k.toLowerCase().includes('category'));
+          const classKey = keys.find(k => 
+            k.toLowerCase().includes('bucket') || 
+            k.toLowerCase().includes('class') || 
+            k.toLowerCase().includes('assignment') || 
+            k.toLowerCase().includes('type')
+          );
+          const inclKey = keys.find(k => 
+            k.toLowerCase().includes('include') || 
+            k.toLowerCase().includes('active') || 
+            k.toLowerCase().includes('show')
+          );
 
-        if (catKey && (classKey || inclKey)) {
-          const categoryName = String(row[catKey]).trim();
-          if (categoryName) {
-            // Casing-agnostic match
-            const matchName = allCategories.find(c => String(c).toLowerCase().trim() === categoryName.toLowerCase()) || categoryName;
+          if (catKey && (classKey || inclKey)) {
+            const categoryName = String(row[catKey]).trim();
+            if (categoryName) {
+              // Casing-agnostic match
+              const matchName = allCategories.find(c => String(c).toLowerCase().trim() === categoryName.toLowerCase()) || categoryName;
 
-            let classification = newMappings[matchName]?.classification || 'Lifestyle';
-            if (classKey && row[classKey] !== undefined && row[classKey] !== null && String(row[classKey]).trim() !== '') {
-              const val = String(row[classKey]).trim().toLowerCase();
-              if (val.includes('income')) classification = 'Income';
-              else if (val.includes('compound') || val.includes('saving')) classification = 'Compounding';
-              else if (val.includes('base') || val.includes('essential') || val.includes('fixed')) classification = 'Baseline';
-              else if (val.includes('life') || val.includes('discretionary') || val.includes('style')) classification = 'Lifestyle';
-            }
+              let classification = newMappings[matchName]?.classification || 'Lifestyle';
+              if (classKey && row[classKey] !== undefined && row[classKey] !== null && String(row[classKey]).trim() !== '') {
+                const val = String(row[classKey]).trim().toLowerCase();
+                if (val.includes('income')) classification = 'Income';
+                else if (val.includes('compound') || val.includes('saving')) classification = 'Compounding';
+                else if (val.includes('base') || val.includes('essential') || val.includes('fixed')) classification = 'Baseline';
+                else if (val.includes('life') || val.includes('discretionary') || val.includes('style')) classification = 'Lifestyle';
+              }
 
-            let included = newMappings[matchName]?.included !== false; // default true
-            if (inclKey && row[inclKey] !== undefined && row[inclKey] !== null && String(row[inclKey]).trim() !== '') {
-              const val = String(row[inclKey]).trim().toLowerCase();
-              if (val === 'false' || val === 'no' || val === '0' || val === 'hide' || val === 'unchecked' || val === 'exclude') {
-                included = false;
-              } else if (val === 'true' || val === 'yes' || val === '1' || val === 'show' || val === 'checked' || val === 'include') {
-                included = true;
+              let included = newMappings[matchName]?.included !== false; // default true
+              if (inclKey && row[inclKey] !== undefined && row[inclKey] !== null && String(row[inclKey]).trim() !== '') {
+                const val = String(row[inclKey]).trim().toLowerCase();
+                if (val === 'false' || val === 'no' || val === '0' || val === 'hide' || val === 'unchecked' || val === 'exclude') {
+                  included = false;
+                } else if (val === 'true' || val === 'yes' || val === '1' || val === 'show' || val === 'checked' || val === 'include') {
+                  included = true;
+                }
+              }
+
+              if (!newMappings[matchName] || 
+                  newMappings[matchName].classification !== classification || 
+                  newMappings[matchName].included !== included) {
+                newMappings[matchName] = { classification, included };
+                updated = true;
               }
             }
-
-            if (!newMappings[matchName] || 
-                newMappings[matchName].classification !== classification || 
-                newMappings[matchName].included !== included) {
-              newMappings[matchName] = { classification, included };
-              updated = true;
-            }
           }
-        }
-      });
+        });
 
-      if (updated) {
-        setMappings(newMappings);
-        safeStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
-      }
+        if (updated) {
+          safeStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
+          return newMappings;
+        }
+        return prevMappings;
+      });
     }
   }, [lifeOptimization, categories, allCategories]);
 
   // 2. Hydrate smart defaults for any new category seen that is not yet mapped
   useEffect(() => {
-    let updated = false;
-    const newMappings = { ...mappings };
-    
-    allCategories.forEach(cat => {
-      if (!newMappings[cat]) {
-        newMappings[cat] = {
-          classification: guessClassification(cat),
-          included: cat.toLowerCase().includes('transfer') || cat.toLowerCase().includes('payment') ? false : true
-        };
-        updated = true;
-      }
-    });
+    setMappings(prevMappings => {
+      let updated = false;
+      const newMappings = { ...prevMappings };
+      
+      allCategories.forEach(cat => {
+        if (!newMappings[cat]) {
+          newMappings[cat] = {
+            classification: guessClassification(cat),
+            included: cat.toLowerCase().includes('transfer') || cat.toLowerCase().includes('payment') ? false : true
+          };
+          updated = true;
+        }
+      });
 
-    if (updated) {
-      setMappings(newMappings);
-      safeStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
-    }
+      if (updated) {
+        safeStorage.setItem('finflow_life_opt_mappings', JSON.stringify(newMappings));
+        return newMappings;
+      }
+      return prevMappings;
+    });
   }, [allCategories]);
 
   // Handle updates to category mappings
