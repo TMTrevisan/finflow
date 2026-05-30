@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 export default function Accounts({ setCurrentView }) {
-  const { balances, navigateToTransactions, isLoading } = useAppContext();
+  const { balances = [], navigateToTransactions, isLoading } = useAppContext();
 
   // Deduplicate and get latest balance snapshots per account
   const latestBalances = useMemo(() => {

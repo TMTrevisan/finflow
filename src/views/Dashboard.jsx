@@ -28,7 +28,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Dashboard({ setCurrentView }) {
-  const { balances, transactions, surplusMetrics, isLoading, navigateToTransactions } = useAppContext();
+  const { balances = [], transactions = [], surplusMetrics, isLoading, navigateToTransactions } = useAppContext();
   const [metric, setMetric] = useState('history'); // 'history', 'assets', 'debts'
   const [chartHeight, setChartHeight] = useState(() => 
     typeof window !== 'undefined' && window.innerWidth < 640 ? 90 : 130

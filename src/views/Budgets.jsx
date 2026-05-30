@@ -116,7 +116,7 @@ function BudgetProgressBar({ spent, budget }) {
 }
 
 export default function Budgets({ setCurrentView }) {
-  const { categories, transactions, isLoading, isMockData } = useAppContext();
+  const { categories = [], transactions = [], isLoading, isMockData } = useAppContext();
   const [expandedGroups, setExpandedGroups] = useState({
     'Home & Bills': true,
     'Daily Life': true,

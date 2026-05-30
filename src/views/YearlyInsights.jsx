@@ -6,7 +6,7 @@ import { ProgressBar } from '../components/ui/ProgressBar';
 import { Calendar, TrendingUp, DollarSign, ArrowUpRight, TrendingDown } from 'lucide-react';
 
 export default function YearlyInsights() {
-  const { transactions, categories, isLoading } = useAppContext();
+  const { transactions = [], categories = [], isLoading } = useAppContext();
   
   // 1. Get available years in the dataset
   const years = useMemo(() => {

@@ -5,7 +5,7 @@ import { Card, CardContent } from '../components/ui/Card';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function PLReport() {
-  const { transactions, categories, isLoading, navigateToTransactions } = useAppContext();
+  const { transactions = [], categories = [], isLoading, navigateToTransactions } = useAppContext();
   
   const [timeframe, setTimeframe] = useState('6M');
   const [rowSortOrder, setRowSortOrder] = useState('alphabetical');

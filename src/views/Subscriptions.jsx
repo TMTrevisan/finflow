@@ -22,7 +22,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Subscriptions() {
-  const { transactions, categories, balances } = useAppContext();
+  const { transactions = [], categories = [], balances = [] } = useAppContext();
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'active', 'overdue', 'hidden'
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);

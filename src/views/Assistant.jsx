@@ -19,7 +19,7 @@ import {
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default function Assistant() {
-  const { transactions, categories, balances } = useAppContext();
+  const { transactions = [], categories = [], balances = [] } = useAppContext();
   const [apiKey, setApiKey] = useState(() => safeStorage.getItem('finflow_gemini_key') || '');
   const [keyInput, setKeyInput] = useState('');
   const [showSharedContext, setShowSharedContext] = useState(false);

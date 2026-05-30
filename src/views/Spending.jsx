@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function Spending() {
-  const { transactions, isLoading } = useAppContext();
+  const { transactions = [], isLoading } = useAppContext();
   const [filterType, setFilterType] = useState('this_month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
