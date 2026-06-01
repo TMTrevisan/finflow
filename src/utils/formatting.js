@@ -23,17 +23,16 @@ export const cleanMerchantName = (description) => {
   if (lower.includes('kaitlyn trevisan') && (lower.includes('payroll') || lower.includes('ayroll') || lower.includes('cerx'))) {
     return 'Kaitlyn Trevisan Payroll';
   }
-  if (lower.includes('clear spring') || lower.includes('clearspring')) {
-    return 'Clear Spring Life Annuity';
-  }
-  if (lower.includes('guggenheim')) {
-    return 'Guggenheim Life Annuity';
-  }
-  if (lower.includes('natl west') || lower.includes('national western')) {
-    return 'National Western Life Annuity';
-  }
-  if (lower.includes('north american l') || lower.includes('north american life')) {
-    return 'North American Life Annuity';
+  if (
+    lower.includes('clear spring') || 
+    lower.includes('clearspring') || 
+    lower.includes('guggenheim') || 
+    lower.includes('natl west') || 
+    lower.includes('national western') || 
+    lower.includes('north american l') || 
+    lower.includes('north american life')
+  ) {
+    return 'Annuity Payment';
   }
   if (lower.includes('trevisan,todd') || (lower.includes('todd trevisan') && (lower.includes('zik') || lower.includes('ppd')))) {
     return 'Todd Trevisan Payroll';

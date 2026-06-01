@@ -32,11 +32,11 @@ describe('Formatting Utilities', () => {
       expect(cleanMerchantName('MERCHANT 800-555-0199')).toBe('MERCHANT');
     });
 
-    it('cleans Clear Spring Life descriptions to Clear Spring Life Annuity without triggering payroll mapping', () => {
-      expect(cleanMerchantName('Clear Spring Lif Des:ins.prem, ID:x2600BC, Indn:todd Michael Trevisan, CO ID:x3214 Ppd')).toBe('Clear Spring Life Annuity');
-      expect(cleanMerchantName('Guggenheim Life Des:ins.prem Id:xxxx2600bc Indn:todd Michael Trevisan Co Id:1471')).toBe('Guggenheim Life Annuity');
-      expect(cleanMerchantName('Natl West Life Des:inst Bn Pd Id:xxxxxx5655 Indn:todd M Trevisan Co Id:1840')).toBe('National Western Life Annuity');
-      expect(cleanMerchantName('North American L Des:benef Pymt Id:xxxx6860 Indn:todd Trevisan Co Id:4362')).toBe('North American Life Annuity');
+    it('cleans Clear Spring Life and other annuity descriptions to Annuity Payment without triggering payroll mapping', () => {
+      expect(cleanMerchantName('Clear Spring Lif Des:ins.prem, ID:x2600BC, Indn:todd Michael Trevisan, CO ID:x3214 Ppd')).toBe('Annuity Payment');
+      expect(cleanMerchantName('Guggenheim Life Des:ins.prem Id:xxxx2600bc Indn:todd Michael Trevisan Co Id:1471')).toBe('Annuity Payment');
+      expect(cleanMerchantName('Natl West Life Des:inst Bn Pd Id:xxxxxx5655 Indn:todd M Trevisan Co Id:1840')).toBe('Annuity Payment');
+      expect(cleanMerchantName('North American L Des:benef Pymt Id:xxxx6860 Indn:todd Trevisan Co Id:4362')).toBe('Annuity Payment');
     });
 
     it('handles null/undefined descriptions gracefully', () => {
