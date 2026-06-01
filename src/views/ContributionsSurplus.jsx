@@ -31,7 +31,8 @@ export default function ContributionsSurplus() {
   const [kaitlynGrossIncome, setKaitlynGrossIncome] = useState(7000);
   
   // Splits and savings settings
-  const [toddJointTransferPct, setToddJointTransferPct] = useState(60); // Todd splits Joint vs Personal
+  const [toddJointTransferAmt, setToddJointTransferAmt] = useState(940); // Todd deposits $940 per paycheck to joint
+  const [toddPaychecksPerMonth, setToddPaychecksPerMonth] = useState(2); // Twice a month
   const [kaitlynWFTransferPct, setKaitlynWFTransferPct] = useState(100); // Kaitlyn goes entirely to WF then to Joint
   
   // Forced Savings
@@ -94,14 +95,25 @@ export default function ContributionsSurplus() {
     }
   }, [dynamicAverages.toddIncome, dynamicAverages.kaitlynIncome]);
 
-  // Balance extraction for SoFi/Chase (Joint) and BoFA/Vanguard (Personal)
+  // Balance extraction for SoFi/Chase (Joint) and BoFA/Vanguard (Personal) using latest unique balances
   const accountBalances = useMemo(() => {
     let jointTotal = 0;
     let personalTotal = 0;
     let combinedCashTotal = 0;
     let brokerageTotal = 0;
     
-    balances.forEach(b => {
+    // Deduplicate and get latest balance snapshots per unique account
+    const latestMap = new Map();
+    const sorted = [...(balances || [])]
+      .filter(b => b && b.date && b.institution && b.account)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    sorted.forEach(b => {
+      const key = `${b.institution}_${b.account}_${b.account_id || ''}`;
+      latestMap.set(key, b);
+    });
+    const latestBalancesList = Array.from(latestMap.values());
+
+    latestBalancesList.forEach(b => {
       const name = String(b.account || '').toLowerCase();
       const inst = String(b.institution || '').toLowerCase();
       const type = String(b.type || '').toLowerCase();
@@ -116,12 +128,12 @@ export default function ContributionsSurplus() {
         personalTotal += bal;
       }
 
-      const isInvestment = type.includes('investment') || name.includes('vanguard') || name.includes('robinhood') || name.includes('etrade') || name.includes('fidelity');
+      const isInvestment = type.includes('investment') || type.includes('brokerage') || type.includes('retirement') || type.includes('401k') || type.includes('ira') || type.includes('529') || name.includes('vanguard') || name.includes('robinhood') || name.includes('etrade') || name.includes('fidelity');
       const isLiability = b.class === 'Liability';
 
       if (isInvestment) {
         brokerageTotal += bal;
-      } else if (!isLiability) {
+      } else if (!isLiability && (type.includes('checking') || type.includes('savings') || type.includes('cash') || name.includes('checking') || name.includes('savings') || name.includes('sofi') || name.includes('chase') || name.includes('bofa') || name.includes('wells fargo') || name.includes('marcus') || name.includes('ally'))) {
         combinedCashTotal += bal;
       }
     });
@@ -145,7 +157,7 @@ export default function ContributionsSurplus() {
   const kaitlynToWF = (kaitlynNetIncome * kaitlynWFTransferPct) / 100;
   const kaitlynToJoint = kaitlynToWF; // Havas -> WF -> Joint SoFi/Chase
   
-  const toddToJoint = (toddNetIncome * toddJointTransferPct) / 100;
+  const toddToJoint = toddJointTransferAmt * toddPaychecksPerMonth;
   const toddToPersonal = toddNetIncome - toddToJoint;
 
   const totalJointInflow = kaitlynToJoint + toddToJoint;
@@ -316,25 +328,49 @@ export default function ContributionsSurplus() {
 
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400">Route to Joint (SoFi/Chase) Percentage</span>
-                <span className="font-bold text-neon-emerald">{toddJointTransferPct}%</span>
+                <span className="text-slate-400">Paycheck Joint Transfer Amount</span>
+                <span className="font-bold text-neon-emerald">{formatCurrency(toddJointTransferAmt)} / paycheck</span>
               </div>
               <input
                 type="range"
                 min="0"
-                max="100"
-                step="5"
-                value={toddJointTransferPct}
-                onChange={(e) => setToddJointTransferPct(Number(e.target.value))}
+                max="5000"
+                step="50"
+                value={toddJointTransferAmt}
+                onChange={(e) => setToddJointTransferAmt(Number(e.target.value))}
                 className="w-full h-1.5 bg-obsidian-900 rounded-lg appearance-none cursor-pointer accent-neon-emerald"
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] text-slate-400 font-bold block">Deposit Frequency</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 1, label: 'Monthly' },
+                  { value: 2, label: 'Twice Monthly' },
+                  { value: 2.167, label: 'Bi-Weekly' }
+                ].map((freq) => (
+                  <button
+                    key={freq.value}
+                    type="button"
+                    onClick={() => setToddPaychecksPerMonth(freq.value)}
+                    className={`py-1.5 px-2 rounded-xl text-[10px] font-bold border transition-all ${
+                      toddPaychecksPerMonth === freq.value
+                        ? 'bg-neon-emerald/15 border-neon-emerald/40 text-white'
+                        : 'bg-obsidian-900 border-obsidian-800 text-slate-400 hover:bg-obsidian-850 hover:text-white'
+                    }`}
+                  >
+                    {freq.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="text-[10px] text-slate-450 bg-[#0c0f16] border border-[#161B26] p-3 rounded-2xl space-y-1">
               <p className="font-bold text-slate-300 uppercase tracking-wider">3-Way Split Breakdown:</p>
               <div className="flex justify-between">
                 <span>1. Route to Joint:</span>
-                <span className="font-bold text-white">{formatCurrency(toddToJoint)} ({toddJointTransferPct}%)</span>
+                <span className="font-bold text-white">{formatCurrency(toddToJoint)} ({((toddToJoint / toddNetIncome) * 100).toFixed(0)}%)</span>
               </div>
               <div className="flex justify-between">
                 <span>2. Manual Mortgage:</span>
