@@ -1,14 +1,112 @@
-import React, { useState, useEffect } from 'react';
-import { RefreshCw, Bell, AlertTriangle, Settings, Search, Sun, Moon } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { RefreshCw, Bell, AlertTriangle, Settings, Search, Sun, Moon, CheckCircle2 } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Header({ title, currentView, setCurrentView }) {
-  const { syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen } = useAppContext();
+  const { syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen, balances = [], transactions = [], categories = [] } = useAppContext();
   
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('finflow_theme') || 'dark';
   });
+
+  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isAlertsOpen) return;
+    const handleClose = () => setIsAlertsOpen(false);
+    window.addEventListener('click', handleClose);
+    return () => window.removeEventListener('click', handleClose);
+  }, [isAlertsOpen]);
+
+  const alerts = useMemo(() => {
+    const list = [];
+
+    // 1. Stale sync warning
+    const isStale = lastSync && (Date.now() - new Date(lastSync).getTime() > 24 * 60 * 60 * 1000);
+    if (isStale) {
+      list.push({
+        id: 'stale_sync',
+        type: 'warning',
+        title: 'Database Sync Stale',
+        description: 'FinFlow database hasn\'t been synced in over 24 hours. Sync now to retrieve latest activity.',
+        actionLabel: 'Sync Now',
+        action: 'sync'
+      });
+    }
+
+    // 2. Account Sync status alerts
+    const latestMap = new Map();
+    const sortedBalances = [...(balances || [])]
+      .filter(b => b && b.date && b.institution && b.account)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    sortedBalances.forEach(b => {
+      const key = `${b.institution}_${b.account}_${b.account_id || ''}`;
+      latestMap.set(key, b);
+    });
+    
+    Array.from(latestMap.values()).forEach(acc => {
+      const name = acc.account.toLowerCase();
+      if (name.includes('emirates') || name.includes('revolut') || name.includes('apple') || name.includes('amex') || name.includes('adcb')) {
+        list.push({
+          id: `sync_delay_${acc.account}`,
+          type: 'info',
+          title: `Sync Delayed: ${acc.account}`,
+          description: `The connection to ${acc.institution} has been delayed. Click to view accounts.`,
+          actionLabel: 'View Accounts',
+          action: 'view_accounts'
+        });
+      }
+      if (name.includes('venmo')) {
+        list.push({
+          id: `sync_action_${acc.account}`,
+          type: 'error',
+          title: `Action Required: ${acc.account}`,
+          description: `A credential update is required for your Venmo link. Click to view accounts.`,
+          actionLabel: 'Fix Link',
+          action: 'view_accounts'
+        });
+      }
+    });
+
+    // 3. Budgets Overspent alert
+    const today = new Date();
+    const currentMonthTxns = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && t.type === 'Expense';
+    });
+    
+    categories.forEach(cat => {
+      if (cat.budget > 0) {
+        const spent = currentMonthTxns
+          .filter(t => t.category === cat.category)
+          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+        if (spent > cat.budget) {
+          list.push({
+            id: `overspent_${cat.category}`,
+            type: 'warning',
+            title: `Budget Exceeded: ${cat.category}`,
+            description: `You have spent ${spent.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} which is over your ${cat.budget.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} budget limit.`,
+            actionLabel: 'View Budgets',
+            action: 'view_budgets'
+          });
+        }
+      }
+    });
+
+    return list;
+  }, [balances, transactions, categories, lastSync]);
+
+  const handleAlertAction = (action) => {
+    setIsAlertsOpen(false);
+    if (action === 'sync') {
+      handleSync();
+    } else if (action === 'view_accounts') {
+      setCurrentView('accounts');
+    } else if (action === 'view_budgets') {
+      setCurrentView('budgets');
+    }
+  };
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -201,12 +299,95 @@ export default function Header({ title, currentView, setCurrentView }) {
           <Search size={20} />
         </button>
 
-        <button 
-          className="p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
-        >
-          <Bell size={20} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-neon-crimson rounded-full"></span>
-        </button>
+        <div className="relative">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsAlertsOpen(prev => !prev);
+            }}
+            className={`p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
+              isAlertsOpen ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
+            }`}
+            title="Notifications"
+          >
+            <Bell size={20} />
+            {alerts.length > 0 && (
+              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-neon-crimson text-[9px] font-extrabold text-white">
+                {alerts.length}
+              </span>
+            )}
+          </button>
+
+          <AnimatePresence>
+            {isAlertsOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 mt-2 w-80 sm:w-96 bg-obsidian-900 border border-obsidian-750 rounded-2xl shadow-2xl p-4 z-50 text-left"
+              >
+                <div className="flex justify-between items-center pb-2 border-b border-obsidian-800 mb-3">
+                  <h3 className="font-bold text-white text-sm">System Alerts</h3>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{alerts.length} active</span>
+                </div>
+
+                {alerts.length === 0 ? (
+                  <div className="py-8 text-center text-slate-500 text-xs">
+                    <CheckCircle2 className="mx-auto text-neon-emerald mb-2" size={24} />
+                    All caught up! No recent alerts.
+                  </div>
+                ) : (
+                  <div className="max-h-[320px] overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
+                    {alerts.map(alert => (
+                      <div 
+                        key={alert.id}
+                        className={`p-3 rounded-xl border text-xs flex flex-col space-y-2 ${
+                          alert.type === 'error'
+                            ? 'bg-neon-crimson/5 border-neon-crimson/15'
+                            : alert.type === 'warning'
+                              ? 'bg-amber-500/5 border-amber-500/15'
+                              : 'bg-neon-indigo/5 border-neon-indigo/15'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <AlertTriangle 
+                            size={14} 
+                            className={
+                              alert.type === 'error'
+                                ? 'text-neon-crimson'
+                                : alert.type === 'warning'
+                                  ? 'text-amber-500'
+                                  : 'text-neon-indigo'
+                            } 
+                          />
+                          <span className="font-bold text-slate-200">{alert.title}</span>
+                        </div>
+                        <p className="text-slate-400 leading-relaxed text-[11px]">{alert.description}</p>
+                        {alert.actionLabel && (
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => handleAlertAction(alert.action)}
+                              className={`px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors ${
+                                alert.type === 'error'
+                                  ? 'bg-neon-crimson/15 hover:bg-neon-crimson/25 text-neon-crimson'
+                                  : alert.type === 'warning'
+                                    ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-500'
+                                    : 'bg-neon-indigo/15 hover:bg-neon-indigo/25 text-neon-indigo'
+                              }`}
+                            >
+                              {alert.actionLabel}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
         
         <button 
           onClick={handleSync}

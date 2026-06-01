@@ -80,9 +80,9 @@ function BudgetProgressBar({ spent, budget }) {
   
   if (!isOver) {
     const progressPercent = budget > 0 ? (spentAbs / budget) * 100 : 0;
-    let barColor = 'bg-neon-emerald shadow-[0_0_8px_rgba(16,185,129,0.2)]';
+    let barColor = 'bg-neon-emerald';
     if (progressPercent > 80) {
-      barColor = 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.2)]';
+      barColor = 'bg-amber-400';
     }
     return (
       <div className="w-full h-1.5 bg-obsidian-900 rounded-full overflow-hidden relative">
@@ -107,7 +107,7 @@ function BudgetProgressBar({ spent, budget }) {
         <div className="w-[1.5px] h-full bg-white z-10 opacity-80" />
         {/* Over budget portion */}
         <div 
-          className="h-full bg-neon-crimson animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)] transition-all duration-500" 
+          className="h-full bg-neon-crimson animate-pulse transition-all duration-500" 
           style={{ width: `${overPercent}%` }}
         />
       </div>
@@ -450,7 +450,7 @@ export default function Budgets({ setCurrentView }) {
           const balanceSum = items.reduce((sum, item) => sum + item.balance, 0);
 
           return (
-            <div key={groupName} className="bg-[#0B0E14] border border-[#161B26] rounded-3xl overflow-hidden shadow-md">
+            <div key={groupName} className="bg-[#0B0E14] border border-[#161B26] rounded-3xl overflow-hidden">
               {/* Group Toggle Header */}
               <div 
                 onClick={() => toggleGroup(groupName)}
@@ -481,9 +481,9 @@ export default function Budgets({ setCurrentView }) {
                   {/* Table headers */}
                   <div className="grid grid-cols-12 text-[8px] font-black text-slate-500 uppercase tracking-widest pb-1 border-b border-slate-900">
                     <span className="col-span-5">Category</span>
-                    <span className="col-span-2 text-right">Budgeted</span>
+                    <span className="col-span-2 text-right text-slate-400 font-bold">Monthly Budget</span>
                     <span className="col-span-2 text-right">Spent</span>
-                    <span className="col-span-3 text-right">Balance</span>
+                    <span className="col-span-3 text-right text-slate-300 font-bold">Remaining Budget</span>
                   </div>
 
                   <div className="space-y-3.5">

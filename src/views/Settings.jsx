@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { safeStorage } from '../utils/storage';
 import { Card, CardContent } from '../components/ui/Card';
+import { cleanMerchantName } from '../utils/formatting';
 import { 
   Link, 
   Lock, 
@@ -106,6 +107,23 @@ export default function Settings() {
   const transactionCount = transactions.length;
   const categoryCount = categories.length;
   const balanceCount = balances.length;
+
+  const uniqueMerchantsCount = useMemo(() => {
+    const merchants = new Set(transactions.map(t => cleanMerchantName(t.description)).filter(Boolean));
+    return merchants.size;
+  }, [transactions]);
+
+  const institutionAccountCount = useMemo(() => {
+    const latestMap = new Map();
+    const sorted = [...(balances || [])]
+      .filter(b => b && b.date && b.institution && b.account)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    sorted.forEach(b => {
+      const key = `${b.institution}_${b.account}_${b.account_id || ''}`;
+      latestMap.set(key, b);
+    });
+    return Array.from(latestMap.values()).length;
+  }, [balances]);
   
   const cacheSizeEstimate = useMemo(() => {
     let charCount = 0;
@@ -676,7 +694,7 @@ export default function Settings() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Transactions</span>
               <span className="text-xl font-bold text-white">{transactionCount} rows</span>
@@ -686,8 +704,12 @@ export default function Settings() {
               <span className="text-xl font-bold text-white">{categoryCount} items</span>
             </div>
             <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Accounts</span>
-              <span className="text-xl font-bold text-white">{balanceCount} accounts</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Merchants/Vendors</span>
+              <span className="text-xl font-bold text-white">{uniqueMerchantsCount} items</span>
+            </div>
+            <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Inst. Accounts</span>
+              <span className="text-xl font-bold text-white">{institutionAccountCount} accounts</span>
             </div>
             <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cache Size</span>
@@ -764,7 +786,7 @@ export default function Settings() {
                   </span>
                   <ul className="text-slate-300 text-xs list-disc pl-4 space-y-1">
                     <li>Transactions cache ({transactionCount} records)</li>
-                    <li>Balances &amp; categories ({balanceCount} accounts, {categoryCount} items)</li>
+                    <li>Balances &amp; categories ({balanceCount} historical entries, {categoryCount} items)</li>
                     <li>Life optimization cache</li>
                     <li>Sync status metrics &amp; timestamps</li>
                   </ul>

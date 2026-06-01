@@ -49,136 +49,69 @@ export default function Accounts({ setCurrentView }) {
     };
   }, [latestBalances]);
 
-  const getBrandIcon = (accountName = '', type = '') => {
+const getInstitutionDomain = (institution = '', accountName = '') => {
+  const inst = String(institution).toLowerCase();
+  const acc = String(accountName).toLowerCase();
+  
+  if (inst.includes('ally') || acc.includes('ally')) return 'ally.com';
+  if (inst.includes('american express') || inst.includes('amex') || acc.includes('american express') || acc.includes('amex')) return 'americanexpress.com';
+  if (inst.includes('bank of america') || inst.includes('bofa') || acc.includes('bank of america') || acc.includes('bofa') || acc.includes('adv tiered') || acc.includes('advantage savings')) return 'bankofamerica.com';
+  if (inst.includes('capital one') || acc.includes('capital one') || acc.includes('venture')) return 'capitalone.com';
+  if (inst.includes('chase') || acc.includes('chase')) return 'chase.com';
+  if (inst.includes('citibank') || inst.includes('citi') || acc.includes('citi')) return 'citi.com';
+  if (inst.includes('etrade') || inst.includes('e*trade') || acc.includes('etrade') || acc.includes('e*trade')) return 'etrade.com';
+  if (inst.includes('fidelity') || acc.includes('fidelity') || acc.includes('roth ira') || acc.includes('traditional ira') || acc.includes('community property') || acc.includes('401(k)')) return 'fidelity.com';
+  if (inst.includes('healthequity') || acc.includes('healthequity') || acc.includes('hsa')) return 'healthequity.com';
+  if (inst.includes('robinhood') || acc.includes('robinhood')) return 'robinhood.com';
+  if (inst.includes('scholarshare') || acc.includes('scholarshare')) return 'scholarshare529.com';
+  if (inst.includes('sofi') || acc.includes('sofi')) return 'sofi.com';
+  if (inst.includes('wealthfront') || acc.includes('wealthfront')) return 'wealthfront.com';
+  if (inst.includes('wells fargo') || inst.includes('wells') || acc.includes('wells fargo') || acc.includes('wells')) return 'wellsfargo.com';
+  if (inst.includes('my529') || acc.includes('my529') || acc.includes('trevisan total us stock')) return 'my529.org';
+  
+  return null;
+};
+
+  const getBrandIcon = (accountName = '', type = '', institution = '') => {
+    const domain = getInstitutionDomain(institution, accountName);
+    if (domain) {
+      return (
+        <img 
+          src={`https://www.google.com/s2/favicons?sz=32&domain=${domain}`} 
+          alt={domain} 
+          className="w-3.5 h-3.5 object-contain"
+          onError={(e) => {
+            e.target.style.display = 'none';
+          }}
+        />
+      );
+    }
+
     const nameLower = (accountName || '').toLowerCase();
     const typeLower = (type || '').toLowerCase();
 
-    // Chase
-    if (nameLower.includes('chase')) {
-      return (
-        <svg viewBox="0 0 100 100" className="w-4 h-4 fill-white">
-          <path d="M 50 15 L 78 15 L 85 22 L 85 50 L 50 50 Z" opacity="0.8"/>
-          <path d="M 85 50 L 85 78 L 78 85 L 50 85 L 50 50 Z" opacity="0.9"/>
-          <path d="M 50 85 L 25 85 L 15 78 L 15 50 L 50 50 Z" opacity="1.0"/>
-          <path d="M 15 50 L 15 22 L 22 15 L 50 15 L 50 50 Z" opacity="0.7"/>
-          <rect x="35" y="35" width="30" height="30" fill="#1172be" />
-        </svg>
-      );
-    }
-
-    // Robinhood
-    if (nameLower.includes('robinhood')) {
-      return (
-        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-none stroke-[#00c805] stroke-[2]">
-          <path d="M2 22C2 22 7.5 19.5 12 15C16.5 10.5 18.5 4 18.5 4C18.5 4 12 6 7.5 10.5C3 15 2.5 21.5 2.5 21.5" />
-          <path d="M7.5 10.5C7.5 10.5 9.5 15.5 14.5 14.5" />
-        </svg>
-      );
-    }
-
-    // SoFi
-    if (nameLower.includes('sofi')) {
-      return (
-        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white">
-          <circle cx="6" cy="6" r="2.2" />
-          <circle cx="12" cy="6" r="2.2" />
-          <circle cx="18" cy="6" r="2.2" />
-          <circle cx="6" cy="12" r="2.2" />
-          <circle cx="12" cy="12" r="2.2" />
-          <circle cx="18" cy="12" r="2.2" />
-          <circle cx="6" cy="18" r="2.2" />
-          <circle cx="12" cy="18" r="2.2" />
-          <circle cx="18" cy="18" r="2.2" />
-        </svg>
-      );
-    }
-
-    // Wells Fargo
-    if (nameLower.includes('wells fargo') || nameLower.includes('wf') || nameLower.includes('wells')) {
-      return <span className="text-[#f6d000] font-black text-[9px] tracking-tighter">WF</span>;
-    }
-
-    // Bank of America
-    if (nameLower.includes('bofa') || nameLower.includes('bank of america') || nameLower.includes('america')) {
-      return <span className="text-white font-extrabold text-[8px] tracking-tighter">BofA</span>;
-    }
-
-    // Vanguard
-    if (nameLower.includes('vanguard')) {
-      return (
-        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#dcb35c]">
-          <path d="M12 2L2 22h20L12 2zm0 4l6.5 13h-13L12 6z" />
-        </svg>
-      );
-    }
-
-    // Fidelity
-    if (nameLower.includes('fidelity')) {
-      return (
-        <svg viewBox="0 0 24 24" className="w-4 h-4 fill-[#ffc72c] stroke-[#ffc72c] stroke-[1] fill-none">
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 6l3 6h-6z" fill="#ffc72c" />
-          <path d="M12 18l-3-6h6z" fill="#ffc72c" />
-        </svg>
-      );
-    }
-
-    // E*TRADE
-    if (nameLower.includes('etrade') || nameLower.includes('e*trade')) {
-      return <span className="text-[#8cc63f] font-black text-[9px] tracking-tight">E*T</span>;
-    }
-
-    // Apple Card / Apple
-    if (nameLower.includes('apple')) {
-      return (
-        <svg viewBox="0 0 170 170" className="w-3.5 h-3.5 fill-white">
-          <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.13-1.92-14.38-6.15-2.82-2.38-6.53-6.82-11.13-13.32-6.15-8.75-11.45-18.42-15.88-29.02-4.43-10.6-6.64-20.73-6.64-30.37 0-13.88 3.53-25.05 10.59-33.51 7.07-8.47 16.21-12.78 27.42-12.91 5.07 0 10.2 1.34 15.39 4.02 5.2 2.68 8.7 4.02 10.5 4.02 1.68 0 5.17-1.34 10.5-4.02 5.33-2.68 10.15-3.9 14.46-3.69 11.29.54 20.08 4.65 26.38 12.35-8.89 5.41-13.27 12.86-13.15 22.37.13 7.6 2.87 13.97 8.22 19.12 5.35 5.15 11.82 8.01 19.4 8.57-2.33 6.72-5.7 13.39-10.11 20.01zm-32.96-107c0-6.15 2.18-11.75 6.53-16.78 4.35-5.04 9.77-8.14 16.27-9.33.11 6.81-2.07 12.73-6.53 17.75-4.47 5.04-9.97 8.27-16.27 8.36z" />
-        </svg>
-      );
-    }
-
-    // American Express / Amex
-    if (nameLower.includes('amex') || nameLower.includes('american express')) {
-      return <span className="text-white font-extrabold text-[8px] tracking-tighter">AMEX</span>;
-    }
-
-    // Marcus
-    if (nameLower.includes('marcus')) {
-      return <span className="text-[#a28056] font-black text-xs">M</span>;
-    }
-
-    // Wise
-    if (nameLower.includes('wise')) {
-      return <span className="text-white font-black text-xs">W</span>;
-    }
-
-    // Revolut
-    if (nameLower.includes('revolut')) {
-      return <span className="text-white font-bold text-xs">R</span>;
-    }
-
-    // Venmo
-    if (nameLower.includes('venmo')) {
-      return <span className="text-white font-black text-xs">V</span>;
-    }
-
     // Fallbacks
     if (nameLower.includes('savings') || typeLower.includes('savings')) {
-      return <PiggyBank size={18} className="text-emerald-400" />;
+      return <PiggyBank size={14} className="text-emerald-400" />;
     }
     if (nameLower.includes('credit') || nameLower.includes('card') || typeLower.includes('credit')) {
-      return <CreditCard size={18} className="text-rose-400" />;
+      return <CreditCard size={14} className="text-rose-400" />;
     }
     if (nameLower.includes('checking') || typeLower.includes('checking')) {
-      return <Landmark size={18} className="text-neon-indigo" />;
+      return <Landmark size={14} className="text-neon-indigo" />;
     }
     if (nameLower.includes('investment') || nameLower.includes('brokerage') || typeLower.includes('investment')) {
-      return <Building2 size={18} className="text-violet-400" />;
+      return <Building2 size={14} className="text-violet-400" />;
     }
-    return <Wallet size={18} className="text-slate-400" />;
+    return <Wallet size={14} className="text-slate-400" />;
   };
 
-  const getBrandIconContainerClass = (accountName = '') => {
+  const getBrandIconContainerClass = (accountName = '', institution = '') => {
+    const domain = getInstitutionDomain(institution, accountName);
+    if (domain) {
+      return 'bg-obsidian-900 border border-obsidian-800 flex items-center justify-center p-0.5 overflow-hidden';
+    }
+
     const nameLower = (accountName || '').toLowerCase();
     if (nameLower.includes('chase')) return 'bg-[#1172be] border-none';
     if (nameLower.includes('robinhood')) return 'bg-[#00c805]/10 border border-[#00c805]/30';
@@ -231,9 +164,8 @@ export default function Accounts({ setCurrentView }) {
         <p className="text-sm text-slate-400">View and click into individual institution accounts to audit underlying transactions.</p>
       </div>
 
-      {/* Net Worth Summary Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <Card className="bg-[#0B0E14] border border-[#161B26] p-6">
+        <Card className="bg-obsidian-900 border border-obsidian-750 p-6">
           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Assets</span>
           <div className="flex items-center space-x-2 text-neon-emerald mt-1">
             <ArrowUpRight size={18} />
@@ -241,7 +173,7 @@ export default function Accounts({ setCurrentView }) {
           </div>
         </Card>
 
-        <Card className="bg-[#0B0E14] border border-[#161B26] p-6">
+        <Card className="bg-obsidian-900 border border-obsidian-750 p-6">
           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Total Liabilities</span>
           <div className="flex items-center space-x-2 text-neon-crimson mt-1">
             <ArrowDownRight size={18} />
@@ -249,7 +181,7 @@ export default function Accounts({ setCurrentView }) {
           </div>
         </Card>
 
-        <Card className="bg-gradient-to-br from-[#0B0E14] to-neon-indigo/5 border border-[#161B26] p-6">
+        <Card className="bg-gradient-to-br from-obsidian-900 to-neon-indigo/5 border border-obsidian-750 p-6">
           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Net Worth</span>
           <div className="flex items-center space-x-2 text-neon-indigo mt-1">
             <Landmark size={18} />
@@ -260,7 +192,7 @@ export default function Accounts({ setCurrentView }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Assets List */}
-        <Card className="bg-[#0B0E14] border border-[#161B26] p-6 space-y-4">
+        <Card className="bg-obsidian-900 border border-obsidian-750 p-6 space-y-4">
           <div className="flex justify-between items-center pb-2 border-b border-obsidian-850">
             <h3 className="font-bold text-white text-base">Asset Accounts ({assets.length})</h3>
             <span className="text-sm font-bold text-emerald-400">{formatCurrency(totalAssets)}</span>
@@ -276,8 +208,8 @@ export default function Accounts({ setCurrentView }) {
                   className="py-3.5 flex items-center justify-between hover:bg-slate-800/20 -mx-3 px-3 rounded-2xl transition-all cursor-pointer group"
                 >
                   <div className="flex items-center space-x-3.5 min-w-0 pr-4">
-                    <div className={`p-2 rounded-xl transition-all duration-300 shrink-0 flex items-center justify-center w-8 h-8 ${getBrandIconContainerClass(acc.account)}`}>
-                      {getBrandIcon(acc.account, acc.type)}
+                    <div className={`p-2 rounded-xl transition-all duration-300 shrink-0 flex items-center justify-center w-8 h-8 ${getBrandIconContainerClass(acc.account, acc.institution)}`}>
+                      {getBrandIcon(acc.account, acc.type, acc.institution)}
                     </div>
                     <div className="min-w-0">
                       <p className="font-bold text-slate-100 group-hover:text-neon-indigo transition-colors truncate text-sm">{acc.account}</p>
@@ -301,7 +233,7 @@ export default function Accounts({ setCurrentView }) {
         </Card>
 
         {/* Liabilities List */}
-        <Card className="bg-[#0B0E14] border border-[#161B26] p-6 space-y-4">
+        <Card className="bg-obsidian-900 border border-obsidian-750 p-6 space-y-4">
           <div className="flex justify-between items-center pb-2 border-b border-obsidian-850">
             <h3 className="font-bold text-white text-base">Liability Accounts ({liabilities.length})</h3>
             <span className="text-sm font-bold text-rose-455">-{formatCurrency(totalLiabilities)}</span>
@@ -317,8 +249,8 @@ export default function Accounts({ setCurrentView }) {
                   className="py-3.5 flex items-center justify-between hover:bg-slate-800/20 -mx-3 px-3 rounded-2xl transition-all cursor-pointer group"
                 >
                   <div className="flex items-center space-x-3.5 min-w-0 pr-4">
-                    <div className={`p-2 rounded-xl transition-all duration-300 shrink-0 flex items-center justify-center w-8 h-8 ${getBrandIconContainerClass(acc.account)}`}>
-                      {getBrandIcon(acc.account, acc.type)}
+                    <div className={`p-2 rounded-xl transition-all duration-300 shrink-0 flex items-center justify-center w-8 h-8 ${getBrandIconContainerClass(acc.account, acc.institution)}`}>
+                      {getBrandIcon(acc.account, acc.type, acc.institution)}
                     </div>
                     <div className="min-w-0">
                       <p className="font-bold text-slate-100 group-hover:text-neon-indigo transition-colors truncate text-sm">{acc.account}</p>

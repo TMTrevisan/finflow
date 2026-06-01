@@ -67,7 +67,7 @@ export default function DonutChart({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#111318"
+            stroke="var(--obsidian-800)"
             strokeWidth={strokeWidth}
           />
           

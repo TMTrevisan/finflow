@@ -65,7 +65,7 @@ export default function Dashboard({ setCurrentView }) {
   const { balances = [], transactions = [], surplusMetrics, isLoading, navigateToTransactions } = useAppContext();
   const [metric, setMetric] = useState('history'); // 'history', 'assets', 'debts'
   const [chartHeight, setChartHeight] = useState(() => 
-    typeof window !== 'undefined' && window.innerWidth < 640 ? 90 : 130
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 60 : 85
   );
   const [showChart, setShowChart] = useState(() => 
     typeof window !== 'undefined' && window.innerWidth >= 640
@@ -73,7 +73,7 @@ export default function Dashboard({ setCurrentView }) {
 
   useEffect(() => {
     const handleResize = () => {
-      setChartHeight(window.innerWidth < 640 ? 90 : 130);
+      setChartHeight(window.innerWidth < 640 ? 60 : 85);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -178,10 +178,20 @@ export default function Dashboard({ setCurrentView }) {
       m.val = total;
     });
 
+    const allZero = months.every(m => m.val === 0);
+    if (allZero) {
+      // Generate a realistic trend fallback (slowly rising emergency fund simulation)
+      months.forEach((m, idx) => {
+        m.val = 3000 + idx * 500 + (idx % 2 === 0 ? 200 : -100);
+        m.isPlaceholder = true;
+      });
+    }
+
     const maxVal = Math.max(...months.map(m => m.val), 1);
     return months.map(m => ({
       m: m.label,
-      actualVal: m.val,
+      actualVal: m.isPlaceholder ? 0 : m.val,
+      isPlaceholder: m.isPlaceholder,
       val: Math.round((m.val / maxVal) * 100)
     }));
   }, [balances]);
@@ -637,7 +647,7 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
   const getBrandIconContainerClass = (accountName = '', institution = '') => {
     const domain = getInstitutionDomain(institution, accountName);
     if (domain) {
-      return 'bg-obsidian-900 border border-obsidian-850 flex items-center justify-center p-0.5 overflow-hidden';
+      return 'bg-obsidian-900 border border-obsidian-800 flex items-center justify-center p-0.5 overflow-hidden';
     }
 
     const nameLower = (accountName || '').toLowerCase();
@@ -774,6 +784,33 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
         </div>
       </div>
 
+      {/* Reports Quick Access - directly under Net Worth */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-black text-slate-400 tracking-wider uppercase">Reports & Analytics</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+          {[
+            { id: 'insights', label: 'Insights', icon: Compass, color: 'text-sky-400' },
+            { id: 'cashflow', label: 'Cash Flow', icon: Waves, color: 'text-neon-indigo' },
+            { id: 'spending', label: 'Spending', icon: ArrowDownRight, color: 'text-neon-crimson' },
+            { id: 'income', label: 'Income', icon: ArrowUpRight, color: 'text-neon-emerald' },
+            { id: 'plreport', label: 'P&L Report', icon: Table, color: 'text-amber-400' },
+            { id: 'yearly', label: 'Yearly', icon: Calendar, color: 'text-slate-300' },
+            { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange, color: 'text-[#6366F1]' },
+          ].map(({ id, label, icon: Icon, color }) => (
+            <button
+              key={id}
+              onClick={() => setCurrentView(id)}
+              className="flex flex-col items-center justify-center p-3 bg-obsidian-800/40 hover:bg-obsidian-800/70 border border-obsidian-800/80 hover:border-obsidian-750 rounded-2xl transition-all group active:scale-[0.97] space-y-2 cursor-pointer"
+            >
+              <div className={`p-1.5 rounded-xl bg-obsidian-800 ${color}`}>
+                <Icon size={16} />
+              </div>
+              <span className="text-[10px] font-semibold text-slate-400 group-hover:text-white transition-colors">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Left Column: Bucket Account Group List (Assets & Liabilities) */}
         <div className="space-y-6">
@@ -833,8 +870,8 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
                               >
                                 <div className="flex items-center space-x-2.5 min-w-0">
                                   <div className="relative shrink-0">
-                                    <div className={`p-1 rounded transition-all duration-300 flex items-center justify-center w-6 h-6 ${getBrandIconContainerClass(acc.account)}`}>
-                                      {getBrandIcon(acc.account, acc.type)}
+                                    <div className={`p-1 rounded transition-all duration-300 flex items-center justify-center w-6 h-6 ${getBrandIconContainerClass(acc.account, acc.institution)}`}>
+                                      {getBrandIcon(acc.account, acc.type, acc.institution)}
                                     </div>
                                     {getAccountStatusDot(acc.account)}
                                   </div>
@@ -925,8 +962,8 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
                               >
                                 <div className="flex items-center space-x-2.5 min-w-0">
                                   <div className="relative shrink-0">
-                                    <div className={`p-1 rounded transition-all duration-300 flex items-center justify-center w-6 h-6 ${getBrandIconContainerClass(acc.account)}`}>
-                                      {getBrandIcon(acc.account, acc.type)}
+                                    <div className={`p-1 rounded transition-all duration-300 flex items-center justify-center w-6 h-6 ${getBrandIconContainerClass(acc.account, acc.institution)}`}>
+                                      {getBrandIcon(acc.account, acc.type, acc.institution)}
                                     </div>
                                     {getAccountStatusDot(acc.account)}
                                   </div>
@@ -982,8 +1019,11 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
                 <div className="space-y-1.5">
                   <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <Heart size={10} className="text-neon-indigo" />
-                    <span>A: Rolling 30d</span>
+                    <span>Rolling 30-Day Surplus</span>
                   </span>
+                  <p className="text-[9px] text-slate-400 leading-tight">
+                    Net Income minus actual Baseline & Compounding expenses over the past 30 days.
+                  </p>
                   <p className={`text-sm font-black tracking-tight ${surplusMetrics.rolling.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {surplusMetrics.rolling.surplus >= 0 
                       ? formatCurrency(surplusMetrics.rolling.surplus) 
@@ -1004,8 +1044,11 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
                 <div className="space-y-1.5 border-l border-slate-850/40 pl-4">
                   <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                     <Shield size={10} className="text-neon-indigo" />
-                    <span>B: Proj Month</span>
+                    <span>Projected Monthly Budget</span>
                   </span>
+                  <p className="text-[9px] text-slate-400 leading-tight">
+                    Forecasted surplus combining month-to-date actual values and remaining budgets.
+                  </p>
                   <p className={`text-sm font-black tracking-tight ${surplusMetrics.projected.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {surplusMetrics.projected.surplus >= 0 
                       ? formatCurrency(surplusMetrics.projected.surplus) 
@@ -1129,7 +1172,7 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
                       style={{ height: `${bar.val}%` }}
                     >
                       <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black px-2 py-1 rounded text-[10px] font-bold text-white whitespace-nowrap z-10">
-                        {bar.m}: {formatCurrency(bar.actualVal)}
+                        {bar.m}: {bar.isPlaceholder ? 'Placeholder Trend' : formatCurrency(bar.actualVal)}
                       </div>
                     </div>
                     <span className="text-[8px] font-black text-slate-500 mt-2 block uppercase text-center min-h-[10px]">
@@ -1148,8 +1191,8 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
             </div>
           </div>
 
-          {/* RECENT TRANSACTIONS CARD */}
-          <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-6 space-y-4">
+          {/* RECENT TRANSACTIONS CARD (flat list, no border/outline/shadow) */}
+          <div className="space-y-4 px-1 py-2">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-bold text-white">Recent Transactions</h4>
               <button 
@@ -1182,33 +1225,6 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
               ))}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Reports Quick Access */}
-      <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white tracking-tight">Reports & Analytics</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-          {[
-            { id: 'insights', label: 'Insights', icon: Compass, color: 'text-sky-400' },
-            { id: 'cashflow', label: 'Cash Flow', icon: Waves, color: 'text-neon-indigo' },
-            { id: 'spending', label: 'Spending', icon: ArrowDownRight, color: 'text-neon-crimson' },
-            { id: 'income', label: 'Income', icon: ArrowUpRight, color: 'text-neon-emerald' },
-            { id: 'plreport', label: 'P&L Report', icon: Table, color: 'text-amber-400' },
-            { id: 'yearly', label: 'Yearly', icon: Calendar, color: 'text-slate-300' },
-            { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange, color: 'text-[#6366F1]' },
-          ].map(({ id, label, icon: Icon, color }) => (
-            <button
-              key={id}
-              onClick={() => setCurrentView(id)}
-              className="flex flex-col items-center justify-center p-4 bg-obsidian-800/40 hover:bg-obsidian-800/70 border border-obsidian-800/80 hover:border-obsidian-750 rounded-2xl transition-all group active:scale-[0.97] space-y-2 cursor-pointer"
-            >
-              <div className={`p-2 rounded-xl bg-obsidian-800 ${color}`}>
-                <Icon size={18} />
-              </div>
-              <span className="text-xs font-semibold text-slate-400 group-hover:text-white transition-colors">{label}</span>
-            </button>
-          ))}
         </div>
       </div>
     </div>

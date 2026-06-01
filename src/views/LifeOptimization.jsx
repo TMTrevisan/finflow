@@ -323,7 +323,7 @@ export default function LifeOptimization() {
           <Card className="bg-[#0B0E14] border border-[#161B26] p-6 rounded-3xl relative overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-800/40 pb-3.5 mb-4">
               <div>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Option A</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Rolling 30-Day Surplus</span>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
                   <Heart className="text-neon-indigo animate-pulse" size={16} />
                   <span>Rolling 30-Day Surplus</span>
@@ -333,8 +333,11 @@ export default function LifeOptimization() {
             </div>
 
             <div className="space-y-4">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Calculated by subtracting actual Baseline living costs and future Compounding savings from net Inflow over the last 30 days. Provides a real-time, backward-looking check on your discretionary spending rate.
+              </p>
               <div className="flex items-baseline justify-between">
-                <span className="text-xs text-slate-450">Permission to Spend (last 30d):</span>
+                <span className="text-xs text-slate-455">Permission to Spend (last 30d):</span>
                 <span className={`text-2xl font-black ${surplusMetrics.rolling.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {formatCurrency(surplusMetrics.rolling.surplus)}
                 </span>
@@ -378,16 +381,19 @@ export default function LifeOptimization() {
           <Card className="bg-[#0B0E14] border border-[#161B26] p-6 rounded-3xl relative overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-800/40 pb-3.5 mb-4">
               <div>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Option B</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Projected Monthly Budget</span>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5 mt-0.5">
                   <Shield className="text-neon-indigo" size={16} />
-                  <span>Blended Projected Month Surplus</span>
+                  <span>Projected Monthly Budget</span>
                 </h3>
               </div>
               <span className="text-[9.5px] font-bold text-slate-400 bg-obsidian-800 border border-slate-700/30 px-2.5 py-0.5 rounded-full uppercase tracking-wider">Forecast</span>
             </div>
 
             <div className="space-y-4">
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Calculated by blending actual month-to-date inflows/outflows with remaining envelope budget targets for the rest of the calendar month. Helps you anticipate month-end surplus.
+              </p>
               <div className="flex items-baseline justify-between">
                 <span className="text-xs text-slate-455">Projected final surplus (Budget + Actuals):</span>
                 <span className={`text-2xl font-black ${surplusMetrics.projected.surplus >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>

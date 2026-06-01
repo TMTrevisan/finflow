@@ -40,7 +40,7 @@
 
 .light {
   /* Premium, harmonized Light Mode Variables */
-  --obsidian-950: #FFFFFF;
+  --obsidian-950: #F8FAFC;
   --obsidian-900: #FFFFFF;
   --obsidian-850: #F8FAFC;
   --obsidian-800: #F1F5F9;
@@ -79,9 +79,24 @@
   .light .bg-\[\#0B0E14\] {
     background-color: var(--card-bg) !important;
   }
-  .light .border-\[\#161B26\] {
+  .light .border-\[\#161B26\],
+  .light .border-slate-800,
+  .light .border-slate-800\/80,
+  .light .border-slate-800\/50,
+  .light .border-slate-800\/40,
+  .light .border-slate-700,
+  .light .border-slate-850,
+  .light .divide-slate-800\/40,
+  .light .divide-slate-800\/20,
+  .light .divide-slate-700 {
     border-color: var(--card-border) !important;
   }
+  .light .bg-\[\#0c0f16\],
+  .light .bg-\[\#0d121c\],
+  .light .bg-\[\#131926\],
+  .light .bg-\[\#131926\]\/40,
+  .light .bg-slate-900,
+  .light .bg-slate-950,
   .light .bg-\[\#070A10\]\/50 {
     background-color: var(--bg-nested) !important;
   }

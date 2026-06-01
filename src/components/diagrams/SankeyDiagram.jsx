@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { formatCurrency, cleanMerchantName } from '../../utils/formatting';
 
+const sanitizeId = (str) => (str || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+
 export default function SankeyDiagram({ transactions, onSelectNode, activeFilter }) {
   const [hoveredNode, setHoveredNode] = useState(null);
   const [hoveredLink, setHoveredLink] = useState(null);
@@ -112,7 +114,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
     return incomeSources.map(([name, val]) => {
       const nodeHeight = (val / maxFlow) * heightScale;
       const node = {
-        id: `source_${name}`,
+        id: sanitizeId(`source_${name}`),
         name,
         value: val,
         x: col1X,
@@ -164,7 +166,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       }
       
       const node = {
-        id: `group_${name}`,
+        id: sanitizeId(`group_${name}`),
         name,
         value: val,
         x: col3X,
@@ -195,7 +197,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
 
       const cats = Object.entries(categoryMap[groupName] || {}).sort((a, b) => b[1] - a[1]);
       map[groupName] = cats.map(([catName, val]) => ({
-        id: `dest_${catName}`,
+        id: sanitizeId(`dest_${catName}`),
         name: catName,
         value: val,
         color: groupNode.color
@@ -253,7 +255,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
     col1Nodes.forEach(source => {
       const linkH = (source.value / maxFlow) * heightScale;
       results.push({
-        id: `link_${source.id}_to_pool`,
+        id: sanitizeId(`link_${source.id}_to_pool`),
         sourceId: source.id,
         targetId: col2Node.id,
         sourceName: source.name,
@@ -275,7 +277,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
     col3Nodes.forEach(group => {
       const linkH = (group.value / maxFlow) * heightScale;
       results.push({
-        id: `link_pool_to_${group.id}`,
+        id: sanitizeId(`link_pool_to_${group.id}`),
         sourceId: col2Node.id,
         targetId: group.id,
         sourceName: col2Node.name,
@@ -303,7 +305,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
         
         const linkH = (c.value / groupNode.value) * groupNode.h;
         results.push({
-          id: `link_${groupNode.id}_to_${targetNode.id}`,
+          id: sanitizeId(`link_${groupNode.id}_to_${targetNode.id}`),
           sourceId: groupNode.id,
           targetId: targetNode.id,
           sourceName: groupNode.name,
@@ -448,7 +450,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
                       style={{
                         filter: highlight ? `drop-shadow(0px 0px 5px ${node.color})` : 'none',
                         opacity: highlight || (!hoveredNode && !hoveredLink && !activeFilter) ? 1 : 0.45,
-                        stroke: isActiveFilter ? '#FFFFFF' : 'none',
+                        stroke: isActiveFilter ? 'var(--text-primary)' : 'none',
                         strokeWidth: isActiveFilter ? 1.5 : 0
                       }}
                       className="transition-all duration-200"
@@ -458,7 +460,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
                     <text
                       x={node.type === 'source' ? node.x - 10 : node.x + nodeWidth + 10}
                       y={node.y + node.h / 2 + 4}
-                      fill={highlight ? '#FFFFFF' : '#94A3B8'}
+                      fill={highlight ? 'var(--text-primary)' : 'var(--text-secondary)'}
                       fontSize="10"
                       fontWeight={highlight ? 'bold' : 'semibold'}
                       textAnchor={node.type === 'source' ? 'end' : 'start'}

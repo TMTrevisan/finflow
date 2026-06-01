@@ -94,7 +94,7 @@ export default function ContributionsSurplus() {
     }
   }, [dynamicAverages.toddIncome, dynamicAverages.kaitlynIncome]);
 
-  // Balance extraction for SoFi/Chase (Joint) and BoFA/Marcus (Personal)
+  // Balance extraction for SoFi/Chase (Joint) and BoFA/Vanguard (Personal)
   const accountBalances = useMemo(() => {
     let jointTotal = 0;
     let personalTotal = 0;
@@ -283,7 +283,7 @@ export default function ContributionsSurplus() {
               <h3 className="text-sm font-bold text-white uppercase tracking-wider mt-0.5">Todd (BD)</h3>
             </div>
             <span className="text-[10px] font-bold text-slate-400 bg-obsidian-800 border border-slate-700/30 px-2.5 py-0.5 rounded-full">
-              BD Corporate Split
+              3-Way Split: Joint, Mortgage, Personal
             </span>
           </div>
           <div className="space-y-4">
@@ -328,6 +328,22 @@ export default function ContributionsSurplus() {
                 onChange={(e) => setToddJointTransferPct(Number(e.target.value))}
                 className="w-full h-1.5 bg-obsidian-900 rounded-lg appearance-none cursor-pointer accent-neon-emerald"
               />
+            </div>
+
+            <div className="text-[10px] text-slate-450 bg-[#0c0f16] border border-[#161B26] p-3 rounded-2xl space-y-1">
+              <p className="font-bold text-slate-300 uppercase tracking-wider">3-Way Split Breakdown:</p>
+              <div className="flex justify-between">
+                <span>1. Route to Joint:</span>
+                <span className="font-bold text-white">{formatCurrency(toddToJoint)} ({toddJointTransferPct}%)</span>
+              </div>
+              <div className="flex justify-between">
+                <span>2. Manual Mortgage:</span>
+                <span className="font-bold text-white">{formatCurrency(mortgagePayment)}</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-800/40 pt-1 mt-1">
+                <span>3. Personal Savings:</span>
+                <span className="font-bold text-emerald-400">{formatCurrency(Math.max(0, toddToPersonal - mortgagePayment))}</span>
+              </div>
             </div>
           </div>
         </Card>
@@ -398,7 +414,7 @@ export default function ContributionsSurplus() {
               <div className="flex items-center justify-between border-b border-slate-800/40 pb-2">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded bg-neon-emerald shrink-0" />
-                  <span className="text-xs text-slate-400 font-semibold">Personal (BoFA/Marcus/Vanguard)</span>
+                  <span className="text-xs text-slate-400 font-semibold">Personal (BoFA/Vanguard)</span>
                 </div>
                 <span className="text-sm font-bold text-white">{formatCurrency(accountBalances.personal)}</span>
               </div>

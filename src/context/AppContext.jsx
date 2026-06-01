@@ -253,6 +253,68 @@ const safeSetItem = (key, value) => {
   }
 };
 
+// Helper to inject manual mortgage liability dynamically and amortize it over time
+const injectMortgage = (rawBalances) => {
+  if (!rawBalances || rawBalances.length === 0) return rawBalances;
+  
+  // Find all unique dates in the balances
+  const uniqueDates = Array.from(new Set(rawBalances.map(b => b.date)));
+  
+  // Create mortgage entry for each unique date
+  const mortgageEntries = uniqueDates.map(dateStr => {
+    // Calculate days since a baseline date: 2026-04-01
+    const baseDate = new Date('2026-04-01');
+    const currentDate = new Date(dateStr);
+    const diffTime = Math.max(0, currentDate - baseDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Draw down by $15 per day (approx $450 principal drawdown per month)
+    const principalDrawdown = diffDays * 15;
+    const mortgageBalance = Math.max(0, 350000 - principalDrawdown);
+    
+    return {
+      id: `manual_mortgage_${dateStr}`,
+      date: dateStr,
+      account: "Todd's Mortgage",
+      account_id: 'XXXX-MORT',
+      institution: 'Todd Mortgage Account',
+      balance: -mortgageBalance, // negative because it's a Liability class
+      class: 'Liability',
+      type: 'Mortgage',
+      sidebarColor: 'border-blue-500'
+    };
+  });
+  
+  // Combine, filtering out any existing manual mortgage entries to prevent duplication
+  const filtered = rawBalances.filter(b => b.id !== `manual_mortgage_${b.date}` && b.account !== "Todd's Mortgage");
+  return [...filtered, ...mortgageEntries];
+};
+
+// Sync Error and step logging utility
+const logSync = (stepName, status, details = '') => {
+  const now = new Date().toISOString();
+  const newLog = `[${now}] ${status === 'cmd' ? '$' : status === 'error' ? '[ERROR]' : status === 'success' ? '[SUCCESS]' : '[INFO]'} ${stepName}${details ? ' - ' + details : ''}`;
+  
+  // Store in localStorage
+  try {
+    const logs = JSON.parse(safeStorage.getItem('finflow_sync_logs') || '[]');
+    logs.push(newLog);
+    if (logs.length > 50) logs.shift();
+    safeStorage.setItem('finflow_sync_logs', JSON.stringify(logs));
+  } catch (e) {}
+
+  // Print CLI command-line style logs to dev console
+  if (status === 'cmd') {
+    console.log(`%c${newLog}`, 'color: #38BDF8; font-family: monospace; font-weight: bold;');
+  } else if (status === 'error') {
+    console.error(`%c${newLog}`, 'color: #F87171; font-family: monospace; font-weight: bold;');
+  } else if (status === 'success') {
+    console.log(`%c${newLog}`, 'color: #34D399; font-family: monospace; font-weight: bold;');
+  } else {
+    console.log(`%c${newLog}`, 'color: #94A3B8; font-family: monospace;');
+  }
+};
+
 export const AppProvider = ({ children, setCurrentView }) => {
   const [rawTransactions, setRawTransactions] = useState(() => {
     try {
@@ -296,6 +358,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
       return [];
     }
   });
+
+  const decoratedBalances = useMemo(() => {
+    return injectMortgage(balances);
+  }, [balances]);
 
   const [lifeOptimization, setLifeOptimization] = useState(() => {
     try {
@@ -355,12 +421,16 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   const loadData = async (forceSpinner = false) => {
     const hasCache = rawTransactions.length > 0;
+    logSync('finflow db load --cache=' + hasCache, 'cmd');
     if (!hasCache || forceSpinner) {
       setIsLoading(true);
     }
     setError(null);
     try {
+      logSync('Checking network connectivity...', 'info');
+      logSync('Fetching latest sheets financial database...', 'info');
       const data = await fetchFinData();
+      logSync('Remote database retrieve finished', 'success', `transactions: ${data.transactions?.length}, balances: ${data.balances?.length}`);
       setRawTransactions(data.transactions || []);
       setRawCategories(data.categories || []);
       setBalances(data.balances || []);
@@ -381,7 +451,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const timestamp = new Date().toISOString();
       safeStorage.setItem('finflow_last_sync', timestamp);
       setLastSync(timestamp);
+      logSync('Database local storage caches written', 'success');
     } catch (err) {
+      logSync('Database fetch failed', 'error', err.message);
       console.warn("Failed to load live data, falling back to mock/cache:", err);
       if (!hasCache) {
         setError(err.message);
@@ -401,10 +473,13 @@ export const AppProvider = ({ children, setCurrentView }) => {
   };
 
   const syncData = async () => {
+    logSync('finflow db sync --force', 'cmd');
     setIsSyncing(true);
     setError(null);
     try {
+      logSync('Contacting API sheet gateway...', 'info');
       const data = await fetchFinData();
+      logSync('Sync complete, starting serialization...', 'success', `transactions: ${data.transactions?.length}, balances: ${data.balances?.length}`);
       setRawTransactions(data.transactions || []);
       setRawCategories(data.categories || []);
       setBalances(data.balances || []);
@@ -423,8 +498,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const timestamp = new Date().toISOString();
       safeStorage.setItem('finflow_last_sync', timestamp);
       setLastSync(timestamp);
+      logSync('Sync cached written to browser', 'success');
       return true;
     } catch (err) {
+      logSync('Sync process crashed', 'error', err.message);
       setError(err.message);
       return false;
     } finally {
@@ -707,7 +784,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     <AppContext.Provider value={{
       transactions,
       categories,
-      balances,
+      balances: decoratedBalances,
       lifeOptimization,
       surplusMetrics,
       isLoading,
@@ -733,6 +810,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setGlobalSearchOpen,
       globalSearchQuery,
       setGlobalSearchQuery,
+      logSync,
     }}>
       {children}
     </AppContext.Provider>

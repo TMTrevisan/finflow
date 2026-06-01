@@ -117,7 +117,7 @@ export default function LineChart({
       {/* Tooltip Hover Overlay */}
       {hoveredPoint && (
         <div 
-          className="absolute z-10 bg-black/95 backdrop-blur border border-slate-800 rounded-2xl p-3 shadow-2xl pointer-events-none transition-all duration-150"
+          className="absolute z-10 bg-obsidian-900/95 backdrop-blur border border-obsidian-700 rounded-2xl p-3 shadow-2xl pointer-events-none transition-all duration-150"
           style={{
             left: `${((hoveredPoint.x - 30) / 800) * 100}%`,
             top: `${Math.max(10, hoveredPoint.y - 100)}px`,
@@ -170,7 +170,7 @@ export default function LineChart({
               y1={y}
               x2="770"
               y2={y}
-              stroke="#121826"
+              stroke="var(--obsidian-750)"
               strokeDasharray="4 4"
               strokeWidth="1"
             />
@@ -196,7 +196,7 @@ export default function LineChart({
             y1="20"
             x2={hoveredPoint.x}
             y2={height - 30}
-            stroke="#1E293B"
+            stroke="var(--slate-400)"
             strokeWidth="1.5"
             strokeDasharray="2 2"
           />
@@ -221,7 +221,7 @@ export default function LineChart({
             cx={p.x}
             cy={p.y}
             r="3"
-            fill="#090D14"
+            fill="var(--card-bg)"
             stroke={lineColor}
             strokeWidth="2"
           />

@@ -344,21 +344,34 @@ export default function PLReport() {
 
       {/* Desktop Spreadsheet Grid Layout */}
       <div className="hidden md:block bg-obsidian-800 border border-obsidian-700 rounded-3xl shadow-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+        <div className="overflow-auto max-h-[600px] custom-scrollbar">
+          <table className="w-full border-collapse text-left relative">
             <thead>
-              <tr className="border-b border-obsidian-750 bg-obsidian-800/60 font-semibold text-slate-300 text-xs">
-                <th className="px-6 py-4 font-bold uppercase tracking-wider text-slate-400 w-64">Category / Group</th>
+              <tr className="border-b border-obsidian-750 font-semibold text-slate-300 text-xs">
+                <th className="sticky left-0 top-0 bg-obsidian-800 px-6 py-4 font-bold uppercase tracking-wider text-slate-400 w-64 z-30 border-r border-obsidian-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Category / Group</th>
                 {months.map(m => (
-                  <th key={m} className="px-4 py-4 text-right font-bold tracking-wider">{m}</th>
+                  <th key={m} className="sticky top-0 bg-obsidian-800 px-4 py-4 text-right font-bold tracking-wider z-20">{m}</th>
                 ))}
               </tr>
             </thead>
             
             <tbody className="text-sm divide-y divide-obsidian-800/60">
+              {/* --- NET CASH FLOW ROW (Moved to Top) --- */}
+              <tr className="bg-gradient-to-r from-obsidian-900 to-obsidian-850 border-b border-obsidian-750">
+                <td className="sticky left-0 bg-gradient-to-r from-[#181E2A] to-[#121620] px-6 py-4 font-black uppercase text-white tracking-wider text-xs z-10 border-r border-obsidian-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Net Cash Flow</td>
+                {months.map(m => {
+                  const net = plData.monthlySummary[m]?.net || 0;
+                  return (
+                    <td key={m} className={`px-4 py-4 text-right font-black text-base ${net >= 0 ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
+                      {formatCurrency(net)}
+                    </td>
+                  );
+                })}
+              </tr>
+
               {/* --- INCOME SECTION --- */}
               <tr className="bg-neon-emerald/5 border-y border-neon-emerald/10">
-                <td className="px-6 py-3 font-bold text-neon-emerald uppercase tracking-wider text-xs">Income</td>
+                <td className="sticky left-0 bg-[#0e161c] px-6 py-3 font-bold text-neon-emerald uppercase tracking-wider text-xs z-10 border-r border-obsidian-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Income</td>
                 {months.map(m => (
                   <td key={m} className="px-4 py-3 text-right font-bold text-neon-emerald">
                     {formatCurrency(plData.monthlySummary[m]?.income || 0)}
@@ -374,7 +387,7 @@ export default function PLReport() {
                   <React.Fragment key={group}>
                     {/* Group Header Row */}
                     <tr className="bg-obsidian-800/30">
-                      <td className="px-8 py-2 font-bold text-slate-200 text-xs tracking-wide">{group}</td>
+                      <td className="sticky left-0 bg-[#121724] px-8 py-2 font-bold text-slate-200 text-xs tracking-wide z-10 border-r border-obsidian-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{group}</td>
                       {months.map(m => {
                         const groupSum = Object.values(categoriesMap).reduce((sum, catMap) => sum + (catMap[m] || 0), 0);
                         return (
@@ -389,9 +402,11 @@ export default function PLReport() {
                       if (!isCategoryUsed(monthsMap)) return null;
                       return (
                         <tr key={category} className="hover:bg-obsidian-750/30 text-slate-400 text-xs transition-colors">
-                          <td className="px-12 py-2 font-medium flex items-center space-x-2">
-                            <span className="text-sm shrink-0">{getCategoryEmoji(category)}</span>
-                            <span className="truncate">{category}</span>
+                          <td className="sticky left-0 bg-obsidian-800 px-12 py-2 font-medium z-10 border-r border-obsidian-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm shrink-0">{getCategoryEmoji(category)}</span>
+                              <span className="truncate">{category}</span>
+                            </div>
                           </td>
                           {months.map(m => (
                             <td 
@@ -411,7 +426,7 @@ export default function PLReport() {
 
               {/* --- EXPENSE SECTION --- */}
               <tr className="bg-obsidian-900 border-y border-obsidian-850">
-                <td className="px-6 py-3 font-bold text-slate-300 uppercase tracking-wider text-xs">Expenses</td>
+                <td className="sticky left-0 bg-[#0c0f16] px-6 py-3 font-bold text-slate-300 uppercase tracking-wider text-xs z-10 border-r border-obsidian-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">Expenses</td>
                 {months.map(m => (
                   <td key={m} className="px-4 py-3 text-right font-bold text-slate-300">
                     {formatCurrency(plData.monthlySummary[m]?.expense || 0)}
@@ -427,7 +442,7 @@ export default function PLReport() {
                   <React.Fragment key={group}>
                     {/* Group Header Row */}
                     <tr className="bg-obsidian-800/30">
-                      <td className="px-8 py-2 font-bold text-slate-200 text-xs tracking-wide">{group}</td>
+                      <td className="sticky left-0 bg-[#121724] px-8 py-2 font-bold text-slate-200 text-xs tracking-wide z-10 border-r border-obsidian-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">{group}</td>
                       {months.map(m => {
                         const groupSum = Object.values(categoriesMap).reduce((sum, catMap) => sum + (catMap[m] || 0), 0);
                         return (
@@ -442,9 +457,11 @@ export default function PLReport() {
                       if (!isCategoryUsed(monthsMap)) return null;
                       return (
                         <tr key={category} className="hover:bg-obsidian-750/30 text-slate-400 text-xs transition-colors">
-                          <td className="px-12 py-2 font-medium flex items-center space-x-2">
-                            <span className="text-sm shrink-0">{getCategoryEmoji(category)}</span>
-                            <span className="truncate">{category}</span>
+                          <td className="sticky left-0 bg-obsidian-800 px-12 py-2 font-medium z-10 border-r border-obsidian-700/50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.5)]">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm shrink-0">{getCategoryEmoji(category)}</span>
+                              <span className="truncate">{category}</span>
+                            </div>
                           </td>
                           {months.map(m => (
                             <td 
@@ -461,19 +478,6 @@ export default function PLReport() {
                   </React.Fragment>
                 );
               })}
-
-              {/* --- NET CASH FLOW FOOTER --- */}
-              <tr className="bg-gradient-to-r from-obsidian-900 to-obsidian-850 border-t border-obsidian-750">
-                <td className="px-6 py-4 font-black uppercase text-white tracking-wider text-xs">Net Cash Flow</td>
-                {months.map(m => {
-                  const net = plData.monthlySummary[m]?.net || 0;
-                  return (
-                    <td key={m} className={`px-4 py-4 text-right font-black text-base ${net >= 0 ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
-                      {formatCurrency(net)}
-                    </td>
-                  );
-                })}
-              </tr>
             </tbody>
           </table>
         </div>

@@ -21,6 +21,15 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const ONE_OFF_MERCHANTS = [
+  'amazon', 'amzn', 'target', 'walmart', 'costco', 'grocery', 'supermarket', 
+  'whole foods', 'trader joe', 'safeway', 'kroger', 'cvs', 'walgreens', 
+  'chevron', 'shell', 'exxon', 'mobil', 'bp', '7-eleven', 'uber', 'lyft', 
+  'starbucks', 'mcdonald', 'restaurant', 'dining', 'home depot', 'lowe', 
+  'ikea', 'nordstrom', 'macys', 'h&m', 'zara', 'gap', 'old navy', 'uniqlo', 
+  'sephora', 'ulta', 'best buy', 'apple store'
+];
+
 export default function Subscriptions() {
   const { transactions = [], categories = [], balances = [] } = useAppContext();
   const [activeTab, setActiveTab] = useState('all'); // 'all', 'active', 'overdue', 'hidden'
@@ -123,6 +132,9 @@ export default function Subscriptions() {
     Object.entries(merchantGroups).forEach(([merchant, txns]) => {
       if (txns.length < 2) return;
 
+      const lowerMerchant = merchant.toLowerCase();
+      if (ONE_OFF_MERCHANTS.some(term => lowerMerchant.includes(term))) return;
+
       const sorted = [...txns].sort((a, b) => new Date(a.date) - new Date(b.date));
       const gaps = [];
       for (let i = 1; i < sorted.length; i++) {
@@ -191,6 +203,8 @@ export default function Subscriptions() {
       expenses.forEach(t => {
         if (includedCategories.includes(t.category)) {
           const cleanName = cleanMerchantName(t.description);
+          const lowerMerchant = cleanName.toLowerCase();
+          if (ONE_OFF_MERCHANTS.some(term => lowerMerchant.includes(term))) return;
 
           const existsInAuto = detectedList.some(s => s.merchant.toLowerCase() === cleanName.toLowerCase());
           const existsInCat = categorySubs.some(s => s.merchant.toLowerCase() === cleanName.toLowerCase());
