@@ -8,6 +8,8 @@ const CATEGORY_MAP = {
   // Income categories
   'salary': { color: '#10B981', icon: Briefcase },      // Emerald
   'paycheck': { color: '#10B981', icon: Briefcase },    // Emerald
+  'deposit': { color: '#10B981', icon: Briefcase },     // Emerald
+  'annuity': { color: '#F59E0B', icon: Coins },         // Amber/Gold
   'freelance': { color: '#0D9488', icon: Laptop },     // Teal
   'interest': { color: '#06B6D4', icon: Coins },       // Cyan
   'transfer': { color: '#64748B', icon: RefreshCw },   // Slate

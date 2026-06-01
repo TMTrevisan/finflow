@@ -337,7 +337,7 @@ export default function Spending() {
                 </div>
                 
                 {/* Transactions under this date */}
-                <div className="divide-y divide-obsidian-800/40">
+                <div className="space-y-1">
                   {group.transactions.map(t => {
                     const config = getCategoryConfig(t.category);
                     const IconComponent = config.icon;
@@ -345,7 +345,7 @@ export default function Spending() {
                     return (
                       <div 
                         key={t.id} 
-                        className="flex items-center justify-between py-4.5 hover:bg-slate-800/10 px-3 rounded-2xl transition-all duration-150 group"
+                        className="flex items-center justify-between py-4.5 hover:bg-slate-800/10 px-3 rounded-2xl transition-all duration-150 group border-b border-obsidian-800/30 last:border-0"
                       >
                         <div className="flex items-center space-x-4">
                           {/* Category Icon Circle */}

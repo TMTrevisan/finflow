@@ -1203,12 +1203,12 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
               </button>
             </div>
 
-            <div className="divide-y divide-slate-850/40">
+            <div className="space-y-1">
               {recentTransactions.map(txn => (
                 <div 
                   key={txn.id}
                   onClick={() => handleAccountClick(txn.account)}
-                  className="py-3 flex items-center justify-between cursor-pointer hover:bg-slate-800/5 -mx-3 px-3 rounded-xl transition-all"
+                  className="py-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/10 px-3 rounded-xl transition-all border-b border-obsidian-800/30 last:border-0"
                 >
                   <div className="min-w-0 pr-4">
                     <p className="text-xs font-bold text-slate-200 truncate">{cleanMerchantName(txn.description)}</p>
