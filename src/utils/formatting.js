@@ -23,22 +23,21 @@ export const cleanMerchantName = (description) => {
   if (lower.includes('kaitlyn trevisan') && (lower.includes('payroll') || lower.includes('ayroll') || lower.includes('cerx'))) {
     return 'Kaitlyn Trevisan Payroll';
   }
-  if (
+  const isAnnuity = 
     lower.includes('clear spring') || 
     lower.includes('clearspring') || 
     lower.includes('guggenheim') || 
     lower.includes('natl west') || 
     lower.includes('national western') || 
-    lower.includes('north american l') || 
-    lower.includes('north american life')
-  ) {
-    return 'Annuity Payment';
-  }
-  if (lower.includes('trevisan,todd') || (lower.includes('todd trevisan') && (lower.includes('zik') || lower.includes('ppd')))) {
-    return 'Todd Trevisan Payroll';
-  }
-  if (lower.includes('todd michael trevisan') && (lower.includes('ppd') || lower.includes('bc'))) {
-    return 'Todd Trevisan Payroll';
+    lower.includes('north american');
+
+  if (!isAnnuity) {
+    if (lower.includes('trevisan,todd') || (lower.includes('todd trevisan') && (lower.includes('zik') || lower.includes('ppd')))) {
+      return 'Todd Trevisan Payroll';
+    }
+    if (lower.includes('todd michael trevisan') && (lower.includes('ppd') || lower.includes('bc'))) {
+      return 'Todd Trevisan Payroll';
+    }
   }
   if (lower.includes('franchise tax bd') || lower.includes('casttaxrfd')) {
     return 'Franchise Tax Board';
