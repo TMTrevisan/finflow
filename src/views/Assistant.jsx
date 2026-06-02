@@ -49,12 +49,27 @@ export default function Assistant() {
   const [redactSensitiveData, setRedactSensitiveData] = useState(() => safeStorage.getItem('finflow_ai_redact') === 'true');
   const [aggregateOnlyMode, setAggregateOnlyMode] = useState(() => safeStorage.getItem('finflow_ai_aggregate_only') === 'true');
 
-  const [chatLog, setChatLog] = useState([
-    {
-      role: 'model',
-      content: "Hello! I'm your upgraded FinFlow Copilot. I have access to your account balances, budgets, and transaction history. Ask me anything!"
+  const [chatLog, setChatLog] = useState(() => {
+    const saved = safeStorage.getItem('finflow_chat_history');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn('[Assistant] Failed to parse saved chat history:', e);
+      }
     }
-  ]);
+    return [
+      {
+        role: 'model',
+        content: "Hello! I'm your upgraded FinFlow Copilot. I have access to your account balances, budgets, and transaction history. Ask me anything!"
+      }
+    ];
+  });
+
+  useEffect(() => {
+    safeStorage.setItem('finflow_chat_history', JSON.stringify(chatLog));
+  }, [chatLog]);
+
   const [userInput, setUserInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
