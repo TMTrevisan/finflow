@@ -701,7 +701,7 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
               <h2 className="text-slate-400 font-semibold text-xs tracking-wider uppercase font-display">Net Worth History</h2>
               <button 
                 onClick={() => setShowChart(!showChart)}
-                className="p-1 rounded-lg hover:bg-[#131926] text-slate-500 hover:text-slate-350 transition-colors cursor-pointer"
+                className="p-1 rounded-lg hover:bg-obsidian-800 text-slate-500 hover:text-slate-355 transition-colors cursor-pointer"
                 title={showChart ? "Collapse Chart" : "Expand Chart"}
               >
                 {showChart ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -709,7 +709,7 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
             </div>
             
             {/* Tab Toggles */}
-            <div className="flex bg-[#131926] p-0.5 rounded-full text-[9px] sm:text-[10px] font-extrabold gap-0.5 border border-slate-800/40">
+            <div className="flex bg-obsidian-900 p-0.5 rounded-full text-[9px] sm:text-[10px] font-extrabold gap-0.5 border border-slate-800/40">
               <button
                 onClick={() => setMetric('assets')}
                 className={`px-2.5 py-1 sm:px-3 rounded-full flex items-center gap-1 transition-all cursor-pointer ${
@@ -1128,7 +1128,7 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
               </div>
 
               {/* Progress Comparison line */}
-              <div className="w-full bg-[#131926] h-1.5 rounded overflow-hidden mt-1">
+              <div className="w-full bg-obsidian-850 h-1.5 rounded overflow-hidden mt-1">
                 <div 
                   className="h-full bg-rose-500 rounded-full" 
                   style={{ width: `${Math.min(100, (cashFlowMetrics.expensesThisMonth / Math.max(cashFlowMetrics.expensesThisMonth, cashFlowMetrics.expensesLastMonth, 1)) * 100)}%` }} 

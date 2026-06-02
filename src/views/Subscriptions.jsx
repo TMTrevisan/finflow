@@ -115,7 +115,13 @@ export default function Subscriptions() {
   // 4. Combined Subscriptions Processor
   const combinedSubscriptions = useMemo(() => {
     const detectedList = [];
-    const expenses = transactions.filter(t => t.amount < 0);
+    const expenses = transactions.filter(t => 
+      t.amount < 0 && 
+      t.type !== 'Transfer' &&
+      t.type !== 'Income' &&
+      !['transfer', 'credit card payment', 'credit card', 'mortgage', 'investments', 'payment', 'taxes', 'tax'].includes((t.category || '').toLowerCase()) &&
+      !['transfer', 'credit card payment', 'credit card', 'mortgage', 'investments', 'payment', 'taxes', 'tax'].includes((t.group || '').toLowerCase())
+    );
     const merchantGroups = {};
 
     // Group expenses by merchant name
@@ -174,26 +180,29 @@ export default function Subscriptions() {
         const latestTxn = sorted[sorted.length - 1];
         const latestDate = new Date(latestTxn.date);
 
-        // Project next bill date
-        const nextBill = new Date(latestDate);
-        nextBill.setDate(nextBill.getDate() + intervalDays);
-        while (nextBill < today) {
+        // Subscriptions are typically consumer billing items; ignore massive debt/mortgage payments over $2000 in auto-detection
+        if (avgAmount < 2000) {
+          // Project next bill date
+          const nextBill = new Date(latestDate);
           nextBill.setDate(nextBill.getDate() + intervalDays);
-        }
+          while (nextBill < today) {
+            nextBill.setDate(nextBill.getDate() + intervalDays);
+          }
 
-        detectedList.push({
-          id: `auto_${merchant.replace(/\s+/g, '_')}`,
-          merchant,
-          frequency,
-          intervalDays,
-          amount: avgAmount,
-          lastPaidDate: latestTxn.date,
-          nextBillDate: nextBill.toISOString().split('T')[0],
-          category: latestTxn.category,
-          account: latestTxn.account,
-          type: 'Auto-detected',
-          status: 'Active'
-        });
+          detectedList.push({
+            id: `auto_${merchant.replace(/\s+/g, '_')}`,
+            merchant,
+            frequency,
+            intervalDays,
+            amount: avgAmount,
+            lastPaidDate: latestTxn.date,
+            nextBillDate: nextBill.toISOString().split('T')[0],
+            category: latestTxn.category,
+            account: latestTxn.account,
+            type: 'Auto-detected',
+            status: 'Active'
+          });
+        }
       }
     });
 
@@ -565,7 +574,7 @@ export default function Subscriptions() {
                   {/* Row Summary */}
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center space-x-3.5 min-w-0">
-                      <div className="w-10 h-10 bg-[#131926] border border-slate-800/40 rounded-xl flex items-center justify-center text-lg select-none shrink-0">
+                      <div className="w-10 h-10 bg-obsidian-900 border border-slate-800/40 rounded-xl flex items-center justify-center text-lg select-none shrink-0">
                         {getCategoryEmoji(sub.category)}
                       </div>
                       <div className="min-w-0">
@@ -582,7 +591,7 @@ export default function Subscriptions() {
                     
                     {/* Middle Info: Billing Schedule & Status */}
                     <div className="hidden sm:flex items-center space-x-4">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 bg-[#131926] border border-slate-800/80 px-2.5 py-0.5 rounded-full">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-450 bg-obsidian-900 border border-obsidian-750 px-2.5 py-0.5 rounded-full">
                         {sub.frequency}
                       </span>
                       <span className={`text-[10px] font-bold ${
@@ -617,7 +626,7 @@ export default function Subscriptions() {
                         <button
                           onClick={() => toggleHideSubscription(sub.merchant)}
                           title={hiddenSubscriptions.includes(sub.merchant) ? "Unhide subscription" : "Hide subscription"}
-                          className="p-1.5 bg-[#131926] hover:bg-[#1A2234] border border-slate-800/50 hover:border-slate-700/80 rounded-lg text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+                          className="p-1.5 bg-obsidian-900 hover:bg-obsidian-850 border border-obsidian-750 rounded-lg text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
                         >
                           {hiddenSubscriptions.includes(sub.merchant) ? (
                             <Eye className="w-3.5 h-3.5" />
@@ -630,7 +639,7 @@ export default function Subscriptions() {
                           <button
                             onClick={() => deleteManualSubscription(sub.id)}
                             title="Delete custom subscription"
-                            className="p-1.5 bg-[#131926] hover:bg-rose-500/10 border border-slate-800/50 hover:border-rose-500/30 rounded-lg text-slate-400 hover:text-rose-450 transition-all cursor-pointer"
+                            className="p-1.5 bg-obsidian-900 hover:bg-rose-500/10 border border-obsidian-750 rounded-lg text-slate-400 hover:text-rose-455 transition-all cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -738,7 +747,7 @@ export default function Subscriptions() {
                       className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer text-left ${
                         isChecked 
                           ? 'bg-neon-indigo/5 border-neon-indigo/35 text-white' 
-                          : 'bg-[#131926]/40 border-slate-850 text-slate-400 hover:border-slate-800'
+                          : 'bg-obsidian-900/40 border-obsidian-750 text-slate-400 hover:border-obsidian-700'
                       }`}
                     >
                       <span className="text-xs font-semibold">{cat}</span>
@@ -806,7 +815,7 @@ export default function Subscriptions() {
                     value={newSubName}
                     onChange={(e) => setNewSubName(e.target.value)}
                     placeholder="e.g. Netflix, Spotify, Gym"
-                    className="w-full bg-[#131926] border border-slate-850 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all"
+                    className="w-full bg-obsidian-900 border border-obsidian-750 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all"
                   />
                 </div>
 
@@ -820,7 +829,7 @@ export default function Subscriptions() {
                       value={newSubAmount}
                       onChange={(e) => setNewSubAmount(e.target.value)}
                       placeholder="0.00"
-                      className="w-full bg-[#131926] border border-slate-850 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all"
+                      className="w-full bg-obsidian-900 border border-obsidian-750 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition-all"
                     />
                   </div>
                   <div className="space-y-1">
@@ -828,7 +837,7 @@ export default function Subscriptions() {
                     <select
                       value={newSubFrequency}
                       onChange={(e) => setNewSubFrequency(e.target.value)}
-                      className="w-full bg-[#131926] border border-slate-850 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all"
+                      className="w-full bg-obsidian-900 border border-obsidian-750 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all"
                     >
                       {['Weekly', 'Bi-weekly', 'Monthly', 'Quarterly', 'Annually'].map(freq => (
                         <option key={freq} value={freq}>{freq}</option>
@@ -844,7 +853,7 @@ export default function Subscriptions() {
                     required
                     value={newSubNextBill}
                     onChange={(e) => setNewSubNextBill(e.target.value)}
-                    className="w-full bg-[#131926] border border-slate-850 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all"
+                    className="w-full bg-obsidian-900 border border-obsidian-750 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all"
                   />
                 </div>
 
@@ -854,7 +863,7 @@ export default function Subscriptions() {
                     <select
                       value={newSubCategory}
                       onChange={(e) => setNewSubCategory(e.target.value)}
-                      className="w-full bg-[#131926] border border-slate-850 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all"
+                      className="w-full bg-obsidian-900 border border-obsidian-750 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all"
                     >
                       <option value="">Select Category</option>
                       {systemCategories.map(cat => (
@@ -867,7 +876,7 @@ export default function Subscriptions() {
                     <select
                       value={newSubAccount}
                       onChange={(e) => setNewSubAccount(e.target.value)}
-                      className="w-full bg-[#131926] border border-slate-850 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all"
+                      className="w-full bg-obsidian-900 border border-obsidian-750 focus:border-neon-indigo rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none transition-all"
                     >
                       <option value="">Select Account</option>
                       {systemAccounts.map(acc => (

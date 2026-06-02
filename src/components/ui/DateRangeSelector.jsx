@@ -55,7 +55,7 @@ export default function DateRangeSelector({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-[#131926] backdrop-blur-md border border-obsidian-700/80 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute right-0 mt-2 w-80 bg-obsidian-900 backdrop-blur-md border border-obsidian-750 rounded-2xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="space-y-1">
             {FILTER_OPTIONS.map((option) => (
               <button
