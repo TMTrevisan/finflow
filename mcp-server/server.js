@@ -892,6 +892,61 @@ app.get('/:secretPrefix/sse', handleSseConnection);
 app.post('/message', handlePostMessage);
 app.post('/:secretPrefix/message', handlePostMessage);
 
+// Generic Proxy endpoint to bypass browser CORS (e.g. OpenAI/Anthropic/DeepSeek)
+app.post('/proxy', async (req, res) => {
+  const { url, headers, method, body } = req.body;
+  if (!url) {
+    return res.status(400).json({ error: 'Missing target url parameter in proxy request.' });
+  }
+
+  // If MCP_SECRET is configured, restrict proxy access to authenticated clients
+  if (MCP_SECRET) {
+    const auth = req.headers.authorization || '';
+    const token = auth.replace('Bearer ', '').trim();
+    if (token !== MCP_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized. Provide a valid Bearer token for the proxy.' });
+    }
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: method || 'POST',
+      headers: headers || {},
+      body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined
+    });
+
+    // Copy original status and headers
+    res.status(response.status);
+    
+    // Set headers appropriate for streaming if target is SSE
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('event-stream')) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      
+      response.body.on('data', (chunk) => {
+        res.write(chunk);
+      });
+      response.body.on('end', () => {
+        res.end();
+      });
+      response.body.on('error', (err) => {
+        console.error('[Proxy] Stream error:', err);
+        res.end();
+      });
+    } else {
+      res.setHeader('Content-Type', contentType);
+      const text = await response.text();
+      res.send(text);
+    }
+  } catch (err) {
+    console.error('[Proxy] Connection error:', err.message);
+    res.status(500).json({ error: `Proxy failed: ${err.message}` });
+  }
+});
+
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n🚀 FinFlow MCP Server running on port ${PORT}`);

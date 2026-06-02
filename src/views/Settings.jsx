@@ -50,11 +50,38 @@ export default function Settings() {
   const [pinInput, setPinInput] = useState('');
   const [passcodeMessage, setPasscodeMessage] = useState(null);
 
-  // Gemini API key state
+  // Multi-Provider AI state
+  const [aiProvider, setAiProvider] = useState(() => {
+    return safeStorage.getItem('finflow_ai_provider') || 'gemini';
+  });
+  const [aiModel, setAiModel] = useState(() => {
+    return safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite';
+  });
   const [geminiKeyInput, setGeminiKeyInput] = useState(() => {
     return safeStorage.getItem('finflow_gemini_key') || '';
   });
-  const [geminiMessage, setGeminiMessage] = useState(null);
+  const [openaiKeyInput, setOpenaiKeyInput] = useState(() => {
+    return safeStorage.getItem('finflow_openai_key') || '';
+  });
+  const [claudeKeyInput, setClaudeKeyInput] = useState(() => {
+    return safeStorage.getItem('finflow_claude_key') || '';
+  });
+  const [deepseekKeyInput, setDeepseekKeyInput] = useState(() => {
+    return safeStorage.getItem('finflow_deepseek_key') || '';
+  });
+  const [aiMessage, setAiMessage] = useState(null);
+
+  // MCP Settings State
+  const [mcpEnabled, setMcpEnabled] = useState(() => {
+    return safeStorage.getItem('finflow_mcp_enabled') === 'true';
+  });
+  const [mcpUrlInput, setMcpUrlInput] = useState(() => {
+    return safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
+  });
+  const [mcpSecretInput, setMcpSecretInput] = useState(() => {
+    return safeStorage.getItem('finflow_mcp_secret') || 'test123';
+  });
+  const [mcpMessage, setMcpMessage] = useState(null);
 
   // Mobile and Modal states
   const [isMobile, setIsMobile] = useState(false);
@@ -184,20 +211,30 @@ export default function Settings() {
     }
   };
 
-  // Gemini AI model state
-  const [geminiModel, setGeminiModel] = useState(() => {
-    return safeStorage.getItem('finflow_gemini_model') || 'gemini-2.5-flash-lite';
-  });
+  const handleSaveAiSettings = () => {
+    safeStorage.setItem('finflow_ai_provider', aiProvider);
+    safeStorage.setItem('finflow_ai_model', aiModel);
 
-  const handleSaveGeminiKey = () => {
-    safeStorage.setItem('finflow_gemini_model', geminiModel);
-    if (geminiKeyInput.trim()) {
-      safeStorage.setItem('finflow_gemini_key', geminiKeyInput.trim());
-      setGeminiMessage({ type: 'success', text: 'Gemini settings saved successfully!' });
-    } else {
-      safeStorage.removeItem('finflow_gemini_key');
-      setGeminiMessage({ type: 'info', text: 'Gemini API Key cleared.' });
-    }
+    if (geminiKeyInput.trim()) safeStorage.setItem('finflow_gemini_key', geminiKeyInput.trim());
+    else safeStorage.removeItem('finflow_gemini_key');
+
+    if (openaiKeyInput.trim()) safeStorage.setItem('finflow_openai_key', openaiKeyInput.trim());
+    else safeStorage.removeItem('finflow_openai_key');
+
+    if (claudeKeyInput.trim()) safeStorage.setItem('finflow_claude_key', claudeKeyInput.trim());
+    else safeStorage.removeItem('finflow_claude_key');
+
+    if (deepseekKeyInput.trim()) safeStorage.setItem('finflow_deepseek_key', deepseekKeyInput.trim());
+    else safeStorage.removeItem('finflow_deepseek_key');
+
+    setAiMessage({ type: 'success', text: 'AI configuration and keys saved successfully!' });
+  };
+
+  const handleSaveMcpSettings = () => {
+    safeStorage.setItem('finflow_mcp_enabled', mcpEnabled ? 'true' : 'false');
+    safeStorage.setItem('finflow_mcp_url', mcpUrlInput.trim());
+    safeStorage.setItem('finflow_mcp_secret', mcpSecretInput.trim());
+    setMcpMessage({ type: 'success', text: 'MCP Server configurations saved successfully!' });
   };
 
   const handleToggleBiometrics = async () => {
@@ -455,7 +492,7 @@ export default function Settings() {
           </div>
         </Card>
 
-        {/* Gemini AI Settings Card */}
+        {/* Unified Copilot AI Settings Card */}
         <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center space-x-3 mb-2">
@@ -463,113 +500,237 @@ export default function Settings() {
                 <Brain size={20} />
               </div>
               <div>
-                <h3 className="font-bold text-white text-base">Gemini AI Assistant</h3>
-                <p className="text-xs text-slate-500">Enable local AI financial insights and transaction analysis.</p>
+                <h3 className="font-bold text-white text-base">Copilot Core LLM</h3>
+                <p className="text-xs text-slate-500">Configure your primary AI provider and models.</p>
               </div>
             </div>
 
+            {/* Provider Selector */}
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-                <span>Gemini API Key</span>
-                <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-neon-indigo hover:underline normal-case font-medium">Get Free Key</a>
-              </label>
-              <input 
-                type="password" 
-                value={geminiKeyInput}
-                onChange={(e) => setGeminiKeyInput(e.target.value)}
-                placeholder="AIzaSy..."
-                className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
-              />
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">AI Provider</label>
+              <select
+                value={aiProvider}
+                onChange={(e) => {
+                  const prov = e.target.value;
+                  setAiProvider(prov);
+                  safeStorage.setItem('finflow_ai_provider', prov);
+                  // Set sensible default model
+                  let defaultModel = 'gemini-2.5-flash-lite';
+                  if (prov === 'openai') defaultModel = 'gpt-4o-mini';
+                  else if (prov === 'claude') defaultModel = 'claude-3-5-sonnet-latest';
+                  else if (prov === 'deepseek') defaultModel = 'deepseek-chat';
+                  setAiModel(defaultModel);
+                  safeStorage.setItem('finflow_ai_model', defaultModel);
+                }}
+                className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow appearance-none"
+              >
+                <option value="gemini">Google Gemini</option>
+                <option value="openai">OpenAI (ChatGPT)</option>
+                <option value="claude">Anthropic Claude</option>
+                <option value="deepseek">DeepSeek</option>
+              </select>
             </div>
 
+            {/* Model Selector */}
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">AI LLM Model</label>
-              {isMobile ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setIsModelSheetOpen(true)}
-                    className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs text-left focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow flex items-center justify-between"
-                  >
-                    <span>
-                      {geminiModel === 'gemini-2.5-flash-lite' && 'Gemini 2.5 Flash Lite (Recommended)'}
-                      {geminiModel === 'gemini-2.5-flash' && 'Gemini 2.5 Flash (Balanced)'}
-                      {geminiModel === 'gemini-2.0-flash' && 'Gemini 2.0 Flash (Fast)'}
-                      {geminiModel === 'gemini-flash-lite-latest' && 'Gemini Flash Lite Latest'}
-                      {geminiModel === 'gemini-flash-latest' && 'Gemini Flash Latest'}
-                    </span>
-                    <span className="text-slate-500 text-[10px]">Tap to change</span>
-                  </button>
-                  <BottomSheet
-                    isOpen={isModelSheetOpen}
-                    onClose={() => setIsModelSheetOpen(false)}
-                    title="Select AI LLM Model"
-                  >
-                    <div className="space-y-2">
-                      {[
-                        { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite (Recommended - Fast & Stable)' },
-                        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Balanced - Stable)' },
-                        { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Fast)' },
-                        { value: 'gemini-flash-lite-latest', label: 'Gemini Flash Lite Latest (Alias - Lowest Cost)' },
-                        { value: 'gemini-flash-latest', label: 'Gemini Flash Latest (Alias - High Performance)' }
-                      ].map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => {
-                            setGeminiModel(opt.value);
-                            safeStorage.setItem('finflow_gemini_model', opt.value);
-                            setIsModelSheetOpen(false);
-                          }}
-                          className={`w-full text-left px-4 py-3.5 text-sm rounded-2xl transition-colors border ${
-                            geminiModel === opt.value
-                              ? 'bg-neon-indigo/20 text-neon-indigo font-medium border-neon-indigo/35'
-                              : 'bg-obsidian-800 text-slate-350 hover:bg-obsidian-700 hover:text-white border-obsidian-750'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </BottomSheet>
-                </>
-              ) : (
-                <select
-                  value={geminiModel}
-                  onChange={(e) => {
-                    setGeminiModel(e.target.value);
-                    safeStorage.setItem('finflow_gemini_model', e.target.value);
-                  }}
-                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow appearance-none"
-                >
-                  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Recommended - Fast & Stable)</option>
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash (Balanced - Stable)</option>
-                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast)</option>
-                  <option value="gemini-flash-lite-latest">Gemini Flash Lite Latest (Alias - Lowest Cost)</option>
-                  <option value="gemini-flash-latest">Gemini Flash Latest (Alias - High Performance)</option>
-                </select>
-              )}
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Model</label>
+              <select
+                value={aiModel}
+                onChange={(e) => {
+                  setAiModel(e.target.value);
+                  safeStorage.setItem('finflow_ai_model', e.target.value);
+                }}
+                className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow appearance-none"
+              >
+                {aiProvider === 'gemini' && (
+                  <>
+                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Recommended)</option>
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                  </>
+                )}
+                {aiProvider === 'openai' && (
+                  <>
+                    <option value="gpt-4o-mini">gpt-4o-mini (Fast & Cost-Efficient)</option>
+                    <option value="gpt-4o">gpt-4o (High Intelligence)</option>
+                    <option value="o1-mini">o1-mini (Reasoning)</option>
+                  </>
+                )}
+                {aiProvider === 'claude' && (
+                  <>
+                    <option value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet (State of the Art)</option>
+                    <option value="claude-3-5-haiku-latest">Claude 3.5 Haiku (Fast & Precise)</option>
+                    <option value="claude-3-opus-latest">Claude 3 Opus (Complex Analysis)</option>
+                  </>
+                )}
+                {aiProvider === 'deepseek' && (
+                  <>
+                    <option value="deepseek-chat">deepseek-chat (DeepSeek-V3)</option>
+                    <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek-R1)</option>
+                  </>
+                )}
+              </select>
             </div>
 
+            {/* Dynamic API Key input based on chosen provider */}
+            {aiProvider === 'gemini' && (
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+                  <span>Gemini API Key</span>
+                  <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="text-neon-indigo hover:underline normal-case font-medium">Get Free Key</a>
+                </label>
+                <input 
+                  type="password" 
+                  value={geminiKeyInput}
+                  onChange={(e) => setGeminiKeyInput(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
+                />
+              </div>
+            )}
 
-            {geminiMessage && (
+            {aiProvider === 'openai' && (
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+                  <span>OpenAI API Key</span>
+                  <a href="https://platform.openai.com/" target="_blank" rel="noreferrer" className="text-neon-indigo hover:underline normal-case font-medium">Platform Dashboard</a>
+                </label>
+                <input 
+                  type="password" 
+                  value={openaiKeyInput}
+                  onChange={(e) => setOpenaiKeyInput(e.target.value)}
+                  placeholder="sk-proj-..."
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
+                />
+              </div>
+            )}
+
+            {aiProvider === 'claude' && (
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+                  <span>Anthropic API Key</span>
+                  <a href="https://console.anthropic.com/" target="_blank" rel="noreferrer" className="text-neon-indigo hover:underline normal-case font-medium">Console Dashboard</a>
+                </label>
+                <input 
+                  type="password" 
+                  value={claudeKeyInput}
+                  onChange={(e) => setClaudeKeyInput(e.target.value)}
+                  placeholder="sk-ant-..."
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
+                />
+              </div>
+            )}
+
+            {aiProvider === 'deepseek' && (
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+                  <span>DeepSeek API Key</span>
+                  <a href="https://platform.deepseek.com/" target="_blank" rel="noreferrer" className="text-neon-indigo hover:underline normal-case font-medium">Developer Platform</a>
+                </label>
+                <input 
+                  type="password" 
+                  value={deepseekKeyInput}
+                  onChange={(e) => setDeepseekKeyInput(e.target.value)}
+                  placeholder="sk-..."
+                  className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
+                />
+              </div>
+            )}
+
+            {aiMessage && (
               <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
-                geminiMessage.type === 'success' 
+                aiMessage.type === 'success' 
                   ? 'bg-neon-emerald/10 border-neon-emerald/20 text-neon-emerald'
                   : 'bg-obsidian-800 border-obsidian-750 text-slate-350'
               }`}>
                 <CheckCircle2 size={16} className="shrink-0" />
-                <span>{geminiMessage.text}</span>
+                <span>{aiMessage.text}</span>
               </div>
             )}
           </div>
 
           <div className="pt-6 border-t border-obsidian-800/40 flex justify-end">
             <button
-              onClick={handleSaveGeminiKey}
+              onClick={handleSaveAiSettings}
               className="px-4 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors shadow-md"
             >
-              Save Settings
+              Save AI Settings
+            </button>
+          </div>
+        </Card>
+
+        {/* Model Context Protocol (MCP) Integration Settings Card */}
+        <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-neon-indigo/10 rounded-xl text-neon-indigo">
+                <Link size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Model Context Protocol</h3>
+                <p className="text-xs text-slate-500">Enable local/remote MCP tools for agentic transaction queries.</p>
+              </div>
+            </div>
+
+            {/* MCP Toggle */}
+            <div className="flex items-center justify-between bg-obsidian-800/40 p-3 rounded-xl border border-obsidian-850">
+              <div>
+                <span className="text-xs font-bold text-white block">Enable MCP Support</span>
+                <span className="text-[10px] text-slate-400">Allows Copilot to invoke local data retrieval tools dynamically.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={mcpEnabled}
+                onChange={(e) => setMcpEnabled(e.target.checked)}
+                className="rounded border-slate-700 text-neon-indigo focus:ring-neon-indigo bg-obsidian-800 w-4 h-4 cursor-pointer"
+              />
+            </div>
+
+            {mcpEnabled && (
+              <>
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">MCP Server URL</label>
+                  <input 
+                    type="text" 
+                    value={mcpUrlInput}
+                    onChange={(e) => setMcpUrlInput(e.target.value)}
+                    placeholder="http://localhost:3001"
+                    className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">MCP Auth Secret / Bearer Token</label>
+                  <input 
+                    type="password" 
+                    value={mcpSecretInput}
+                    onChange={(e) => setMcpSecretInput(e.target.value)}
+                    placeholder="Auth Token..."
+                    className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
+                  />
+                </div>
+              </>
+            )}
+
+            {mcpMessage && (
+              <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
+                mcpMessage.type === 'success' 
+                  ? 'bg-neon-emerald/10 border-neon-emerald/20 text-neon-emerald'
+                  : 'bg-obsidian-800 border-obsidian-750 text-slate-350'
+              }`}>
+                <CheckCircle2 size={16} className="shrink-0" />
+                <span>{mcpMessage.text}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-6 border-t border-obsidian-800/40 flex justify-end">
+            <button
+              onClick={handleSaveMcpSettings}
+              className="px-4 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors shadow-md"
+            >
+              Save MCP Settings
             </button>
           </div>
         </Card>

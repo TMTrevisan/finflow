@@ -14,17 +14,108 @@ import {
   RefreshCw,
   AlertCircle,
   Copy,
-  Check
+  Check,
+  Server,
+  Settings as SettingsIcon,
+  CheckCircle,
+  Activity
 } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default function Assistant() {
   const { transactions = [], categories = [], balances = [] } = useAppContext();
-  const [apiKey, setApiKey] = useState(() => safeStorage.getItem('finflow_gemini_key') || '');
-  const [keyInput, setKeyInput] = useState('');
+
+  // Unified Config States
+  const [aiProvider, setAiProvider] = useState(() => safeStorage.getItem('finflow_ai_provider') || 'gemini');
+  const [aiModel, setAiModel] = useState(() => safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite');
+  
+  // API Keys
+  const [geminiKey, setGeminiKey] = useState(() => safeStorage.getItem('finflow_gemini_key') || '');
+  const [openaiKey, setOpenaiKey] = useState(() => safeStorage.getItem('finflow_openai_key') || '');
+  const [claudeKey, setClaudeKey] = useState(() => safeStorage.getItem('finflow_claude_key') || '');
+  const [deepseekKey, setDeepseekKey] = useState(() => safeStorage.getItem('finflow_deepseek_key') || '');
+
+  // Dynamic Key input for onboarding
+  const [onboardingKeyInput, setOnboardingKeyInput] = useState('');
+
+  // MCP integration
+  const [mcpEnabled, setMcpEnabled] = useState(() => safeStorage.getItem('finflow_mcp_enabled') === 'true');
+  const [mcpUrl, setMcpUrl] = useState(() => safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001');
+  const [mcpSecret, setMcpSecret] = useState(() => safeStorage.getItem('finflow_mcp_secret') || 'test123');
+  const [mcpTools, setMcpTools] = useState([]);
+  const [toolStatus, setToolStatus] = useState('');
+
   const [showSharedContext, setShowSharedContext] = useState(false);
   const [redactSensitiveData, setRedactSensitiveData] = useState(() => safeStorage.getItem('finflow_ai_redact') === 'true');
   const [aggregateOnlyMode, setAggregateOnlyMode] = useState(() => safeStorage.getItem('finflow_ai_aggregate_only') === 'true');
+
+  const [chatLog, setChatLog] = useState([
+    {
+      role: 'model',
+      content: "Hello! I'm your upgraded FinFlow Copilot. I have access to your account balances, budgets, and transaction history. Ask me anything!"
+    }
+  ]);
+  const [userInput, setUserInput] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  const chatEndRef = useRef(null);
+
+  // Active Key resolver
+  const activeApiKey = useMemo(() => {
+    switch (aiProvider) {
+      case 'openai': return openaiKey;
+      case 'claude': return claudeKey;
+      case 'deepseek': return deepseekKey;
+      case 'gemini':
+      default:
+        return geminiKey;
+    }
+  }, [aiProvider, geminiKey, openaiKey, claudeKey, deepseekKey]);
+
+  // Sync state with settings change
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setAiProvider(safeStorage.getItem('finflow_ai_provider') || 'gemini');
+      setAiModel(safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite');
+      setGeminiKey(safeStorage.getItem('finflow_gemini_key') || '');
+      setOpenaiKey(safeStorage.getItem('finflow_openai_key') || '');
+      setClaudeKey(safeStorage.getItem('finflow_claude_key') || '');
+      setDeepseekKey(safeStorage.getItem('finflow_deepseek_key') || '');
+      setMcpEnabled(safeStorage.getItem('finflow_mcp_enabled') === 'true');
+      setMcpUrl(safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001');
+      setMcpSecret(safeStorage.getItem('finflow_mcp_secret') || 'test123');
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Fetch MCP tools if enabled
+  useEffect(() => {
+    if (mcpEnabled && mcpUrl) {
+      const fetchTools = async () => {
+        try {
+          const response = await fetch(`${mcpUrl}/tools`, {
+            headers: mcpSecret ? { 'Authorization': `Bearer ${mcpSecret}` } : {}
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setMcpTools(data.tools || []);
+          }
+        } catch (e) {
+          console.warn('[MCP] Failed to fetch server tools:', e.message);
+        }
+      };
+      fetchTools();
+    } else {
+      setMcpTools([]);
+    }
+  }, [mcpEnabled, mcpUrl, mcpSecret]);
+
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatLog, isGenerating, toolStatus]);
 
   const handleToggleRedact = (val) => {
     setRedactSensitiveData(val);
@@ -36,33 +127,20 @@ export default function Assistant() {
     safeStorage.setItem('finflow_ai_aggregate_only', val ? 'true' : 'false');
   };
 
-  const [chatLog, setChatLog] = useState([
-    {
-      role: 'model',
-      content: "Hello! I'm your FinFlow Copilot. I have analyzed your accounts, category budgets, and transaction history. Ask me anything about your finances!"
-    }
-  ]);
-  const [userInput, setUserInput] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  
-  const chatEndRef = useRef(null);
-
-  // Auto-scroll to bottom of chat
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatLog, isGenerating]);
-
-  // Handle saving API key inline
-  const handleSaveApiKey = () => {
-    if (keyInput.trim()) {
-      safeStorage.setItem('finflow_gemini_key', keyInput.trim());
-      setApiKey(keyInput.trim());
+  // Onboarding key saver
+  const handleSaveOnboardingKey = () => {
+    if (onboardingKeyInput.trim()) {
+      const storageKey = `finflow_${aiProvider}_key`;
+      safeStorage.setItem(storageKey, onboardingKeyInput.trim());
+      if (aiProvider === 'gemini') setGeminiKey(onboardingKeyInput.trim());
+      else if (aiProvider === 'openai') setOpenaiKey(onboardingKeyInput.trim());
+      else if (aiProvider === 'claude') setClaudeKey(onboardingKeyInput.trim());
+      else if (aiProvider === 'deepseek') setDeepseekKey(onboardingKeyInput.trim());
+      setOnboardingKeyInput('');
       setErrorMessage('');
     }
   };
 
-  // starter questions
   const SUGGESTIONS = [
     "Am I on track to save money this month?",
     "How does my grocery spend this month compare to my average?",
@@ -72,9 +150,8 @@ export default function Assistant() {
     "Do you see any unusual transactions or anomalies recently?"
   ];
 
-  // Helper to compile structured financial context for Gemini
+  // Helper to compile structured financial context
   const financialContext = useMemo(() => {
-    // 1. Accounts context - Deduplicate to only include latest balance snapshot for each unique account
     const latestMap = new Map();
     const sortedBalances = [...(balances || [])]
       .filter(b => b && b.date && b.institution && b.account)
@@ -93,7 +170,6 @@ export default function Assistant() {
       typ: b.type
     }));
 
-    // Calculate totals matching dashboard groups
     let cashTotal = 0;
     let investTotal = 0;
     let creditTotal = 0;
@@ -114,37 +190,22 @@ export default function Assistant() {
           typeLower.includes('529') ||
           nameLower.includes('fidelity') ||
           nameLower.includes('etrade') ||
-          nameLower.includes('e*trade') ||
           nameLower.includes('schwab') ||
           nameLower.includes('vanguard') ||
           nameLower.includes('robinhood') ||
-          nameLower.includes('brokerage') ||
-          nameLower.includes('ira') ||
-          nameLower.includes('401k') ||
-          nameLower.includes('401(k)') ||
-          nameLower.includes('529') ||
           instLower.includes('fidelity') ||
           instLower.includes('etrade') ||
-          instLower.includes('schwab') ||
-          instLower.includes('vanguard') ||
-          instLower.includes('robinhood');
+          instLower.includes('schwab');
 
-        if (isInvest) {
-          investTotal += val;
-        } else {
-          cashTotal += val;
-        }
+        if (isInvest) investTotal += val;
+        else cashTotal += val;
       } else if (b.class === 'Liability') {
-        const isCard = typeLower.includes('credit') || nameLower.includes('card') || nameLower.includes('credit');
-        if (isCard) {
-          creditTotal += val;
-        } else {
-          loanTotal += val;
-        }
+        const isCard = typeLower.includes('credit') || nameLower.includes('card');
+        if (isCard) creditTotal += val;
+        else loanTotal += val;
       }
     });
 
-    // Calculate dynamic totals for the current active month (matching date preset anchor context)
     const latestDate = transactions.length > 0 ? new Date(Math.max(...transactions.map(t => new Date(t.date).getTime()))) : new Date();
     const currentMonth = latestDate.getMonth();
     const currentYear = latestDate.getFullYear();
@@ -159,15 +220,11 @@ export default function Assistant() {
       const d = new Date(t.date);
       if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
         const val = Number(t.amount) || 0;
-        if (t.type === 'Income') {
-          currentMonthIncome += val;
-        } else if (t.type === 'Expense' || (t.type === 'Transfer' && (t.group === 'Investments' || t.group === 'Cash Savings'))) {
-          currentMonthExpenses += Math.abs(val);
-        }
+        if (t.type === 'Income') currentMonthIncome += val;
+        else if (t.type === 'Expense') currentMonthExpenses += Math.abs(val);
       }
     });
 
-    // 2. Budget limits and actual spends this month
     const budgetData = categories.map(c => {
       const actualSpend = transactions
         .filter(t => 
@@ -190,10 +247,9 @@ export default function Assistant() {
       };
     }).filter(b => b.lim > 0 || b.spent > 0);
 
-    // 3. Recent Transactions (last 100 rows for visibility of recent weeks)
     const sortedTxns = aggregateOnlyMode ? [] : [...transactions]
       .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, 100)
+      .slice(0, 50)
       .map((t, idx) => ({
         d: t.date,
         m: redactSensitiveData ? `${t.type} txn #${idx + 1}` : cleanMerchantName(t.description),
@@ -223,6 +279,31 @@ export default function Assistant() {
     };
   }, [transactions, categories, balances, redactSensitiveData, aggregateOnlyMode]);
 
+  // Execute local tool on MCP server
+  const runMcpTool = async (name, args) => {
+    setToolStatus(`Executing tool ${name}...`);
+    try {
+      const response = await fetch(`${mcpUrl}/tools/${name}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(mcpSecret ? { 'Authorization': `Bearer ${mcpSecret}` } : {})
+        },
+        body: JSON.stringify(args)
+      });
+      if (!response.ok) {
+        throw new Error(`MCP tool invocation failed with status ${response.status}`);
+      }
+      const data = await response.json();
+      return data.result;
+    } catch (err) {
+      console.error(`[MCP] Tool run error:`, err);
+      return { error: err.message };
+    } finally {
+      setToolStatus('');
+    }
+  };
+
   const handleSendMessage = async (textToSend) => {
     const promptText = textToSend || userInput;
     if (!promptText.trim() || isGenerating) return;
@@ -231,77 +312,437 @@ export default function Assistant() {
     setErrorMessage('');
     setIsGenerating(true);
 
-    // Append user message
     const updatedChat = [...chatLog, { role: 'user', content: promptText }];
     setChatLog(updatedChat);
 
-    try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const selectedModel = safeStorage.getItem('finflow_gemini_model') || 'gemini-2.5-flash-lite';
-      const model = genAI.getGenerativeModel({ 
-        model: selectedModel,
-        systemInstruction: `You are FinFlow Copilot, a brilliant, concise personal financial assistant.
-You have secure access to the user's local financial database. Below is the compressed snapshot of their balances, budgets, and recent transactions.
+    const systemPrompt = `You are FinFlow Copilot, an elite personal financial AI assistant.
+You have access to the user's local financial database.
+${mcpEnabled ? 'You also have live access to the local database via MCP tools. If you need specific transactions, net worth historical logs, sector/sector investment allocations, or spending trends, call the appropriate tool dynamically instead of guessing.' : ''}
 
 <DatabaseContext>
 ${JSON.stringify(financialContext)}
 </DatabaseContext>
 
-Key Mappings:
+Key Context Mappings:
 - net: Net worth summary (nw: Net Worth, cash: Total Cash, debt: Credit Card Debt, inv: Investments, loan: Loans).
 - currentMonth: Calculated totals for the active month (label: Month Name, income: Total Earned, expenses: Total Spent, netSurplus: Earned minus Spent).
-- accts: Active accounts (inst: Institution, name: Account Name, bal: Balance, cls: Class, typ: Type).
-- budgets: Category Budgets (cat: Category Name, grp: Group, typ: Type, lim: Budget Limit, spent: Actual Spent). Note: These are cumulative category budgets and spends, DO NOT sum all categories to calculate monthly totals as categories may overlap or contain historical/rollover entries. Refer to currentMonth variables for exact month metrics.
-- txns: Recent Transactions (d: Date, m: Merchant Name, c: Category, a: Amount, t: Type, ac: Account Name).
+- accts: Active accounts.
+- budgets: Category Budgets (cat: Category Name, grp: Group, typ: Type, lim: Budget Limit, spent: Actual Spent).
+- txns: Recent Transactions.
 
 Rules:
-1. Always prioritize exact figures from the context. Do not invent balances or categories.
+1. Always prioritize exact figures from the context or tool outputs. Do not invent balances or categories.
 2. Format currency nicely using standard dollar signs (e.g. $125.40).
 3. Keep responses highly glanceable and direct. Use markdown tables, bold highlights, and bullet points.
-4. If a user asks about historical trends outside the provided data, specify that your visibility is currently set to recent syncs.
-5. Answer questions with actionable analysis. Compare the user's current month income/expenses directly using the pre-calculated currentMonth variables (do not try to compute month aggregates manually from categories).
-6. CRITICAL: At the very end of your response, always propose 2-3 context-appropriate follow-up questions the user might want to ask next. Format these suggestions exactly like: <suggestions>Question 1|Question 2|Question 3</suggestions>`
-      });
+4. If a user asks about historical trends outside the provided data, specify that your visibility is currently set to recent syncs or invoke get_net_worth_history / analyze_spending_trends tools.
+5. Answer questions with actionable analysis. Compare the user's current month metrics.
+6. CRITICAL: At the very end of your response, always propose 2-3 context-appropriate follow-up questions the user might want to ask next. Format these suggestions exactly like: <suggestions>Question 1|Question 2|Question 3</suggestions>`;
 
-      // Prepare conversation history for the API
-      const contents = updatedChat.map(m => ({
-        role: m.role === 'model' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
+    try {
+      // Loop for potential tool calling agent flow
+      let activeHistory = [...updatedChat];
+      let finalResponseGenerated = false;
+      let toolCallAttempts = 0;
 
-      const result = await model.generateContentStream({ contents });
-      
-      // Append a placeholder model message
-      setChatLog(prev => [...prev, { role: 'model', content: '' }]);
+      while (!finalResponseGenerated && toolCallAttempts < 5) {
+        if (aiProvider === 'gemini') {
+          // GEMINI DIRECT PIPELINE
+          const genAI = new GoogleGenerativeAI(activeApiKey);
+          
+          // Configure Gemini tools
+          const geminiTools = mcpEnabled && mcpTools.length > 0 
+            ? [{
+                functionDeclarations: mcpTools.map(t => ({
+                  name: t.name,
+                  description: t.description,
+                  parameters: t.inputSchema
+                }))
+              }]
+            : undefined;
 
-      let accumulatedText = '';
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text();
-        accumulatedText += chunkText;
-        
-        // Update the last message in chat history
-        setChatLog(prev => {
-          const next = [...prev];
-          next[next.length - 1] = { role: 'model', content: accumulatedText };
-          return next;
-        });
+          const model = genAI.getGenerativeModel({ 
+            model: aiModel,
+            systemInstruction: systemPrompt,
+            tools: geminiTools
+          });
+
+          // Convert history format to Gemini parts
+          const contents = activeHistory.map(m => {
+            if (m.role === 'tool') {
+              return {
+                role: 'user',
+                parts: [{
+                  functionResponse: {
+                    name: m.name,
+                    response: { result: m.content }
+                  }
+                }]
+              };
+            }
+            if (m.tool_calls) {
+              return {
+                role: 'model',
+                parts: m.tool_calls.map(tc => ({
+                  functionCall: {
+                    name: tc.name,
+                    args: tc.args
+                  }
+                }))
+              };
+            }
+            return {
+              role: m.role === 'model' ? 'model' : 'user',
+              parts: [{ text: m.content }]
+            };
+          });
+
+          if (mcpEnabled && mcpTools.length > 0) {
+            // Non-stream block for tool calling loops
+            const result = await model.generateContent({ contents });
+            const response = result.response;
+            const functionCalls = response.functionCalls;
+
+            if (functionCalls && functionCalls.length > 0) {
+              toolCallAttempts++;
+              const toolCalls = functionCalls.map(fc => ({
+                id: fc.name, // Gemini function call ID is mapped to its name
+                name: fc.name,
+                args: fc.args
+              }));
+
+              // Log tool invocation in feed
+              setChatLog(prev => [...prev, {
+                role: 'model',
+                content: `🔧 *System: Executing local tool ${toolCalls[0].name}...*`
+              }]);
+
+              // Run the first tool call
+              const toolResult = await runMcpTool(toolCalls[0].name, toolCalls[0].args);
+              
+              // Remove system execution message and record in history
+              setChatLog(prev => prev.slice(0, -1));
+              activeHistory.push({ role: 'model', tool_calls: toolCalls });
+              activeHistory.push({ role: 'tool', name: toolCalls[0].name, content: JSON.stringify(toolResult) });
+            } else {
+              const text = response.text();
+              setChatLog(prev => [...prev, { role: 'model', content: text }]);
+              finalResponseGenerated = true;
+            }
+          } else {
+            // Direct streaming if no tools
+            const result = await model.generateContentStream({ contents });
+            setChatLog(prev => [...prev, { role: 'model', content: '' }]);
+            
+            let accumulatedText = '';
+            for await (const chunk of result.stream) {
+              accumulatedText += chunk.text();
+              setChatLog(prev => {
+                const next = [...prev];
+                next[next.length - 1] = { role: 'model', content: accumulatedText };
+                return next;
+              });
+            }
+            finalResponseGenerated = true;
+          }
+        } else {
+          // EXTERNAL PROVIDERS (OpenAI, Claude, DeepSeek) - STREAMING & TOOL LOOP VIA LOCAL PROXY
+          let fetchUrl = "";
+          let fetchHeaders = { "Content-Type": "application/json" };
+          let fetchBody = {};
+
+          if (aiProvider === 'openai') {
+            fetchUrl = "https://api.openai.com/v1/chat/completions";
+            fetchHeaders["Authorization"] = `Bearer ${activeApiKey}`;
+            
+            const openaiTools = mcpEnabled && mcpTools.length > 0
+              ? mcpTools.map(t => ({
+                  type: "function",
+                  function: {
+                    name: t.name,
+                    description: t.description,
+                    parameters: t.inputSchema
+                  }
+                }))
+              : undefined;
+
+            // Map history to OpenAI format
+            const openaiMessages = [
+              { role: "system", content: systemPrompt },
+              ...activeHistory.map(m => {
+                if (m.role === 'tool') {
+                  return { role: "tool", tool_call_id: m.tool_call_id, name: m.name, content: m.content };
+                }
+                if (m.tool_calls) {
+                  return {
+                    role: "assistant",
+                    tool_calls: m.tool_calls.map(tc => ({
+                      id: tc.id,
+                      type: "function",
+                      function: { name: tc.name, arguments: JSON.stringify(tc.args) }
+                    }))
+                  };
+                }
+                return { role: m.role === 'model' ? 'assistant' : 'user', content: m.content };
+              })
+            ];
+
+            fetchBody = {
+              model: aiModel,
+              messages: openaiMessages,
+              stream: true,
+              tools: openaiTools
+            };
+          } else if (aiProvider === 'deepseek') {
+            fetchUrl = "https://api.deepseek.com/v1/chat/completions";
+            fetchHeaders["Authorization"] = `Bearer ${activeApiKey}`;
+            
+            const deepseekTools = mcpEnabled && mcpTools.length > 0
+              ? mcpTools.map(t => ({
+                  type: "function",
+                  function: {
+                    name: t.name,
+                    description: t.description,
+                    parameters: t.inputSchema
+                  }
+                }))
+              : undefined;
+
+            const deepseekMessages = [
+              { role: "system", content: systemPrompt },
+              ...activeHistory.map(m => {
+                if (m.role === 'tool') {
+                  return { role: "tool", tool_call_id: m.tool_call_id, name: m.name, content: m.content };
+                }
+                if (m.tool_calls) {
+                  return {
+                    role: "assistant",
+                    tool_calls: m.tool_calls.map(tc => ({
+                      id: tc.id,
+                      type: "function",
+                      function: { name: tc.name, arguments: JSON.stringify(tc.args) }
+                    }))
+                  };
+                }
+                return { role: m.role === 'model' ? 'assistant' : 'user', content: m.content };
+              })
+            ];
+
+            fetchBody = {
+              model: aiModel,
+              messages: deepseekMessages,
+              stream: true,
+              tools: deepseekTools
+            };
+          } else if (aiProvider === 'claude') {
+            fetchUrl = "https://api.anthropic.com/v1/messages";
+            fetchHeaders["x-api-key"] = activeApiKey;
+            fetchHeaders["anthropic-version"] = "2023-06-01";
+            fetchHeaders["anthropic-dangerous-direct-browser-access"] = "true";
+
+            const claudeTools = mcpEnabled && mcpTools.length > 0
+              ? mcpTools.map(t => ({
+                  name: t.name,
+                  description: t.description,
+                  input_schema: t.inputSchema
+                }))
+              : undefined;
+
+            // Map history to Anthropic format
+            const claudeMessages = activeHistory.map(m => {
+              if (m.role === 'tool') {
+                return {
+                  role: "user",
+                  content: [{ type: "tool_result", tool_use_id: m.tool_call_id, content: m.content }]
+                };
+              }
+              if (m.tool_calls) {
+                return {
+                  role: "assistant",
+                  content: m.tool_calls.map(tc => ({
+                    type: "tool_use",
+                    id: tc.id,
+                    name: tc.name,
+                    input: tc.args
+                  }))
+                };
+              }
+              return { role: m.role === 'model' ? 'assistant' : 'user', content: m.content };
+            });
+
+            fetchBody = {
+              model: aiModel,
+              system: systemPrompt,
+              messages: claudeMessages,
+              stream: true,
+              max_tokens: 4000,
+              tools: claudeTools
+            };
+          }
+
+          // Trigger completion call
+          let response;
+          if (mcpEnabled && mcpUrl) {
+            // route through CORS bypass proxy
+            response = await fetch(`${mcpUrl}/proxy`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(mcpSecret ? { 'Authorization': `Bearer ${mcpSecret}` } : {})
+              },
+              body: JSON.stringify({
+                url: fetchUrl,
+                headers: fetchHeaders,
+                method: 'POST',
+                body: fetchBody
+              })
+            });
+          } else {
+            response = await fetch(fetchUrl, {
+              method: 'POST',
+              headers: fetchHeaders,
+              body: JSON.stringify(fetchBody)
+            });
+          }
+
+          if (!response.ok) {
+            const errBody = await response.text();
+            throw new Error(`API failed: status ${response.status} - ${errBody || 'Unknown API failure'}`);
+          }
+
+          // Parse stream
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder("utf-8");
+          let buffer = "";
+          let accumulatedText = "";
+          let toolCallsAccumulator = [];
+
+          // Add a temporary text placeholder
+          setChatLog(prev => [...prev, { role: 'model', content: '' }]);
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+
+              // Parse OpenAI / DeepSeek SSE format
+              if (trimmed.startsWith('data: ')) {
+                const dataStr = trimmed.slice(6);
+                if (dataStr === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  const choice = parsed.choices?.[0];
+                  if (choice) {
+                    if (choice.delta?.content) {
+                      accumulatedText += choice.delta.content;
+                      setChatLog(prev => {
+                        const next = [...prev];
+                        next[next.length - 1] = { role: 'model', content: accumulatedText };
+                        return next;
+                      });
+                    }
+                    if (choice.delta?.tool_calls) {
+                      for (const tc of choice.delta.tool_calls) {
+                        const idx = tc.index ?? 0;
+                        if (!toolCallsAccumulator[idx]) {
+                          toolCallsAccumulator[idx] = { id: '', name: '', arguments: '' };
+                        }
+                        if (tc.id) toolCallsAccumulator[idx].id = tc.id;
+                        if (tc.class) toolCallsAccumulator[idx].class = tc.class;
+                        if (tc.function?.name) toolCallsAccumulator[idx].name = tc.function.name;
+                        if (tc.function?.arguments) toolCallsAccumulator[idx].arguments += tc.function.arguments;
+                      }
+                    }
+                  }
+                } catch (e) {}
+              } 
+              // Parse Anthropic SSE format
+              else if (trimmed.startsWith('data:')) {
+                try {
+                  const parsed = JSON.parse(trimmed.slice(trimmed.indexOf('{')));
+                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                    accumulatedText += parsed.delta.text;
+                    setChatLog(prev => {
+                      const next = [...prev];
+                      next[next.length - 1] = { role: 'model', content: accumulatedText };
+                      return next;
+                    });
+                  }
+                  if (parsed.type === 'content_block_start' && parsed.content_block?.type === 'tool_use') {
+                    const tb = parsed.content_block;
+                    toolCallsAccumulator.push({ id: tb.id, name: tb.name, arguments: '' });
+                  }
+                  if (parsed.type === 'content_block_delta' && parsed.delta?.partial_json) {
+                    const activeCall = toolCallsAccumulator[toolCallsAccumulator.length - 1];
+                    if (activeCall) activeCall.arguments += parsed.delta.partial_json;
+                  }
+                } catch (e) {}
+              }
+            }
+          }
+
+          // Evaluate tool calling requests
+          const requestedToolCalls = toolCallsAccumulator
+            .filter(tc => tc && tc.name)
+            .map(tc => {
+              let args = {};
+              try { args = JSON.parse(tc.arguments || '{}'); } catch (e) {}
+              return { id: tc.id, name: tc.name, args };
+            });
+
+          if (requestedToolCalls.length > 0) {
+            toolCallAttempts++;
+            // Remove text placeholder
+            setChatLog(prev => prev.slice(0, -1));
+
+            // Log tool execution in feed
+            setChatLog(prev => [...prev, {
+              role: 'model',
+              content: `🔧 *System: Executing local tool ${requestedToolCalls[0].name}...*`
+            }]);
+
+            const toolResult = await runMcpTool(requestedToolCalls[0].name, requestedToolCalls[0].args);
+
+            // Remove system execution message
+            setChatLog(prev => prev.slice(0, -1));
+
+            // Append context
+            activeHistory.push({ role: 'model', tool_calls: requestedToolCalls });
+            activeHistory.push({
+              role: 'tool',
+              tool_call_id: requestedToolCalls[0].id,
+              name: requestedToolCalls[0].name,
+              content: JSON.stringify(toolResult)
+            });
+          } else {
+            finalResponseGenerated = true;
+          }
+        }
       }
     } catch (err) {
       console.error(err);
-      let msg = err.message || 'Failed to generate response. Check your API key and connection.';
-      if (msg.includes('429') || msg.includes('quota') || msg.includes('Quota')) {
-        msg = 'Copilot rate limit exceeded. Please wait 15-20 seconds before asking another question.';
+      let msg = err.message || 'Failed to generate response. Check your API configurations.';
+      if (msg.includes('429')) {
+        msg = 'Copilot rate limit exceeded. Please wait a moment before sending another message.';
       }
       setErrorMessage(msg);
-      // Remove empty model placeholder if error occurred
+      // Clean up empty model bubble
       setChatLog(prev => prev.filter(m => m.content !== ''));
     } finally {
       setIsGenerating(false);
+      setToolStatus('');
     }
   };
 
   // Helper to extract custom suggestion tags
   const parseSuggestions = (content) => {
+    if (!content) return { text: '', suggestions: [] };
     const match = content.match(/<suggestions>([\s\S]*?)<\/suggestions>/);
     if (!match) return { text: content, suggestions: [] };
     
@@ -317,16 +758,12 @@ Rules:
   // Simple client-side markdown formatter
   const renderMarkdown = (text) => {
     if (!text) return null;
-
-    // Split text into paragraphs
     const paragraphs = text.split('\n');
 
     return paragraphs.map((para, i) => {
       let trimmed = para.trim();
-      
       if (!trimmed) return <div key={i} className="h-2" />;
 
-      // Header tags
       if (trimmed.startsWith('### ')) {
         return <h4 key={i} className="text-sm font-bold text-white mt-3 mb-1.5">{trimmed.replace('### ', '')}</h4>;
       }
@@ -337,13 +774,9 @@ Rules:
         return <h2 key={i} className="text-lg font-black text-white mt-4 mb-2">{trimmed.replace('# ', '')}</h2>;
       }
 
-      // Check for table row
       if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-        // Skip separator row (e.g. |---|---|)
         if (trimmed.includes('---')) return null;
-        
         const cells = trimmed.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
-        
         return (
           <div key={i} className="flex border-b border-obsidian-800/80 py-1.5 text-xs text-slate-350 hover:bg-obsidian-800/10">
             {cells.map((cell, cellIdx) => (
@@ -355,11 +788,10 @@ Rules:
         );
       }
 
-      // Bullet points
       if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
         const cleanBullet = trimmed.replace(/^[-*]\s+/, '');
         return (
-          <li key={i} className="text-xs text-slate-300 list-disc ml-4 my-1">
+          <li key={i} className="text-xs text-slate-350 list-disc ml-4 my-1">
             {parseInlineMarkdown(cleanBullet)}
           </li>
         );
@@ -374,7 +806,6 @@ Rules:
   };
 
   const parseInlineMarkdown = (line) => {
-    // Regex for bold text (**bold**)
     const parts = line.split(/(\*\*.*?\*\*)/g);
     return parts.map((part, idx) => {
       if (part.startsWith('**') && part.endsWith('**')) {
@@ -384,8 +815,8 @@ Rules:
     });
   };
 
-  // If no API Key is configured, show onboarding
-  if (!apiKey) {
+  // Onboarding API Key form if selected provider missing credentials
+  if (!activeApiKey) {
     return (
       <div className="flex flex-col items-center justify-center max-w-lg mx-auto min-h-[70vh] py-8 px-6 text-center space-y-6 animate-fade-in">
         <div className="bg-obsidian-800 p-5 rounded-3xl border border-obsidian-750/80 shadow-2xl relative">
@@ -397,57 +828,30 @@ Rules:
 
         <div className="space-y-2">
           <h1 className="text-2xl font-black text-white font-display">Configure FinFlow Copilot</h1>
-          <p className="text-sm text-slate-400">
-            Query your local budget database with natural language via a Google Gemini API Key.
+          <p className="text-xs text-slate-400">
+            Selected Provider: <span className="font-bold text-neon-indigo capitalize">{aiProvider}</span> (Model: {aiModel})
           </p>
-        </div>
-
-        {/* Detailed Security & Trust Policy Panel */}
-        <div className="bg-obsidian-850/80 border border-obsidian-800 rounded-2xl p-4 text-left space-y-3 text-xs w-full">
-          <h3 className="font-bold text-white flex items-center gap-1.5">
-            <Check size={14} className="text-neon-emerald" /> AI Safety &amp; Trust Guidelines
-          </h3>
-          <ul className="space-y-2 text-slate-400 list-disc pl-4">
-            <li>
-              <strong>Direct Connection:</strong> Your API Key and financial prompts are sent directly to Google Gemini. No intermediate servers store or process your data.
-            </li>
-            <li>
-              <strong>Obfuscation Controls:</strong> Enable redact mode to anonymize merchant descriptions and account names before they leave your device.
-            </li>
-            <li>
-              <strong>Aggregation Restrictions:</strong> Limit the context to high-level balances and budget totals, omitting individual transaction feeds.
-            </li>
-            <li>
-              <strong>Local Storage:</strong> Your key is stored securely in your browser's private local storage. Dismantling the key clears all settings instantly.
-            </li>
-          </ul>
+          <p className="text-sm text-slate-400">
+            Please enter your API Key to authenticate the assistant model.
+          </p>
         </div>
 
         <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-5 w-full space-y-4">
           <div className="text-left space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-              <span>Gemini API Key</span>
-              <a 
-                href="https://aistudio.google.com/" 
-                target="_blank" 
-                rel="noreferrer" 
-                className="text-neon-indigo hover:underline normal-case font-bold flex items-center space-x-1"
-              >
-                <span>Get Free Key</span>
-                <ArrowRight size={10} />
-              </a>
+              <span>{aiProvider.toUpperCase()} API Key</span>
             </label>
             <input 
               type="password" 
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="Paste your AIzaSy key here..."
+              value={onboardingKeyInput}
+              onChange={(e) => setOnboardingKeyInput(e.target.value)}
+              placeholder={`Paste your ${aiProvider} key here...`}
               className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
             />
           </div>
 
           <button
-            onClick={handleSaveApiKey}
+            onClick={handleSaveOnboardingKey}
             className="w-full py-2.5 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center space-x-2"
           >
             <Key size={14} />
@@ -469,25 +873,25 @@ Rules:
           <div>
             <h1 className="text-xl font-bold text-white font-display flex items-center space-x-1.5">
               <span>FinFlow Copilot</span>
-              <span className="bg-neon-indigo/15 border border-neon-indigo/25 text-neon-indigo text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full select-none">Beta</span>
+              <span className="bg-neon-indigo/15 border border-neon-indigo/25 text-neon-indigo text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full select-none capitalize">{aiProvider}</span>
             </h1>
             <p className="text-[10px] text-slate-400">Contextual intelligence parsing local accounts & budgets</p>
           </div>
         </div>
 
-        <button
-          onClick={() => {
-            safeStorage.removeItem('finflow_gemini_key');
-            safeStorage.removeItem('finflow_ai_redact');
-            safeStorage.removeItem('finflow_ai_aggregate_only');
-            setApiKey('');
-            setRedactSensitiveData(false);
-            setAggregateOnlyMode(false);
-          }}
-          className="text-[10px] font-bold text-slate-500 hover:text-neon-crimson px-2.5 py-1.5 bg-obsidian-850 hover:bg-neon-crimson/5 rounded-xl border border-obsidian-750 transition-all animate-fade-in"
-        >
-          Wipe API Key &amp; Settings
-        </button>
+        {/* Diagnostic active model & MCP indicator */}
+        <div className="flex items-center space-x-2 text-[10px] text-slate-400">
+          <div className="flex items-center space-x-1 px-2 py-1 bg-obsidian-850 rounded-lg border border-obsidian-750">
+            <Activity size={10} className="text-neon-emerald" />
+            <span className="truncate max-w-[80px] md:max-w-none">{aiModel}</span>
+          </div>
+          {mcpEnabled && (
+            <div className="flex items-center space-x-1 px-2 py-1 bg-obsidian-850 rounded-lg border border-obsidian-750 text-neon-indigo font-bold">
+              <Server size={10} />
+              <span>MCP Active ({mcpTools.length})</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Message Feed */}
@@ -513,7 +917,7 @@ Rules:
                 <div className={`p-4 rounded-2xl border shadow-sm ${
                   message.role === 'user'
                     ? 'bg-neon-indigo/15 border-neon-indigo/25 text-slate-200'
-                    : 'bg-obsidian-800/40 border-obsidian-800/80 text-slate-300'
+                    : 'bg-obsidian-800/40 border-obsidian-800/80 text-slate-350'
                 }`}>
                   <div className="space-y-2">
                     {text ? renderMarkdown(text) : (
@@ -532,7 +936,7 @@ Rules:
                       <button
                         key={sugIdx}
                         onClick={() => handleSendMessage(suggestionText)}
-                        className="text-left px-3.5 py-1.5 bg-obsidian-800/45 hover:bg-neon-indigo/15 border border-obsidian-750 hover:border-neon-indigo/40 text-[10px] font-semibold text-slate-300 hover:text-white rounded-full transition-all duration-150 active:scale-[0.98] shadow-sm"
+                        className="text-left px-3.5 py-1.5 bg-obsidian-800/45 hover:bg-neon-indigo/15 border border-obsidian-750 hover:border-neon-indigo/40 text-[10px] font-semibold text-slate-350 hover:text-white rounded-full transition-all duration-150 active:scale-[0.98] shadow-sm"
                       >
                         {suggestionText}
                       </button>
@@ -560,6 +964,14 @@ Rules:
           </div>
         )}
         
+        {/* Tool Call status details */}
+        {toolStatus && (
+          <div className="flex items-center space-x-2 text-xs text-slate-500 pl-8 py-1 animate-pulse">
+            <Activity size={12} className="animate-spin text-neon-indigo" />
+            <span>{toolStatus}</span>
+          </div>
+        )}
+
         <div ref={chatEndRef} />
       </div>
 
@@ -596,7 +1008,7 @@ Rules:
                 setChatLog([
                   {
                     role: 'model',
-                    content: "Hello! I'm your FinFlow Copilot. I have analyzed your accounts, category budgets, and transaction history. Ask me anything about your finances!"
+                    content: "Hello! I'm your FinFlow Copilot. I have access to your account balances, budgets, and transaction history. Ask me anything!"
                   }
                 ]);
               }}
@@ -616,9 +1028,9 @@ Rules:
         </div>
 
         {showSharedContext && (
-          <div className="mt-2 p-3 bg-obsidian-900 border border-obsidian-750 rounded-xl max-h-48 overflow-y-auto text-[10px] text-slate-400 font-mono space-y-2 select-all">
+          <div className="mt-2 p-3 bg-obsidian-900 border border-obsidian-750 rounded-xl max-h-48 overflow-y-auto text-[10px] text-slate-450 font-mono space-y-2 select-all">
             <div className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1 border-b border-obsidian-800 pb-1">
-              Gemini Prompt Context (Anonymized &amp; Compressed Snapshot)
+              Copilot Prompt Context (Anonymized &amp; Compressed Snapshot)
             </div>
             <pre className="whitespace-pre-wrap">
               {JSON.stringify(financialContext, null, 2)}
@@ -645,7 +1057,7 @@ Rules:
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
             disabled={isGenerating}
-            placeholder={isGenerating ? "Processing models..." : "Ask Copilot e.g., 'Am I over budget on groceries?'"}
+            placeholder={isGenerating ? (toolStatus || "Processing models...") : "Ask Copilot e.g., 'Am I over budget on groceries?'"}
             className="w-full bg-obsidian-800/90 border border-obsidian-750/90 focus:border-neon-indigo/60 text-white rounded-2xl pl-4 pr-12 py-3.5 text-xs focus:outline-none focus:ring-1 focus:ring-neon-indigo/30 transition-all placeholder-slate-500 shadow-xl"
           />
           <button
