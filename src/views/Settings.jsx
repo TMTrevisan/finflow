@@ -518,7 +518,7 @@ export default function Settings() {
                   let defaultModel = 'gemini-2.5-flash-lite';
                   if (prov === 'openai') defaultModel = 'gpt-4o-mini';
                   else if (prov === 'claude') defaultModel = 'claude-3-5-sonnet-latest';
-                  else if (prov === 'deepseek') defaultModel = 'deepseek-chat';
+                  else if (prov === 'deepseek') defaultModel = 'deepseek-v4-flash';
                   setAiModel(defaultModel);
                   safeStorage.setItem('finflow_ai_model', defaultModel);
                 }}
@@ -566,7 +566,9 @@ export default function Settings() {
                 )}
                 {aiProvider === 'deepseek' && (
                   <>
-                    <option value="deepseek-chat">deepseek-chat (DeepSeek-V3)</option>
+                    <option value="deepseek-v4-flash">deepseek-v4-flash (Recommended - Fast & Cost-Efficient)</option>
+                    <option value="deepseek-v4-pro">deepseek-v4-pro (High Intelligence)</option>
+                    <option value="deepseek-chat">deepseek-chat (DeepSeek-V3 Legacy)</option>
                     <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek-R1)</option>
                   </>
                 )}
