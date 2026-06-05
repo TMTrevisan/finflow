@@ -430,6 +430,18 @@ Rules:
             const result = await model.generateContent({ contents });
             const response = result.response;
             const functionCalls = response.functionCalls;
+            let inlineFuncCall = null;
+            
+            // Check for raw inline text function calls (e.g. <function_call>name(...)
+            const textResponse = response.text ? response.text() : '';
+            const inlineMatch = textResponse.match(/<function_call>(\w+)\(([\s\S]*?)\)<\/function_call>/);
+            if (inlineMatch) {
+              try {
+                const name = inlineMatch[1];
+                const args = JSON.parse(inlineMatch[2].trim());
+                inlineFuncCall = { id: name, name, args };
+              } catch (e) {}
+            }
 
             if (functionCalls && functionCalls.length > 0) {
               toolCallAttempts++;
@@ -452,6 +464,16 @@ Rules:
               setChatLog(prev => prev.slice(0, -1));
               activeHistory.push({ role: 'model', tool_calls: toolCalls });
               activeHistory.push({ role: 'tool', name: toolCalls[0].name, content: JSON.stringify(toolResult) });
+            } else if (inlineFuncCall) {
+              toolCallAttempts++;
+              setChatLog(prev => [...prev, {
+                role: 'model',
+                content: `🔧 *System: Executing local tool ${inlineFuncCall.name}...*`
+              }]);
+              const toolResult = await runMcpTool(inlineFuncCall.name, inlineFuncCall.args);
+              setChatLog(prev => prev.slice(0, -1));
+              activeHistory.push({ role: 'model', tool_calls: [inlineFuncCall] });
+              activeHistory.push({ role: 'tool', name: inlineFuncCall.name, content: JSON.stringify(toolResult) });
             } else {
               const text = response.text();
               setChatLog(prev => [...prev, { role: 'model', content: text }]);
@@ -680,7 +702,7 @@ Rules:
                       for (const tc of choice.delta.tool_calls) {
                         const idx = tc.index ?? 0;
                         if (!toolCallsAccumulator[idx]) {
-                          toolCallsAccumulator[idx] = { id: '', name: '', arguments: '' };
+                           toolCallsAccumulator[idx] = { id: '', name: '', arguments: '' };
                         }
                         if (tc.id) toolCallsAccumulator[idx].id = tc.id;
                         if (tc.class) toolCallsAccumulator[idx].class = tc.class;
@@ -717,13 +739,25 @@ Rules:
           }
 
           // Evaluate tool calling requests
-          const requestedToolCalls = toolCallsAccumulator
+          let requestedToolCalls = toolCallsAccumulator
             .filter(tc => tc && tc.name)
             .map(tc => {
               let args = {};
               try { args = JSON.parse(tc.arguments || '{}'); } catch (e) {}
               return { id: tc.id, name: tc.name, args };
             });
+
+          // Check for raw text-based function calls if no native tool calling was triggered
+          if (requestedToolCalls.length === 0 && accumulatedText.includes('<function_call>')) {
+            const inlineMatch = accumulatedText.match(/<function_call>(\w+)\(([\s\S]*?)\)<\/function_call>/);
+            if (inlineMatch) {
+              try {
+                const name = inlineMatch[1];
+                const args = JSON.parse(inlineMatch[2].trim());
+                requestedToolCalls = [{ id: name, name, args }];
+              } catch (e) {}
+            }
+          }
 
           if (requestedToolCalls.length > 0) {
             toolCallAttempts++;
