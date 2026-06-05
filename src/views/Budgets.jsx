@@ -116,7 +116,7 @@ function BudgetProgressBar({ spent, budget }) {
 }
 
 export default function Budgets({ setCurrentView }) {
-  const { categories = [], transactions = [], isLoading, isMockData } = useAppContext();
+  const { categories = [], transactions = [], isLoading, isMockData, referenceDate } = useAppContext();
   const [expandedGroups, setExpandedGroups] = useState({
     'Home & Bills': true,
     'Daily Life': true,
@@ -215,17 +215,31 @@ export default function Budgets({ setCurrentView }) {
       'Investments & Savings': []
     };
 
-    // Calculate spent per category for current month
-    const latestDate = transactions.length > 0 ? new Date(Math.max(...transactions.map(t => new Date(t.date).getTime()))) : new Date();
-    const currentMonth = latestDate.getMonth();
-    const currentYear = latestDate.getFullYear();
+    const refDateObj = referenceDate || new Date();
+    const currentMonth = refDateObj.getMonth();
+    const currentYear = refDateObj.getFullYear();
+
+    // Get last month's month and year
+    let lastMonth = currentMonth - 1;
+    let lastMonthYear = currentYear;
+    if (lastMonth < 0) {
+      lastMonth = 11;
+      lastMonthYear = currentYear - 1;
+    }
 
     const spentMap = {};
+    const lastMonthSpentMap = {};
     transactions.forEach(t => {
       const d = new Date(t.date);
-      if (!isNaN(d.getTime()) && d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
-        if (t.type === 'Expense') {
-          spentMap[t.category] = (spentMap[t.category] || 0) + t.amount; // Negative amount
+      if (!isNaN(d.getTime())) {
+        if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+          if (t.type === 'Expense') {
+            spentMap[t.category] = (spentMap[t.category] || 0) + t.amount; // Negative amount
+          }
+        } else if (d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear) {
+          if (t.type === 'Expense') {
+            lastMonthSpentMap[t.category] = (lastMonthSpentMap[t.category] || 0) + t.amount;
+          }
         }
       }
     });
@@ -243,12 +257,13 @@ export default function Budgets({ setCurrentView }) {
         budget: budgetVal,
         spent: spentVal,
         balance: balanceVal,
-        percent: percentVal
+        percent: percentVal,
+        lastMonthSpent: lastMonthSpentMap[cat.category] || 0
       });
     });
 
     return groups;
-  }, [categories, transactions, isMockData]);
+  }, [categories, transactions, isMockData, referenceDate]);
 
   // Aggregate metrics for header summaries
   const aggregatedMetrics = useMemo(() => {
@@ -264,21 +279,21 @@ export default function Budgets({ setCurrentView }) {
       });
     });
 
-    // Pacing calculations: Day 21 of 31 is 67.7% of the month
-    // Pace comparison is spent vs budgeted pacing fraction
-    const remaining = totalBalance;
-    const paceProgress = 21 / 31;
+    const refDateObj = referenceDate || new Date();
+    const currentDay = refDateObj.getDate();
+    const totalDays = new Date(refDateObj.getFullYear(), refDateObj.getMonth() + 1, 0).getDate();
+    const paceProgress = currentDay / totalDays;
     const expectedPacing = totalBudgeted * paceProgress;
     const underPacePct = expectedPacing > 0 ? Math.round(((expectedPacing - totalSpent) / expectedPacing) * 100) : 0;
 
     return {
-      remaining: isMockData ? 8838 : remaining,
-      budgeted: isMockData ? 8150 : totalBudgeted,
-      spent: isMockData ? 2652 : totalSpent,
-      underPace: isMockData ? 23 : underPacePct,
-      dayProgress: 'DAY 21 / 31'
+      remaining: totalBalance,
+      budgeted: totalBudgeted,
+      spent: totalSpent,
+      underPace: underPacePct,
+      dayProgress: `DAY ${currentDay} / ${totalDays}`
     };
-  }, [finalGroups, isMockData]);
+  }, [finalGroups, referenceDate]);
 
   // Dot-meter overview categories list (12 items matching screenshot)
   const dotCategories = useMemo(() => {
@@ -363,8 +378,17 @@ export default function Budgets({ setCurrentView }) {
         </div>
 
         {/* Pacing Badge Pill */}
-        <div className="bg-emerald-500/5 border border-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-2xl text-right">
-          <span className="text-[10px] font-black uppercase tracking-wider block">● {aggregatedMetrics.underPace}% under pace</span>
+        <div className={`px-3 py-1.5 rounded-2xl text-right border ${
+          aggregatedMetrics.underPace >= 0 
+            ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' 
+            : 'bg-rose-500/5 border-rose-500/20 text-rose-400'
+        }`}>
+          <span className="text-[10px] font-black uppercase tracking-wider block">
+            ● {aggregatedMetrics.underPace >= 0 
+              ? `${aggregatedMetrics.underPace}% under pace` 
+              : `${Math.abs(aggregatedMetrics.underPace)}% over pace`
+            }
+          </span>
           <span className="text-[9px] text-slate-500 block mt-0.5">{aggregatedMetrics.dayProgress}</span>
         </div>
       </div>
@@ -419,9 +443,9 @@ export default function Budgets({ setCurrentView }) {
           <span>Available funds</span>
           <span className="text-white font-bold">{formatCurrency(17108.14)}</span>
         </div>
-        <div className="flex items-center justify-between text-xs text-slate-450 border-t border-slate-800/40 pt-3">
+        <div className="flex items-center justify-between text-xs text-slate-455 border-t border-slate-800/40 pt-3">
           <span>Budgeted</span>
-          <span className="text-slate-400 font-bold">-{formatCurrency(8150.00)}</span>
+          <span className="text-slate-400 font-bold">-{formatCurrency(aggregatedMetrics.budgeted)}</span>
         </div>
         <div className="flex items-center justify-between text-xs text-slate-450 border-t border-slate-800/40 pt-3">
           <span>For next month</span>
@@ -434,7 +458,7 @@ export default function Budgets({ setCurrentView }) {
             <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">Income</span>
           </div>
           <div className="space-y-0.5 border-l border-slate-800/40">
-            <span className="text-base font-extrabold text-white">{formatCurrency(8150)}</span>
+            <span className="text-base font-extrabold text-white">{formatCurrency(aggregatedMetrics.budgeted)}</span>
             <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">Budgeted</span>
           </div>
         </div>
@@ -480,10 +504,10 @@ export default function Budgets({ setCurrentView }) {
                 <div className="p-4 space-y-4">
                   {/* Table headers */}
                   <div className="grid grid-cols-12 text-[8px] font-black text-slate-500 uppercase tracking-widest pb-1 border-b border-slate-900">
-                    <span className="col-span-5">Category</span>
-                    <span className="col-span-2 text-right text-slate-400 font-bold">Monthly Budget</span>
-                    <span className="col-span-2 text-right">Spent</span>
-                    <span className="col-span-3 text-right text-slate-300 font-bold">Remaining Budget</span>
+                    <span className="col-span-7 sm:col-span-5">Category</span>
+                    <span className="hidden sm:inline sm:col-span-2 text-right text-slate-400 font-bold">Monthly Budget</span>
+                    <span className="hidden sm:inline sm:col-span-2 text-right">Spent</span>
+                    <span className="col-span-5 sm:col-span-3 text-right text-slate-300 font-bold">Remaining Budget</span>
                   </div>
 
                   <div className="space-y-3.5">
@@ -496,25 +520,25 @@ export default function Budgets({ setCurrentView }) {
                           className="space-y-2 group cursor-pointer hover:bg-slate-800/5 -mx-2 p-2 rounded-xl transition-all"
                         >
                           <div className="grid grid-cols-12 items-center text-xs">
-                            <div className="col-span-5 flex items-center space-x-2 min-w-0 pr-2">
+                            <div className="col-span-7 sm:col-span-5 flex items-center space-x-2 min-w-0 pr-2">
                               <span className="text-slate-500 shrink-0 select-none">{getCategoryIcon(item.category)}</span>
                               <span className="font-bold text-slate-200 group-hover:text-emerald-400 truncate transition-colors">{item.category}</span>
                             </div>
 
                             {/* Budgeted Capsule */}
-                            <div className="col-span-2 text-right">
+                            <div className="hidden sm:block sm:col-span-2 text-right">
                               <span className="border border-amber-500/25 text-amber-500 bg-amber-500/5 px-2 py-0.5 rounded-full text-[10px] font-bold">
                                 {formatCurrency(item.budget)}
                               </span>
                             </div>
 
                             {/* Spent Amount */}
-                            <span className="col-span-2 text-right font-semibold text-slate-500">
+                            <span className="hidden sm:block sm:col-span-2 text-right font-semibold text-slate-500">
                               -{formatCurrency(Math.abs(item.spent))}
                             </span>
 
                             {/* Balance Amount */}
-                            <span className={`col-span-3 text-right font-extrabold ${isOver ? 'text-rose-500 font-black' : 'text-emerald-400'}`}>
+                            <span className={`col-span-5 sm:col-span-3 text-right font-extrabold ${isOver ? 'text-rose-500 font-black' : 'text-emerald-400'}`}>
                               {isOver ? '-' : ''}{formatCurrency(Math.abs(item.balance))}
                             </span>
                           </div>

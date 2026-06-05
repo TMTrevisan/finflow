@@ -101,6 +101,23 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
     }
   });
 
+  // Detect if raw data uses Tiller convention (positive expenses, negative income/credits)
+  const isTillerConvention = txnsList.some(t => {
+    const amt = Number(t.amount) || 0;
+    const cat = String(t.category || '').toLowerCase();
+    const catMeta = catMap[cat];
+    const type = catMeta?.type || t.type || '';
+    
+    if (type === 'Expense' && amt > 0) return true;
+    if (type === 'Income' && amt < 0) return true;
+    
+    if (!type) {
+      const isExpenseCat = cat.includes('grocer') || cat.includes('rent') || cat.includes('dining') || cat.includes('shopping') || cat.includes('utilit') || cat.includes('travel') || cat.includes('auto');
+      if (isExpenseCat && amt > 0) return true;
+    }
+    return false;
+  });
+
   const txns = txnsList.map(t => {
     const catName = String(t.category || '').trim().toLowerCase();
     const catMeta = catMap[catName];
@@ -156,6 +173,15 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
     let finalCategory = t.category;
     let finalType = type;
 
+    // Force known expense descriptions that might have flipped signs or misclassifications
+    if (descLower.includes('sd gas & elec') || descLower.includes('sdge') || descLower.includes('sdg&e') || descLower.includes('sd genie') || descLower.includes('sd gas and electric')) {
+      finalType = 'Expense';
+      group = 'Utilities';
+      if (!finalCategory || finalCategory === 'Uncategorized') {
+        finalCategory = 'Utilities';
+      }
+    }
+
     if (rawAmt < 0 && (descLower.includes('wife') || descLower.includes('spouse') || descLower.includes('joint') || nameLower.includes('wife') || nameLower.includes('spouse'))) {
       finalType = 'Income';
       group = 'Family Funding';
@@ -171,14 +197,17 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
     }
 
     // Flip amount so Income is positive, Expense is negative (standard UI convention)
-    // Only flip if amount sign doesn't already match the type (handles mock data that's already normalized)
     let normalizedAmt = rawAmt;
-    if (finalType === 'Income' && rawAmt < 0) {
-      normalizedAmt = -rawAmt; // make positive
-    } else if (finalType === 'Expense' && rawAmt > 0) {
-      normalizedAmt = -rawAmt; // make negative
-    } else if (finalType === 'Transfer' && rawAmt > 0) {
-      normalizedAmt = -rawAmt; // transfers are outflows, make negative
+    if (isTillerConvention) {
+      // In Tiller convention, everything is flipped:
+      // normal expense (+100 -> -100)
+      // refund expense (-100 -> +100)
+      // normal income (-100 -> +100)
+      // normal transfer (+100 -> -100)
+      normalizedAmt = -rawAmt;
+    } else {
+      // Already normalized (mock/cached data)
+      normalizedAmt = rawAmt;
     }
 
     return {
@@ -605,8 +634,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
       // PRIMARY: use already-decorated type/group from decorateData
       if (txn.type === 'Income') return 'Income';
-      if (txn.type === 'Transfer') return 'Lifestyle'; // transfers are cost-neutral for surplus
       if (txn.group === 'Investments') return 'Compounding';
+      if (txn.type === 'Transfer') return 'Lifestyle'; // transfers are cost-neutral for surplus
 
       // SECONDARY: keyword matching on category name for Baseline vs Lifestyle
       const name = String(cat || '').toLowerCase();

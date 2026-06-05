@@ -171,6 +171,21 @@ export default function Dashboard({ setCurrentView }) {
           }
         }
       });
+
+      // Backfill/flat-line backward: if a savings account has no snapshot on or before m.date,
+      // fall back to the earliest available snapshot for that account so it projects a stable line
+      // rather than showing zero balances for historical months.
+      savingsAccounts.forEach(b => {
+        const key = `${b.institution}_${b.account}_${b.account_id || ''}`;
+        if (!accountLatest.has(key)) {
+          const allForAccount = savingsAccounts.filter(sa => `${sa.institution}_${sa.account}_${sa.account_id || ''}` === key);
+          if (allForAccount.length > 0) {
+            const sortedForAccount = [...allForAccount].sort((a, b) => new Date(a.date) - new Date(b.date));
+            accountLatest.set(key, sortedForAccount[0]);
+          }
+        }
+      });
+
       let total = 0;
       accountLatest.forEach(b => {
         total += Number(b.balance) || 0;

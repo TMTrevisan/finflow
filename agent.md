@@ -19,11 +19,12 @@ FinFlow is a modern personal finance dashboard built on top of Tiller Sheets exp
 ### A. Transaction Type & Group Decoration
 Transactions fetch raw from the Google Sheets API. They are decorated in `decorateData` inside [AppContext.jsx](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/context/AppContext.jsx):
 *   **Type Normalization**: Tiller represents Expenses as positive numbers and Income as negative numbers. FinFlow normalizes this in `AppContext` so that **Income is positive** and **Expenses/Outflows are negative**.
+*   **Refund Handling**: Under Tiller's convention, refunds appear as negative expense values. In `decorateData`, the signs are flipped (`normalizedAmt = -rawAmt`) so refunds resolve back to positive credits, preventing double/triple counting of merchant charges (e.g. ticket cancellations).
 *   **Transfers vs. Consumption**: Credit card payments or internal bank transfers are typed as `Transfer` and grouped under `Other` (or similar). They must be **excluded** from general expense/spending totals to avoid double-counting.
 *   **Investments**: Transfers to retirement accounts (401(k), IRA, 529) are typed as `Transfer` with `group === 'Investments'` or `group === 'Wealth Building'`. They are tracked separately as "Invested & Saved" metrics.
 
 ### B. Payroll & Merchant Grouping
-Paycheck entries and direct deposits are cleaned via `cleanMerchantName` in [formatting.js](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/utils/formatting.js). Specific employer splits (e.g., *Becton Dickinson*, *Kaitlyn Trevisan Payroll*, *Todd Trevisan Payroll*, and *Franchise Tax Board*) are mapped to consolidated parent strings so they don't split into separate rows/nodes on dashboards and diagrams.
+Paycheck entries and direct deposits are cleaned via `cleanMerchantName` in [formatting.js](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/utils/formatting.js). Specific employer splits (e.g., *Becton Dickinson*, *Havas*, *Kaitlyn Trevisan Payroll*, *Todd Trevisan Payroll*, and *Franchise Tax Board*) are mapped to consolidated parent strings so they don't split into separate rows/nodes on dashboards and diagrams.
 
 ### C. Cash Flow & Sankey Diagrams
 *   The **Sankey Flow Diagram** in [SankeyDiagram.jsx](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/components/diagrams/SankeyDiagram.jsx) visualizes:
@@ -35,7 +36,26 @@ Paycheck entries and direct deposits are cleaned via `cleanMerchantName` in [for
 
 ---
 
-## 3. Testing Procedures
+## 3. Key Mathematical Calculations & Learnings
+
+### A. Dynamic Pacing Calculation
+*   **Pacing Indicator**: Calculated in [Budgets.jsx](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/views/Budgets.jsx) as `currentDay / totalDays` of the active `referenceDate`'s month, rather than assuming a hardcoded 31-day cycle.
+*   **Pacing Badge Direction**: If spending pace is under expected pacing, it displays as green `{underPace}% under pace`. If actual spending exceeds expected pacing, it computes a negative percent and renders as rose `{overPace}% over pace`, eliminating mathematical double-negatives.
+
+### B. Month-over-Month Category Deltas
+*   In the category detail rows of [Budgets.jsx](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/views/Budgets.jsx), dynamic MoM delta badges rely on passing the previous month's actual spending values (`lastMonthSpent`). The dynamic group calculation maps previous month transaction sums into `lastMonthSpent` so the MoM badges calculate shifts correctly.
+
+### C. Contributions & Surplus Routing
+*   **Classification Priority**: In [AppContext.jsx](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/context/AppContext.jsx), `txn.group === 'Investments'` takes precedence over `txn.type === 'Transfer'` to ensure investment savings (Roth IRA, 401(k)) map to `Compounding` instead of default cost-neutral `Lifestyle` transfers.
+*   **Pre-Tax 401(k) Outflows**: Pre-tax W2 retirement contributions are excluded from post-tax outflow calculations to prevent double-subtraction from net paycheck incomes.
+*   **Defensive Math**: Divide-by-zero guards are enforced on all slider calculations (e.g., Joint routing ratios) to default to `0%` instead of displaying `NaN%` or `Infinity%` when net inputs are zero.
+
+### D. Copilot MCP System Prompting
+*   To enable the Copilot ([Assistant.jsx](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/views/Assistant.jsx)) to execute MCP tools, the system prompt must explicitly list the name, description, and query schema for each connected tool.
+
+---
+
+## 4. Testing Procedures
 
 The project utilizes `vitest` for unit and component testing.
 *   **Run Test Suite**:
@@ -51,7 +71,8 @@ The project utilizes `vitest` for unit and component testing.
 
 ---
 
-## 4. Deployment & Sync Pipeline
+## 5. Deployment & Sync Pipeline
 
 *   **Production Host**: Vercel (Auto-deploys from the `main` branch of GitHub repository `TMTrevisan/finflow`).
 *   **Google Sheets Sync**: Updates in the Google Sheet are pulled by clicking "Sync Data" or "Force Refetch" in FinFlow's settings, which calls `syncData()` via the Google Apps Script Web App URL and updates the browser cache.
+

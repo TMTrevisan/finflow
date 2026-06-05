@@ -502,7 +502,7 @@ export default function Transactions() {
                 <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-28">Date</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Merchant</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-40">Account</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-40">Category</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-44">Category</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right w-32">Amount</th>
               </tr>
             </thead>

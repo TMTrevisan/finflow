@@ -26,11 +26,11 @@ const CATEGORY_MAP = {
   'dining': { color: '#F59E0B', icon: Utensils },      // Amber
   'restaurant': { color: '#F59E0B', icon: Utensils },  // Amber
   'food': { color: '#F59E0B', icon: Utensils },        // Amber
-  'auto': { color: '#EC4899', icon: Car },             // Pink
-  'transportation': { color: '#EC4899', icon: Car },   // Pink
-  'car': { color: '#EC4899', icon: Car },              // Pink
-  'gas': { color: '#EC4899', icon: Car },              // Pink
-  'fuel': { color: '#EC4899', icon: Car },             // Pink
+  'auto': { color: '#EF4444', icon: Car },             // Red
+  'transportation': { color: '#EF4444', icon: Car },   // Red
+  'car': { color: '#EF4444', icon: Car },              // Red
+  'gas': { color: '#F97316', icon: Car },              // Orange
+  'fuel': { color: '#F97316', icon: Car },             // Orange
   'travel': { color: '#06B6D4', icon: Plane },         // Cyan
   'trip': { color: '#06B6D4', icon: Plane },           // Cyan
   'flight': { color: '#06B6D4', icon: Plane },         // Cyan
@@ -38,16 +38,16 @@ const CATEGORY_MAP = {
   'netflix': { color: '#8B5CF6', icon: Tv },           // Violet
   'spotify': { color: '#8B5CF6', icon: Tv },           // Violet
   'youtube': { color: '#8B5CF6', icon: Tv },           // Violet
-  'fitness': { color: '#0D9488', icon: Dumbbell },     // Teal
-  'gym': { color: '#0D9488', icon: Dumbbell },         // Teal
-  'utility': { color: '#F59E0B', icon: Zap },          // Amber
-  'utilities': { color: '#F59E0B', icon: Zap },        // Amber
-  'power': { color: '#F59E0B', icon: Zap },            // Amber
-  'electric': { color: '#F59E0B', icon: Zap },          // Amber
-  'internet': { color: '#06B6D4', icon: Wifi },        // Cyan
-  'cable': { color: '#06B6D4', icon: Wifi },          // Cyan
-  'wifi': { color: '#06B6D4', icon: Wifi },            // Cyan
-  'phone': { color: '#06B6D4', icon: Globe },          // Cyan
+  'fitness': { color: '#14B8A6', icon: Dumbbell },     // Teal
+  'gym': { color: '#14B8A6', icon: Dumbbell },         // Teal
+  'utility': { color: '#EAB308', icon: Zap },          // Yellow
+  'utilities': { color: '#EAB308', icon: Zap },        // Yellow
+  'power': { color: '#EAB308', icon: Zap },            // Yellow
+  'electric': { color: '#EAB308', icon: Zap },          // Yellow
+  'internet': { color: '#3B82F6', icon: Wifi },        // Blue
+  'cable': { color: '#3B82F6', icon: Wifi },          // Blue
+  'wifi': { color: '#3B82F6', icon: Wifi },            // Blue
+  'phone': { color: '#3B82F6', icon: Globe },          // Blue
   'insurance': { color: '#EF4444', icon: Shield },     // Crimson
   'medical': { color: '#EF4444', icon: Heart },        // Crimson
   'dental': { color: '#EF4444', icon: Heart },        // Crimson
@@ -56,18 +56,18 @@ const CATEGORY_MAP = {
   'pet': { color: '#EC4899', icon: PawPrint },         // Pink
   'dog': { color: '#EC4899', icon: PawPrint },         // Pink
   'cat': { color: '#EC4899', icon: PawPrint },         // Pink
-  'kid': { color: '#6366F1', icon: Baby },             // Indigo
-  'baby': { color: '#6366F1', icon: Baby },            // Indigo
-  'daycare': { color: '#6366F1', icon: Baby },         // Indigo
-  'sitter': { color: '#6366F1', icon: Baby },          // Indigo
-  'babysitter': { color: '#6366F1', icon: Baby },       // Indigo
+  'kid': { color: '#A855F7', icon: Baby },             // Purple
+  'baby': { color: '#A855F7', icon: Baby },            // Purple
+  'daycare': { color: '#A855F7', icon: Baby },         // Purple
+  'sitter': { color: '#A855F7', icon: Baby },          // Purple
+  'babysitter': { color: '#A855F7', icon: Baby },       // Purple
   'shop': { color: '#EC4899', icon: ShoppingBag },     // Pink
   'shopping': { color: '#EC4899', icon: ShoppingBag }, // Pink
   'amazon': { color: '#EC4899', icon: ShoppingBag },   // Pink
   'target': { color: '#EC4899', icon: ShoppingBag },   // Pink
-  'gift': { color: '#8B5CF6', icon: Gift },            // Violet
-  'donation': { color: '#8B5CF6', icon: Gift },        // Violet
-  'charity': { color: '#8B5CF6', icon: Gift },         // Violet
+  'gift': { color: '#F472B6', icon: Gift },            // Light Pink
+  'donation': { color: '#F472B6', icon: Gift },        // Light Pink
+  'charity': { color: '#F472B6', icon: Gift },         // Light Pink
   'entertain': { color: '#3B82F6', icon: Film },       // Blue
   'movie': { color: '#3B82F6', icon: Film },           // Blue
   'show': { color: '#3B82F6', icon: Film },            // Blue

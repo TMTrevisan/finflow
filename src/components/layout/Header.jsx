@@ -392,10 +392,10 @@ export default function Header({ title, currentView, setCurrentView }) {
         <button 
           onClick={handleSync}
           disabled={isSyncing}
-          className="flex items-center space-x-2 px-4 py-2 bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          className="flex items-center space-x-1.5 px-3 py-2 bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
         >
-          <RefreshCw size={16} className={isSyncing ? "animate-spin text-neon-emerald" : ""} />
-          <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+          <RefreshCw size={14} className={isSyncing ? "animate-spin text-neon-emerald" : ""} />
+          <span>{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
         </button>
       </div>
 

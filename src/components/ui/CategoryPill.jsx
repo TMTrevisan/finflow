@@ -110,7 +110,9 @@ export function CategoryPill({ transaction }) {
         )}
       >
         <span>{getCategoryEmoji(transaction.category)}</span>
-        <span>{transaction.category || 'Uncategorized'}</span>
+        <span className="truncate max-w-[90px]" title={transaction.category || 'Uncategorized'}>
+          {transaction.category || 'Uncategorized'}
+        </span>
         <ChevronDown size={12} className={cn("transition-transform duration-200", isOpen && "rotate-180")} />
       </button>
 

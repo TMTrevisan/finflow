@@ -34,9 +34,21 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       
       if (type === 'Income') {
         const catNameLower = catName.toLowerCase();
-        const sourceName = (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income')
+        let sourceName = (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income')
           ? cleanMerchantName(t.description)
           : catName;
+
+        const sourceLower = sourceName.toLowerCase();
+        if (sourceLower.includes('todd')) {
+          sourceName = 'Todd Payroll';
+        } else if (sourceLower.includes('kaitlyn')) {
+          sourceName = 'Kaitlyn Payroll';
+        } else if (sourceLower.includes('annuity')) {
+          sourceName = 'Annuity';
+        } else {
+          sourceName = 'Other Income';
+        }
+
         incomeMap[sourceName] = (incomeMap[sourceName] || 0) + amount;
         totalIncome += amount;
       } else if (type === 'Expense') {

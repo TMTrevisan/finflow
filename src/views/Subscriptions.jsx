@@ -17,7 +17,8 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  X
+  X,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -36,6 +37,8 @@ export default function Subscriptions() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [expandedSub, setExpandedSub] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('upcoming'); // 'upcoming', 'amount_desc', 'amount_asc', 'name', 'yearly_desc'
 
   // Form states for adding manual subscription
   const [newSubName, setNewSubName] = useState('');
@@ -119,8 +122,8 @@ export default function Subscriptions() {
       t.amount < 0 && 
       t.type !== 'Transfer' &&
       t.type !== 'Income' &&
-      !['transfer', 'credit card payment', 'credit card', 'mortgage', 'investments', 'payment', 'taxes', 'tax'].includes((t.category || '').toLowerCase()) &&
-      !['transfer', 'credit card payment', 'credit card', 'mortgage', 'investments', 'payment', 'taxes', 'tax'].includes((t.group || '').toLowerCase())
+      t.category && 
+      includedCategories.includes(t.category)
     );
     const merchantGroups = {};
 
@@ -387,11 +390,49 @@ export default function Subscriptions() {
 
   // Filtered view items
   const activeViewItems = useMemo(() => {
-    if (activeTab === 'active') return nonHiddenSubs;
-    if (activeTab === 'overdue') return overdueSubs;
-    if (activeTab === 'hidden') return hiddenSubs;
-    return nonHiddenSubs;
-  }, [activeTab, nonHiddenSubs, overdueSubs, hiddenSubs]);
+    let list = [];
+    if (activeTab === 'active') list = nonHiddenSubs;
+    else if (activeTab === 'overdue') list = overdueSubs;
+    else if (activeTab === 'hidden') list = hiddenSubs;
+    else list = nonHiddenSubs;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(s => 
+        (s.merchant || '').toLowerCase().includes(q) ||
+        (s.category || '').toLowerCase().includes(q)
+      );
+    }
+
+    const getAnnualAmount = (s) => {
+      let annualVal = 0;
+      if (s.frequency === 'Weekly') annualVal = s.amount * 52;
+      else if (s.frequency === 'Bi-weekly') annualVal = s.amount * 26;
+      else if (s.frequency === 'Monthly') annualVal = s.amount * 12;
+      else if (s.frequency === 'Quarterly') annualVal = s.amount * 4;
+      else if (s.frequency === 'Annually') annualVal = s.amount;
+      return annualVal;
+    };
+
+    return [...list].sort((a, b) => {
+      if (sortBy === 'name') {
+        return (a.merchant || '').localeCompare(b.merchant || '');
+      }
+      if (sortBy === 'amount_desc') {
+        return b.amount - a.amount;
+      }
+      if (sortBy === 'amount_asc') {
+        return a.amount - b.amount;
+      }
+      if (sortBy === 'yearly_desc') {
+        return getAnnualAmount(b) - getAnnualAmount(a);
+      }
+      // Default: 'upcoming' (closest bill date first)
+      const daysA = getDaysDiff(today, a.nextBillDate);
+      const daysB = getDaysDiff(today, b.nextBillDate);
+      return daysA - daysB;
+    });
+  }, [activeTab, nonHiddenSubs, overdueSubs, hiddenSubs, searchQuery, sortBy, today]);
 
   // Hide/Unhide Toggle
   const toggleHideSubscription = (merchantName) => {
@@ -534,6 +575,34 @@ export default function Subscriptions() {
             </button>
           );
         })}
+      </div>
+ 
+      {/* Search & Sort Controls */}
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between mt-4">
+        <div className="relative flex-1 w-full">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search subscriptions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-obsidian-800 border border-obsidian-750 text-white rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-neon-indigo transition-shadow"
+          />
+        </div>
+        <div className="flex items-center space-x-2 w-full sm:w-auto">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">Sort:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="bg-obsidian-800 border border-obsidian-750 text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-neon-indigo w-full sm:w-auto"
+          >
+            <option value="upcoming">Upcoming Bill Date</option>
+            <option value="amount_desc">Amount (High to Low)</option>
+            <option value="amount_asc">Amount (Low to High)</option>
+            <option value="name">Name (A-Z)</option>
+            <option value="yearly_desc">Annual Cost (High to Low)</option>
+          </select>
+        </div>
       </div>
 
       {/* 4. Subscriptions List or Empty State */}

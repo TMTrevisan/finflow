@@ -173,8 +173,8 @@ export default function ContributionsSurplus() {
   const monthlyDca = toddDcaYr / 12;
   const totalForcedSavings = both401kMax + monthlyHsa + monthlyDca;
 
-  // Surplus Calculation
-  const surplus = totalNetIncome - totalSpending - totalForcedSavings;
+  // Surplus Calculation - pre-tax 401(k) is already deducted from net take-home income
+  const surplus = totalNetIncome - totalSpending - monthlyHsa - monthlyDca;
 
   // Investment Recommendations
   const investMin = Math.max(0, surplus * 0.60);
@@ -344,7 +344,7 @@ export default function ContributionsSurplus() {
 
             <div className="space-y-2">
               <label className="text-[11px] text-slate-400 font-bold block">Deposit Frequency</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
                   { value: 1, label: 'Monthly' },
                   { value: 2, label: 'Twice Monthly' },
@@ -370,7 +370,7 @@ export default function ContributionsSurplus() {
               <p className="font-bold text-slate-300 uppercase tracking-wider">3-Way Split Breakdown:</p>
               <div className="flex justify-between">
                 <span>1. Route to Joint:</span>
-                <span className="font-bold text-white">{formatCurrency(toddToJoint)} ({((toddToJoint / toddNetIncome) * 100).toFixed(0)}%)</span>
+                <span className="font-bold text-white">{formatCurrency(toddToJoint)} ({toddNetIncome > 0 ? ((toddToJoint / toddNetIncome) * 100).toFixed(0) : 0}%)</span>
               </div>
               <div className="flex justify-between">
                 <span>2. Manual Mortgage:</span>
@@ -398,12 +398,12 @@ export default function ContributionsSurplus() {
               <div className="bg-[#0c0f16] border border-[#161B26] p-4 rounded-2xl space-y-3">
                 <div className="flex justify-between text-xs text-slate-400">
                   <span>Joint SoFi/Chase Inflows</span>
-                  <span className="text-white font-extrabold">{formatCurrency(totalJointInflow)} ({((totalJointInflow / totalNetIncome) * 100).toFixed(0)}%)</span>
+                  <span className="text-white font-extrabold">{formatCurrency(totalJointInflow)} ({totalNetIncome > 0 ? ((totalJointInflow / totalNetIncome) * 100).toFixed(0) : 0}%)</span>
                 </div>
                 <div className="w-full bg-obsidian-900 h-2.5 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-neon-indigo transition-all duration-300"
-                    style={{ width: `${(totalJointInflow / totalNetIncome) * 100}%` }}
+                    style={{ width: `${totalNetIncome > 0 ? (totalJointInflow / totalNetIncome) * 100 : 0}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-500">
@@ -415,12 +415,12 @@ export default function ContributionsSurplus() {
               <div className="bg-[#0c0f16] border border-[#161B26] p-4 rounded-2xl space-y-3">
                 <div className="flex justify-between text-xs text-slate-400">
                   <span>Todd Personal BoFA Inflows</span>
-                  <span className="text-white font-extrabold">{formatCurrency(totalPersonalInflow)} ({((totalPersonalInflow / totalNetIncome) * 100).toFixed(0)}%)</span>
+                  <span className="text-white font-extrabold">{formatCurrency(totalPersonalInflow)} ({totalNetIncome > 0 ? ((totalPersonalInflow / totalNetIncome) * 100).toFixed(0) : 0}%)</span>
                 </div>
                 <div className="w-full bg-obsidian-900 h-2.5 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-neon-emerald transition-all duration-300"
-                    style={{ width: `${(totalPersonalInflow / totalNetIncome) * 100}%` }}
+                    style={{ width: `${totalNetIncome > 0 ? (totalPersonalInflow / totalNetIncome) * 100 : 0}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-500">
@@ -483,8 +483,9 @@ export default function ContributionsSurplus() {
         </div>
 
         {/* Responsive Custom Flow diagram container */}
-        <div className="w-full overflow-x-auto min-w-[700px] py-4 bg-obsidian-950/20 rounded-2xl border border-obsidian-900/60">
-          <svg viewBox="0 0 880 320" className="w-full max-w-[880px] h-auto block mx-auto">
+        <div className="w-full overflow-x-auto py-4 bg-obsidian-950/20 rounded-2xl border border-obsidian-900/60">
+          <div className="min-w-[880px] px-4">
+            <svg viewBox="0 0 880 320" className="w-full max-w-[880px] h-auto block mx-auto">
             {/* GRADIENTS */}
             <defs>
               <linearGradient id="g-havas-wf" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -620,6 +621,7 @@ export default function ContributionsSurplus() {
               <text x="65" y="50" textAnchor="middle" fill="#94A3B8" fontSize="8">Personal spend/save</text>
             </g>
           </svg>
+          </div>
         </div>
       </Card>
 
@@ -799,8 +801,12 @@ export default function ContributionsSurplus() {
                   <span className="text-white">-{formatCurrency(totalSpending)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-semibold text-slate-400">
-                  <span>Total Forced Savings</span>
-                  <span className="text-white">-{formatCurrency(totalForcedSavings)}</span>
+                  <span>Pre-Tax 401(k) (Already Deducted)</span>
+                  <span className="text-slate-500">{formatCurrency(both401kMax)}</span>
+                </div>
+                <div className="flex justify-between text-xs font-semibold text-slate-400">
+                  <span>Post-Tax Cash Savings (HSA & DCA)</span>
+                  <span className="text-white">-{formatCurrency(monthlyHsa + monthlyDca)}</span>
                 </div>
                 <div className="border-t border-slate-800/60 pt-2 flex justify-between text-sm font-black text-slate-200">
                   <span>Scenario Surplus</span>

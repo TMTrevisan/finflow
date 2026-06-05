@@ -110,9 +110,21 @@ export default function CashFlow() {
       .forEach(t => {
         const catName = t.category || 'Uncategorized';
         const catNameLower = catName.toLowerCase();
-        const key = (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income')
+        let key = (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income')
           ? cleanMerchantName(t.description)
           : catName;
+        
+        const keyLower = key.toLowerCase();
+        if (keyLower.includes('todd')) {
+          key = 'Todd Payroll';
+        } else if (keyLower.includes('kaitlyn')) {
+          key = 'Kaitlyn Payroll';
+        } else if (keyLower.includes('annuity')) {
+          key = 'Annuity';
+        } else {
+          key = 'Other Income';
+        }
+
         const amount = Number(t.amount) || 0;
         map[key] = (map[key] || 0) + amount;
         total += amount;
