@@ -40,7 +40,10 @@ export default function Assistant() {
 
   // MCP integration
   const [mcpEnabled, setMcpEnabled] = useState(() => safeStorage.getItem('finflow_mcp_enabled') === 'true');
-  const [mcpUrl, setMcpUrl] = useState(() => safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001');
+  const [mcpUrl, setMcpUrl] = useState(() => {
+    const raw = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
+    return raw.trim().replace(/\/+$/, '');
+  });
   const [mcpSecret, setMcpSecret] = useState(() => safeStorage.getItem('finflow_mcp_secret') || 'test123');
   const [mcpTools, setMcpTools] = useState([]);
   const [toolStatus, setToolStatus] = useState('');
@@ -98,7 +101,8 @@ export default function Assistant() {
       setClaudeKey(safeStorage.getItem('finflow_claude_key') || '');
       setDeepseekKey(safeStorage.getItem('finflow_deepseek_key') || '');
       setMcpEnabled(safeStorage.getItem('finflow_mcp_enabled') === 'true');
-      setMcpUrl(safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001');
+      const rawUrl = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
+      setMcpUrl(rawUrl.trim().replace(/\/+$/, ''));
       setMcpSecret(safeStorage.getItem('finflow_mcp_secret') || 'test123');
     };
     window.addEventListener('storage', handleStorageChange);

@@ -233,7 +233,7 @@ export default function Settings() {
   const handleSaveMcpSettings = async () => {
     setMcpMessage({ type: 'info', text: 'Validating MCP Server connection parameters...' });
     
-    const url = mcpUrlInput.trim();
+    const url = mcpUrlInput.trim().replace(/\/+$/, '');
     const secret = mcpSecretInput.trim();
 
     if (!mcpEnabled) {
