@@ -18,7 +18,8 @@ import {
   Server,
   Settings as SettingsIcon,
   CheckCircle,
-  Activity
+  Activity,
+  Square
 } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -46,7 +47,9 @@ export default function Assistant() {
   });
   const [mcpSecret, setMcpSecret] = useState(() => safeStorage.getItem('finflow_mcp_secret') || 'test123');
   const [mcpTools, setMcpTools] = useState([]);
+  const [mcpStatus, setMcpStatus] = useState('idle');
   const [toolStatus, setToolStatus] = useState('');
+  const activeAbortControllerRef = useRef(null);
 
   const [showSharedContext, setShowSharedContext] = useState(false);
   const [redactSensitiveData, setRedactSensitiveData] = useState(() => safeStorage.getItem('finflow_ai_redact') === 'true');
@@ -109,26 +112,72 @@ export default function Assistant() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // Fetch MCP tools if enabled
+  // Fetch MCP tools if enabled with Render cold-start retry protection
   useEffect(() => {
-    if (mcpEnabled && mcpUrl) {
-      const fetchTools = async () => {
-        try {
-          const response = await fetch(`${mcpUrl}/tools`, {
-            headers: mcpSecret ? { 'Authorization': `Bearer ${mcpSecret}` } : {}
-          });
-          if (response.ok) {
-            const data = await response.json();
-            setMcpTools(data.tools || []);
-          }
-        } catch (e) {
-          console.warn('[MCP] Failed to fetch server tools:', e.message);
+    let active = true;
+    let timeoutId;
+    let retryTimeoutId;
+    let retryCount = 0;
+
+    const getTools = async () => {
+      if (!mcpEnabled || !mcpUrl) {
+        if (active) setMcpStatus('idle');
+        setMcpTools([]);
+        return;
+      }
+      if (active) setMcpStatus('connecting');
+      
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        if (active) setMcpStatus('sleeping');
+      }, 5000);
+
+      try {
+        const response = await fetch(`${mcpUrl}/tools`, {
+          signal: controller.signal,
+          headers: mcpSecret ? { 'Authorization': `Bearer ${mcpSecret}` } : {}
+        });
+        clearTimeout(timeoutId);
+        
+        if (!active) return;
+        if (response.ok) {
+          const data = await response.json();
+          setMcpTools(data.tools || []);
+          setMcpStatus('online');
+        } else {
+          setMcpTools([]);
+          setMcpStatus('offline');
         }
-      };
-      fetchTools();
-    } else {
-      setMcpTools([]);
-    }
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (!active) return;
+        
+        if (err.name === 'AbortError' || err.message?.includes('Failed to fetch') || err.message?.includes('Load failed')) {
+          // If connection timed out/failed, it might be cold-starting on Render
+          if (retryCount < 3) {
+            retryCount++;
+            if (active) setMcpStatus('sleeping');
+            retryTimeoutId = setTimeout(getTools, 6000); // Retry in 6 seconds
+          } else {
+            setMcpTools([]);
+            if (active) setMcpStatus('offline');
+          }
+        } else {
+          setMcpTools([]);
+          if (active) setMcpStatus('offline');
+        }
+        console.warn('[MCP] Failed to fetch server tools:', err.message);
+      }
+    };
+
+    getTools();
+
+    return () => {
+      active = false;
+      clearTimeout(timeoutId);
+      clearTimeout(retryTimeoutId);
+    };
   }, [mcpEnabled, mcpUrl, mcpSecret]);
 
   // Auto-scroll to bottom of chat
@@ -331,6 +380,12 @@ export default function Assistant() {
     setErrorMessage('');
     setIsGenerating(true);
 
+    if (activeAbortControllerRef.current) {
+      activeAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    activeAbortControllerRef.current = abortController;
+
     const updatedChat = [...chatLog, { role: 'user', content: promptText }];
     setChatLog(updatedChat);
 
@@ -397,7 +452,7 @@ Rules:
             model: aiModel,
             systemInstruction: systemPrompt,
             tools: geminiTools
-          });
+          }, { signal: abortController.signal });
 
           // Convert history format to Gemini parts
           const contents = activeHistory.map(m => {
@@ -640,6 +695,7 @@ Rules:
             // route through CORS bypass proxy
             response = await fetch(`${mcpUrl}/proxy`, {
               method: 'POST',
+              signal: abortController.signal,
               headers: {
                 'Content-Type': 'application/json',
                 ...(mcpSecret ? { 'Authorization': `Bearer ${mcpSecret}` } : {})
@@ -654,6 +710,7 @@ Rules:
           } else {
             response = await fetch(fetchUrl, {
               method: 'POST',
+              signal: abortController.signal,
               headers: fetchHeaders,
               body: JSON.stringify(fetchBody)
             });
@@ -793,6 +850,12 @@ Rules:
         }
       }
     } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('[Copilot] Generation cancelled by user.');
+        // Clean up any empty message from feed
+        setChatLog(prev => prev.filter(m => m.content !== ''));
+        return;
+      }
       console.error(err);
       let msg = err.message || 'Failed to generate response. Check your API configurations.';
       if (msg.includes('429')) {
@@ -804,6 +867,9 @@ Rules:
     } finally {
       setIsGenerating(false);
       setToolStatus('');
+      if (activeAbortControllerRef.current === abortController) {
+        activeAbortControllerRef.current = null;
+      }
     }
   };
 
@@ -953,9 +1019,33 @@ Rules:
             <span className="truncate max-w-[80px] md:max-w-none">{aiModel}</span>
           </div>
           {mcpEnabled && (
-            <div className="flex items-center space-x-1 px-2 py-1 bg-obsidian-850 rounded-lg border border-obsidian-750 text-neon-indigo font-bold">
-              <Server size={10} />
-              <span>MCP Active ({mcpTools.length})</span>
+            <div 
+              onClick={() => {
+                if (mcpStatus === 'offline' || mcpStatus === 'sleeping') {
+                  window.location.reload();
+                }
+              }}
+              title={mcpStatus === 'offline' || mcpStatus === 'sleeping' ? "Click to retry connection" : ""}
+              className={`flex items-center space-x-1 px-2 py-1 rounded-lg border text-[10px] font-bold select-none transition-all ${
+                mcpStatus === 'offline' || mcpStatus === 'sleeping' ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''
+              } ${
+                mcpStatus === 'online'
+                  ? 'bg-neon-emerald/10 border-neon-emerald/25 text-neon-emerald'
+                  : mcpStatus === 'connecting'
+                  ? 'bg-neon-indigo/15 border-neon-indigo/25 text-neon-indigo animate-pulse'
+                  : mcpStatus === 'sleeping'
+                  ? 'bg-amber-500/10 border-amber-500/25 text-amber-500 animate-pulse'
+                  : 'bg-neon-crimson/10 border-neon-crimson/25 text-neon-crimson'
+              }`}
+            >
+              <Server size={10} className={mcpStatus === 'connecting' || mcpStatus === 'sleeping' ? 'animate-bounce' : ''} />
+              <span>
+                {mcpStatus === 'online' && `MCP Active (${mcpTools.length})`}
+                {mcpStatus === 'connecting' && 'Connecting...'}
+                {mcpStatus === 'sleeping' && 'Server Sleeping...'}
+                {mcpStatus === 'offline' && 'MCP Offline (Tap to Retry)'}
+                {mcpStatus === 'idle' && 'MCP Disabled'}
+              </span>
             </div>
           )}
         </div>
@@ -1127,13 +1217,28 @@ Rules:
             placeholder={isGenerating ? (toolStatus || "Processing models...") : "Ask Copilot e.g., 'Am I over budget on groceries?'"}
             className="w-full bg-obsidian-800/90 border border-obsidian-750/90 focus:border-neon-indigo/60 text-white rounded-2xl pl-4 pr-12 py-3.5 text-xs focus:outline-none focus:ring-1 focus:ring-neon-indigo/30 transition-all placeholder-slate-500 shadow-xl"
           />
-          <button
-            type="submit"
-            disabled={!userInput.trim() || isGenerating}
-            className="absolute right-2 p-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-md"
-          >
-            <Send size={14} />
-          </button>
+          {isGenerating ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (activeAbortControllerRef.current) {
+                  activeAbortControllerRef.current.abort();
+                }
+              }}
+              className="absolute right-2 p-2 bg-neon-crimson hover:bg-neon-crimson/80 text-white rounded-xl transition-all shadow-md"
+              title="Stop Generating"
+            >
+              <Square size={14} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!userInput.trim()}
+              className="absolute right-2 p-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-md"
+            >
+              <Send size={14} />
+            </button>
+          )}
         </form>
       </div>
 

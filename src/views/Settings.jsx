@@ -211,23 +211,117 @@ export default function Settings() {
     }
   };
 
-  const handleSaveAiSettings = () => {
-    safeStorage.setItem('finflow_ai_provider', aiProvider);
-    safeStorage.setItem('finflow_ai_model', aiModel);
+  const handleSaveAiSettings = async () => {
+    setAiMessage({ type: 'info', text: 'Validating API key connection...' });
+    
+    const provider = aiProvider;
+    const model = aiModel;
+    const geminiKey = geminiKeyInput.trim();
+    const openaiKey = openaiKeyInput.trim();
+    const claudeKey = claudeKeyInput.trim();
+    const deepseekKey = deepseekKeyInput.trim();
+    
+    let keyToTest = '';
+    if (provider === 'gemini') keyToTest = geminiKey;
+    else if (provider === 'openai') keyToTest = openaiKey;
+    else if (provider === 'claude') keyToTest = claudeKey;
+    else if (provider === 'deepseek') keyToTest = deepseekKey;
 
-    if (geminiKeyInput.trim()) safeStorage.setItem('finflow_gemini_key', geminiKeyInput.trim());
-    else safeStorage.removeItem('finflow_gemini_key');
+    if (!keyToTest) {
+      saveKeys();
+      setAiMessage({ type: 'success', text: 'AI configuration saved (no key provided to validate).' });
+      return;
+    }
 
-    if (openaiKeyInput.trim()) safeStorage.setItem('finflow_openai_key', openaiKeyInput.trim());
-    else safeStorage.removeItem('finflow_openai_key');
+    try {
+      if (provider === 'gemini') {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:countTokens?key=${keyToTest}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: 'test' }] }] })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `Status ${res.status}`);
+        }
+      } else {
+        const proxyUrl = mcpEnabled && mcpUrl ? `${mcpUrl}/proxy` : null;
+        
+        let testUrl = '';
+        let testHeaders = { 'Content-Type': 'application/json' };
+        let testBody = null;
+        
+        if (provider === 'openai') {
+          testUrl = 'https://api.openai.com/v1/models';
+          testHeaders['Authorization'] = `Bearer ${keyToTest}`;
+        } else if (provider === 'deepseek') {
+          testUrl = 'https://api.deepseek.com/v1/models';
+          testHeaders['Authorization'] = `Bearer ${keyToTest}`;
+        } else if (provider === 'claude') {
+          testUrl = 'https://api.anthropic.com/v1/messages';
+          testHeaders['x-api-key'] = keyToTest;
+          testHeaders['anthropic-version'] = '2023-06-01';
+          testHeaders['anthropic-dangerous-direct-browser-access'] = 'true';
+          testBody = JSON.stringify({
+            model: 'claude-3-5-haiku-latest',
+            max_tokens: 1,
+            messages: [{ role: 'user', content: 'hello' }]
+          });
+        }
+        
+        let res;
+        if (proxyUrl) {
+          res = await fetch(proxyUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(mcpSecret ? { 'Authorization': `Bearer ${mcpSecret}` } : {})
+            },
+            body: JSON.stringify({
+              url: testUrl,
+              headers: testHeaders,
+              method: testBody ? 'POST' : 'GET',
+              body: testBody
+            })
+          });
+        } else {
+          res = await fetch(testUrl, {
+            method: testBody ? 'POST' : 'GET',
+            headers: testHeaders,
+            body: testBody
+          });
+        }
+        
+        if (!res.ok) {
+          throw new Error(`Verification request failed with status ${res.status}`);
+        }
+      }
 
-    if (claudeKeyInput.trim()) safeStorage.setItem('finflow_claude_key', claudeKeyInput.trim());
-    else safeStorage.removeItem('finflow_claude_key');
+      saveKeys();
+      setAiMessage({ type: 'success', text: `AI configuration and ${provider} API key verified successfully!` });
+    } catch (err) {
+      setAiMessage({
+        type: 'error',
+        text: `API Key verification failed: ${err.message}. Ensure the key is correct and valid.`
+      });
+    }
 
-    if (deepseekKeyInput.trim()) safeStorage.setItem('finflow_deepseek_key', deepseekKeyInput.trim());
-    else safeStorage.removeItem('finflow_deepseek_key');
+    function saveKeys() {
+      safeStorage.setItem('finflow_ai_provider', provider);
+      safeStorage.setItem('finflow_ai_model', model);
 
-    setAiMessage({ type: 'success', text: 'AI configuration and keys saved successfully!' });
+      if (geminiKey) safeStorage.setItem('finflow_gemini_key', geminiKey);
+      else safeStorage.removeItem('finflow_gemini_key');
+
+      if (openaiKey) safeStorage.setItem('finflow_openai_key', openaiKey);
+      else safeStorage.removeItem('finflow_openai_key');
+
+      if (claudeKey) safeStorage.setItem('finflow_claude_key', claudeKey);
+      else safeStorage.removeItem('finflow_claude_key');
+
+      if (deepseekKey) safeStorage.setItem('finflow_deepseek_key', deepseekKey);
+      else safeStorage.removeItem('finflow_deepseek_key');
+    }
   };
 
   const handleSaveMcpSettings = async () => {
