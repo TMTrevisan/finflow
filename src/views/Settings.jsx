@@ -230,11 +230,50 @@ export default function Settings() {
     setAiMessage({ type: 'success', text: 'AI configuration and keys saved successfully!' });
   };
 
-  const handleSaveMcpSettings = () => {
-    safeStorage.setItem('finflow_mcp_enabled', mcpEnabled ? 'true' : 'false');
-    safeStorage.setItem('finflow_mcp_url', mcpUrlInput.trim());
-    safeStorage.setItem('finflow_mcp_secret', mcpSecretInput.trim());
-    setMcpMessage({ type: 'success', text: 'MCP Server configurations saved successfully!' });
+  const handleSaveMcpSettings = async () => {
+    setMcpMessage({ type: 'info', text: 'Validating MCP Server connection parameters...' });
+    
+    const url = mcpUrlInput.trim();
+    const secret = mcpSecretInput.trim();
+
+    if (!mcpEnabled) {
+      safeStorage.setItem('finflow_mcp_enabled', 'false');
+      safeStorage.setItem('finflow_mcp_url', url);
+      safeStorage.setItem('finflow_mcp_secret', secret);
+      setMcpMessage({ type: 'success', text: 'MCP Support disabled successfully.' });
+      return;
+    }
+
+    try {
+      const response = await fetch(`${url}/tools`, {
+        headers: secret ? { 'Authorization': `Bearer ${secret}` } : {}
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned status ${response.status} (${response.statusText})`);
+      }
+
+      const data = await response.json();
+      const toolsCount = data.tools ? data.tools.length : 0;
+
+      safeStorage.setItem('finflow_mcp_enabled', 'true');
+      safeStorage.setItem('finflow_mcp_url', url);
+      safeStorage.setItem('finflow_mcp_secret', secret);
+      
+      setMcpMessage({
+        type: 'success',
+        text: `Connection verified! MCP Server active with ${toolsCount} tools loaded.`
+      });
+      
+      // Auto-reload window to apply connection changes across context
+      setTimeout(() => window.location.reload(), 1500);
+
+    } catch (err) {
+      setMcpMessage({
+        type: 'error',
+        text: `Connection verification failed: ${err.message}. Please check your URL, secret token, and ensure the Render web service is awake.`
+      });
+    }
   };
 
   const handleToggleBiometrics = async () => {
@@ -719,9 +758,17 @@ export default function Settings() {
               <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
                 mcpMessage.type === 'success' 
                   ? 'bg-neon-emerald/10 border-neon-emerald/20 text-neon-emerald'
-                  : 'bg-obsidian-800 border-obsidian-750 text-slate-350'
+                  : mcpMessage.type === 'error'
+                    ? 'bg-neon-crimson/10 border-neon-crimson/20 text-neon-crimson'
+                    : 'bg-obsidian-850 border-obsidian-750 text-slate-300'
               }`}>
-                <CheckCircle2 size={16} className="shrink-0" />
+                {mcpMessage.type === 'success' ? (
+                  <CheckCircle2 size={16} className="shrink-0 text-neon-emerald" />
+                ) : mcpMessage.type === 'error' ? (
+                  <AlertTriangle size={16} className="shrink-0 text-neon-crimson" />
+                ) : (
+                  <RefreshCw size={16} className="animate-spin shrink-0 text-neon-indigo" />
+                )}
                 <span>{mcpMessage.text}</span>
               </div>
             )}
