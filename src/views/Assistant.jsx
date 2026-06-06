@@ -116,6 +116,7 @@ export default function Assistant() {
   useEffect(() => {
     let active = true;
     let timeoutId;
+    let sleepingTimeoutId;
     let retryTimeoutId;
     let retryCount = 0;
 
@@ -128,8 +129,14 @@ export default function Assistant() {
       if (active) setMcpStatus('connecting');
       
       const controller = new AbortController();
+      // Keep connection alive for 50 seconds to let Render spin up completely
       timeoutId = setTimeout(() => {
         controller.abort();
+        if (active) setMcpStatus('offline');
+      }, 50000);
+
+      // Flag as 'sleeping' visually after 5 seconds, but DO NOT cancel the fetch request!
+      sleepingTimeoutId = setTimeout(() => {
         if (active) setMcpStatus('sleeping');
       }, 5000);
 
@@ -139,6 +146,7 @@ export default function Assistant() {
           headers: mcpSecret ? { 'Authorization': `Bearer ${mcpSecret}` } : {}
         });
         clearTimeout(timeoutId);
+        clearTimeout(sleepingTimeoutId);
         
         if (!active) return;
         if (response.ok) {
@@ -151,6 +159,7 @@ export default function Assistant() {
         }
       } catch (err) {
         clearTimeout(timeoutId);
+        clearTimeout(sleepingTimeoutId);
         if (!active) return;
         
         if (err.name === 'AbortError' || err.message?.includes('Failed to fetch') || err.message?.includes('Load failed')) {
@@ -176,6 +185,7 @@ export default function Assistant() {
     return () => {
       active = false;
       clearTimeout(timeoutId);
+      clearTimeout(sleepingTimeoutId);
       clearTimeout(retryTimeoutId);
     };
   }, [mcpEnabled, mcpUrl, mcpSecret]);

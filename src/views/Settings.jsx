@@ -338,13 +338,24 @@ export default function Settings() {
       return;
     }
 
+    const controller = new AbortController();
+    const warnTimeoutId = setTimeout(() => {
+      setMcpMessage({ type: 'info', text: 'MCP Server is cold-starting (waking up Render instance). This can take up to 50 seconds. Please wait...' });
+    }, 4000);
+    const abortTimeoutId = setTimeout(() => {
+      controller.abort();
+    }, 50000);
+
     try {
       const response = await fetch(`${url}/tools`, {
+        signal: controller.signal,
         headers: secret ? { 'Authorization': `Bearer ${secret}` } : {}
       });
+      clearTimeout(warnTimeoutId);
+      clearTimeout(abortTimeoutId);
 
       if (!response.ok) {
-        throw new Error(`Server returned status ${response.status} (${response.statusText})`);
+        throw new Error(`Server returned status ${response.status} (${response.statusText || 'Unauthorized/Not Found'})`);
       }
 
       const data = await response.json();
@@ -363,6 +374,8 @@ export default function Settings() {
       setTimeout(() => window.location.reload(), 1500);
 
     } catch (err) {
+      clearTimeout(warnTimeoutId);
+      clearTimeout(abortTimeoutId);
       setMcpMessage({
         type: 'error',
         text: `Connection verification failed: ${err.message}. Please check your URL, secret token, and ensure the Render web service is awake.`
