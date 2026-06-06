@@ -82,6 +82,34 @@ export default function Settings() {
     return safeStorage.getItem('finflow_mcp_secret') || 'test123';
   });
   const [mcpMessage, setMcpMessage] = useState(null);
+  const [mcpToolsList, setMcpToolsList] = useState([]);
+
+  // Fetch tools list on mount
+  useEffect(() => {
+    const enabled = safeStorage.getItem('finflow_mcp_enabled') === 'true';
+    const url = (safeStorage.getItem('finflow_mcp_url') || '').trim().replace(/\/+$/, '');
+    const secret = (safeStorage.getItem('finflow_mcp_secret') || '').trim();
+    
+    if (enabled && url) {
+      const fetchToolsList = async () => {
+        const requestUrl = secret 
+          ? (url.endsWith(secret) ? `${url}/tools` : `${url}/${secret}/tools`)
+          : `${url}/tools`;
+        try {
+          const response = await fetch(requestUrl, {
+            headers: secret ? { 'Authorization': `Bearer ${secret}` } : {}
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setMcpToolsList(data.tools || []);
+          }
+        } catch (e) {
+          console.warn('[Settings] Failed to fetch tools list on mount:', e.message);
+        }
+      };
+      fetchToolsList();
+    }
+  }, []);
 
   // Mobile and Modal states
   const [isMobile, setIsMobile] = useState(false);
@@ -366,6 +394,7 @@ export default function Settings() {
 
       const data = await response.json();
       const toolsCount = data.tools ? data.tools.length : 0;
+      setMcpToolsList(data.tools || []);
 
       safeStorage.setItem('finflow_mcp_enabled', 'true');
       safeStorage.setItem('finflow_mcp_url', url);
@@ -883,6 +912,30 @@ export default function Settings() {
                   <RefreshCw size={16} className="animate-spin shrink-0 text-neon-indigo" />
                 )}
                 <span>{mcpMessage.text}</span>
+              </div>
+            )}
+
+            {mcpEnabled && mcpToolsList.length > 0 && (
+              <div className="space-y-2 mt-4 pt-4 border-t border-obsidian-800/60">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Loaded Database Tools ({mcpToolsList.length})
+                </h4>
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+                  {mcpToolsList.map((tool) => (
+                    <div 
+                      key={tool.name} 
+                      className="p-3 bg-obsidian-900/50 border border-obsidian-800/80 rounded-xl hover:bg-obsidian-900/80 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-mono font-bold text-neon-emerald">{tool.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-obsidian-800 text-slate-400 font-semibold uppercase">
+                          {tool.inputSchema?.properties ? `${Object.keys(tool.inputSchema.properties).length} params` : '0 params'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-normal">{tool.description}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
