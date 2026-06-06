@@ -140,8 +140,12 @@ export default function Assistant() {
         if (active) setMcpStatus('sleeping');
       }, 5000);
 
+       const requestUrl = mcpSecret 
+        ? (mcpUrl.endsWith(mcpSecret) ? `${mcpUrl}/tools` : `${mcpUrl}/${mcpSecret}/tools`)
+        : `${mcpUrl}/tools`;
+
       try {
-        const response = await fetch(`${mcpUrl}/tools`, {
+        const response = await fetch(requestUrl, {
           signal: controller.signal,
           headers: mcpSecret ? { 'Authorization': `Bearer ${mcpSecret}` } : {}
         });
@@ -360,8 +364,12 @@ export default function Assistant() {
   // Execute local tool on MCP server
   const runMcpTool = async (name, args) => {
     setToolStatus(`Executing tool ${name}...`);
+    const requestUrl = mcpSecret 
+      ? (mcpUrl.endsWith(mcpSecret) ? `${mcpUrl}/tools/${name}` : `${mcpUrl}/${mcpSecret}/tools/${name}`)
+      : `${mcpUrl}/tools/${name}`;
+
     try {
-      const response = await fetch(`${mcpUrl}/tools/${name}`, {
+      const response = await fetch(requestUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -703,7 +711,10 @@ Rules:
           let response;
           if (mcpEnabled && mcpUrl) {
             // route through CORS bypass proxy
-            response = await fetch(`${mcpUrl}/proxy`, {
+            const requestUrl = mcpSecret 
+              ? (mcpUrl.endsWith(mcpSecret) ? `${mcpUrl}/proxy` : `${mcpUrl}/${mcpSecret}/proxy`)
+              : `${mcpUrl}/proxy`;
+            response = await fetch(requestUrl, {
               method: 'POST',
               signal: abortController.signal,
               headers: {

@@ -893,7 +893,8 @@ app.post('/message', handlePostMessage);
 app.post('/:secretPrefix/message', handlePostMessage);
 
 // Generic Proxy endpoint to bypass browser CORS (e.g. OpenAI/Anthropic/DeepSeek)
-app.post('/proxy', async (req, res) => {
+async function handleProxyCall(req, res) {
+  const { secretPrefix } = req.params;
   const { url, headers, method, body } = req.body;
   if (!url) {
     return res.status(400).json({ error: 'Missing target url parameter in proxy request.' });
@@ -901,10 +902,16 @@ app.post('/proxy', async (req, res) => {
 
   // If MCP_SECRET is configured, restrict proxy access to authenticated clients
   if (MCP_SECRET) {
-    const auth = req.headers.authorization || '';
-    const token = auth.replace('Bearer ', '').trim();
-    if (token !== MCP_SECRET) {
-      return res.status(401).json({ error: 'Unauthorized. Provide a valid Bearer token for the proxy.' });
+    if (secretPrefix) {
+      if (secretPrefix !== MCP_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized. Invalid secret prefix.' });
+      }
+    } else {
+      const auth = req.headers.authorization || '';
+      const token = auth.replace('Bearer ', '').trim();
+      if (token !== MCP_SECRET) {
+        return res.status(401).json({ error: 'Unauthorized. Provide a valid Bearer token for the proxy.' });
+      }
     }
   }
 
@@ -944,7 +951,10 @@ app.post('/proxy', async (req, res) => {
     console.error('[Proxy] Connection error:', err.message);
     res.status(500).json({ error: `Proxy failed: ${err.message}` });
   }
-});
+}
+
+app.post('/proxy', handleProxyCall);
+app.post('/:secretPrefix/proxy', handleProxyCall);
 
 
 // ─── Start ────────────────────────────────────────────────────────────────────

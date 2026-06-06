@@ -245,7 +245,9 @@ export default function Settings() {
           throw new Error(errData.error?.message || `Status ${res.status}`);
         }
       } else {
-        const proxyUrl = mcpEnabled && mcpUrl ? `${mcpUrl}/proxy` : null;
+        const proxyUrl = mcpEnabled && mcpUrl
+          ? (mcpSecret ? (mcpUrl.endsWith(mcpSecret) ? `${mcpUrl}/proxy` : `${mcpUrl}/${mcpSecret}/proxy`) : `${mcpUrl}/proxy`)
+          : null;
         
         let testUrl = '';
         let testHeaders = { 'Content-Type': 'application/json' };
@@ -346,8 +348,12 @@ export default function Settings() {
       controller.abort();
     }, 50000);
 
+    const requestUrl = secret 
+      ? (url.endsWith(secret) ? `${url}/tools` : `${url}/${secret}/tools`)
+      : `${url}/tools`;
+
     try {
-      const response = await fetch(`${url}/tools`, {
+      const response = await fetch(requestUrl, {
         signal: controller.signal,
         headers: secret ? { 'Authorization': `Bearer ${secret}` } : {}
       });
