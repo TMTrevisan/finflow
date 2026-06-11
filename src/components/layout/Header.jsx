@@ -80,7 +80,7 @@ export default function Header({ title, currentView, setCurrentView }) {
       if (cat.budget > 0) {
         const spent = currentMonthTxns
           .filter(t => t.category === cat.category)
-          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+          .reduce((sum, t) => sum - t.amount, 0);
         if (spent > cat.budget) {
           list.push({
             id: `overspent_${cat.category}`,

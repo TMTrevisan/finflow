@@ -45,11 +45,10 @@ export default function YearlyInsights() {
     let expenses = 0;
 
     yearlyTxns.forEach(t => {
-      const val = Math.abs(t.amount);
       if (t.type === 'Income') {
-        income += val;
+        income += t.amount;
       } else if (t.type === 'Expense') {
-        expenses += val;
+        expenses -= t.amount;
       }
     });
 
@@ -67,7 +66,7 @@ export default function YearlyInsights() {
     yearlyTxns.forEach(t => {
       if (t.type !== 'Expense') return;
       const cat = t.category || 'Uncategorized';
-      totals[cat] = (totals[cat] || 0) + Math.abs(t.amount);
+      totals[cat] = (totals[cat] || 0) - t.amount;
     });
 
     const maxVal = Math.max(...Object.values(totals), 1);
@@ -259,8 +258,8 @@ export default function YearlyInsights() {
                     <p className="text-sm font-semibold text-slate-200 truncate mt-0.5">{cleanMerchantName(txn.description)}</p>
                     <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{txn.category || 'Uncategorized'} • {txn.account}</p>
                   </div>
-                  <span className="text-sm font-bold text-white shrink-0">
-                    {formatCurrency(Math.abs(txn.amount))}
+                  <span className={`text-sm font-bold shrink-0 ${txn.amount > 0 ? 'text-neon-emerald' : 'text-white'}`}>
+                    {txn.amount > 0 ? '+' : ''}{formatCurrency(txn.amount)}
                   </span>
                 </div>
               ))

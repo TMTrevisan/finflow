@@ -35,7 +35,7 @@ export default function SpendingTrends() {
     
     return transactions
       .filter(t => t.type === 'Expense' && String(t.date || '').substring(0, 10) === yesterdayStr)
-      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+      .reduce((sum, t) => sum - (Number(t.amount) || 0), 0);
   }, [transactions, referenceDate]);
 
   const spent7Days = useMemo(() => {
@@ -47,7 +47,7 @@ export default function SpendingTrends() {
         const d = new Date(t.date);
         return d >= start && d <= referenceDate;
       })
-      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+      .reduce((sum, t) => sum - (Number(t.amount) || 0), 0);
   }, [transactions, referenceDate]);
 
   const spent30Days = useMemo(() => {
@@ -59,7 +59,7 @@ export default function SpendingTrends() {
         const d = new Date(t.date);
         return d >= start && d <= referenceDate;
       })
-      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+      .reduce((sum, t) => sum - (Number(t.amount) || 0), 0);
   }, [transactions, referenceDate]);
 
   // Deduplicate and aggregate latest balances
@@ -111,7 +111,7 @@ export default function SpendingTrends() {
       if (t.type !== 'Expense' || !t.date) return;
       const dateKey = String(t.date).substring(0, 10);
       if (dateKey in dataMap) {
-        dataMap[dateKey] += Math.abs(Number(t.amount) || 0);
+        dataMap[dateKey] -= Number(t.amount) || 0;
       }
     });
     
@@ -170,11 +170,11 @@ export default function SpendingTrends() {
 
     const income = inRangeTxns
       .filter(t => t.type === 'Income')
-      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
     const expense = inRangeTxns
       .filter(t => t.type === 'Expense')
-      .reduce((sum, t) => sum + Math.abs(Number(t.amount) || 0), 0);
+      .reduce((sum, t) => sum - (Number(t.amount) || 0), 0);
 
     const needsCategorizing = inRangeTxns
       .filter(t => !t.category || t.category.toLowerCase() === 'uncategorized')
@@ -185,11 +185,12 @@ export default function SpendingTrends() {
     const expenseCategoriesMap = {};
 
     inRangeTxns.forEach(t => {
-      const amt = Math.abs(Number(t.amount) || 0);
       const cat = t.category || 'Uncategorized';
       if (t.type === 'Income') {
+        const amt = Number(t.amount) || 0;
         incomeCategoriesMap[cat] = (incomeCategoriesMap[cat] || 0) + amt;
       } else if (t.type === 'Expense') {
+        const amt = -Number(t.amount) || 0;
         expenseCategoriesMap[cat] = (expenseCategoriesMap[cat] || 0) + amt;
       }
     });
@@ -382,7 +383,9 @@ export default function SpendingTrends() {
                                 <p className="font-semibold text-slate-200 text-sm truncate">{cleanMerchantName(t.description)}</p>
                                 <p className="text-xs text-slate-500 mt-1">{formatDate(t.date)} • {t.account}</p>
                               </div>
-                              <span className="font-bold text-slate-100 text-sm ml-2 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
+                              <span className={`font-bold text-sm ml-2 shrink-0 ${t.amount > 0 ? 'text-neon-emerald' : 'text-slate-100'}`}>
+                                {t.amount > 0 ? '+' : ''}{formatCurrency(t.amount)}
+                              </span>
                             </div>
                           ))
                         }
@@ -445,7 +448,9 @@ export default function SpendingTrends() {
                                 <p className="font-semibold text-slate-200 text-sm truncate">{cleanMerchantName(t.description)}</p>
                                 <p className="text-xs text-slate-500 mt-1">{formatDate(t.date)} • {t.account}</p>
                               </div>
-                              <span className="font-bold text-slate-100 text-sm ml-2 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
+                              <span className={`font-bold text-sm ml-2 shrink-0 ${t.amount > 0 ? 'text-neon-emerald' : 'text-slate-100'}`}>
+                                {t.amount > 0 ? '+' : ''}{formatCurrency(t.amount)}
+                              </span>
                             </div>
                           ))
                         }

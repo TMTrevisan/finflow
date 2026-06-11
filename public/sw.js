@@ -125,10 +125,16 @@ const checkNewTransactionsAndNotify = async () => {
     const data = await res.json();
     const transactions = data.transactions || [];
 
-    // Filter uncategorized expenses/income
-    const uncategorized = transactions.filter(t => 
-      !t.category || t.category.toLowerCase().trim() === 'uncategorized'
-    );
+    // Filter uncategorized expenses/income from the last year (365 days)
+    const oneYearAgo = new Date();
+    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+
+    const uncategorized = transactions.filter(t => {
+      const isUncat = !t.category || t.category.toLowerCase().trim() === 'uncategorized';
+      if (!isUncat) return false;
+      const tDate = new Date(t.date);
+      return !isNaN(tDate.getTime()) && tDate >= oneYearAgo;
+    });
 
     if (uncategorized.length > 0) {
       let configCache;

@@ -12,7 +12,7 @@ export default function AnomalyDetector({ currentTransactions = [], allTransacti
     currentTransactions.forEach(t => {
       if (t.type !== 'Expense') return;
       const cat = t.category || 'Uncategorized';
-      currentCats[cat] = (currentCats[cat] || 0) + Math.abs(t.amount);
+      currentCats[cat] = (currentCats[cat] || 0) - t.amount;
     });
 
     // 2. Identify the date limits of the current period to exclude them from the baseline
@@ -34,7 +34,7 @@ export default function AnomalyDetector({ currentTransactions = [], allTransacti
       if (isNaN(d.getTime())) return;
       if (d >= baselineStart && d < baselineEnd) {
         const cat = t.category || 'Uncategorized';
-        baselineCats[cat] = (baselineCats[cat] || 0) + Math.abs(t.amount);
+        baselineCats[cat] = (baselineCats[cat] || 0) - t.amount;
       }
     });
 

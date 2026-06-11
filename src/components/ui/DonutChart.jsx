@@ -12,6 +12,7 @@ export default function DonutChart({
 }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [expandedCategory, setExpandedCategory] = useState(null);
+  const [accordionSortBy, setAccordionSortBy] = useState('date'); // 'date' or 'amount'
 
   // Filter out any zero or negative values for chart logic
   const chartData = data.filter(item => item.value > 0);
@@ -188,8 +189,40 @@ export default function DonutChart({
                   className="mt-2.5 px-1 py-1.5 bg-obsidian-900/40 rounded-xl border border-obsidian-800/60 space-y-1 max-h-96 overflow-y-auto custom-scrollbar w-full"
                   onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inner items
                 >
+                  {/* Sorting Header Bar */}
+                  <div className="flex justify-between items-center px-2 py-1 mb-1 border-b border-obsidian-800/40 pb-1.5">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      {categoryTxns.length} Transaction{categoryTxns.length > 1 ? 's' : ''}
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Sort:</span>
+                      <button
+                        onClick={() => setAccordionSortBy('date')}
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all cursor-pointer ${
+                          accordionSortBy === 'date' ? 'bg-neon-indigo/20 text-white border border-neon-indigo/35' : 'text-slate-400 hover:text-white border border-transparent'
+                        }`}
+                      >
+                        Date
+                      </button>
+                      <button
+                        onClick={() => setAccordionSortBy('amount')}
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded transition-all cursor-pointer ${
+                          accordionSortBy === 'amount' ? 'bg-neon-indigo/20 text-white border border-neon-indigo/35' : 'text-slate-400 hover:text-white border border-transparent'
+                        }`}
+                      >
+                        Amount
+                      </button>
+                    </div>
+                  </div>
+
                   {categoryTxns
-                    .sort((a, b) => new Date(b.date) - new Date(a.date))
+                    .sort((a, b) => {
+                      if (accordionSortBy === 'amount') {
+                        // Sort by absolute amount (descending) so largest spending/refunds are first
+                        return Math.abs(b.amount) - Math.abs(a.amount);
+                      }
+                      return new Date(b.date) - new Date(a.date);
+                    })
                     .map(t => (
                       <div key={t.id} className="flex justify-between items-center text-xs text-slate-400 py-2.5 border-b border-obsidian-800/20 last:border-b-0 w-full px-1.5">
                         <div className="min-w-0 flex-1">
@@ -200,7 +233,9 @@ export default function DonutChart({
                             <span className="truncate">{t.account}</span>
                           </p>
                         </div>
-                        <span className="font-black text-slate-100 text-xs sm:text-sm ml-2.5 shrink-0">{formatCurrency(Math.abs(t.amount))}</span>
+                        <span className={`font-black text-xs sm:text-sm ml-2.5 shrink-0 ${t.amount > 0 ? 'text-neon-emerald' : 'text-slate-100'}`}>
+                          {t.amount > 0 ? '+' : ''}{formatCurrency(t.amount)}
+                        </span>
                       </div>
                     ))
                   }

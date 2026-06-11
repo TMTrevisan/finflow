@@ -33,7 +33,7 @@ export default function Spending() {
 
   // Overall spending total
   const totalSpent = useMemo(() => {
-    return expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    return expenseTransactions.reduce((sum, t) => sum - t.amount, 0);
   }, [expenseTransactions]);
 
   // Group by Category for Donut Chart & ranked list
@@ -41,7 +41,7 @@ export default function Spending() {
     const categoriesMap = {};
     expenseTransactions.forEach(t => {
       const cat = t.category || 'Uncategorized';
-      categoriesMap[cat] = (categoriesMap[cat] || 0) + Math.abs(t.amount);
+      categoriesMap[cat] = (categoriesMap[cat] || 0) - t.amount;
     });
 
     return Object.entries(categoriesMap)
@@ -90,7 +90,7 @@ export default function Spending() {
         };
       }
       groups[dateStr].transactions.push(t);
-      groups[dateStr].totalAmount += Math.abs(t.amount);
+      groups[dateStr].totalAmount -= t.amount;
     });
     
     return Object.values(groups).sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
@@ -118,7 +118,7 @@ export default function Spending() {
           const month = String(d.getMonth() + 1).padStart(2, '0');
           key = `${year}-${month}`; // YYYY-MM
         }
-        trendsMap[key] = (trendsMap[key] || 0) + Math.abs(t.amount);
+        trendsMap[key] = (trendsMap[key] || 0) - t.amount;
       });
 
     return Object.entries(trendsMap)
@@ -371,8 +371,8 @@ export default function Spending() {
                         </div>
                         
                         <div className="text-right">
-                          <span className="text-base font-black text-slate-100 group-hover:text-white transition-colors duration-150">
-                            {formatCurrency(Math.abs(t.amount))}
+                          <span className={`text-base font-black group-hover:text-white transition-colors duration-150 ${t.amount > 0 ? 'text-neon-emerald' : 'text-slate-100'}`}>
+                            {t.amount > 0 ? '+' : ''}{formatCurrency(t.amount)}
                           </span>
                         </div>
                       </div>

@@ -28,7 +28,10 @@ const ONE_OFF_MERCHANTS = [
   'chevron', 'shell', 'exxon', 'mobil', 'bp', '7-eleven', 'uber', 'lyft', 
   'starbucks', 'mcdonald', 'restaurant', 'dining', 'home depot', 'lowe', 
   'ikea', 'nordstrom', 'macys', 'h&m', 'zara', 'gap', 'old navy', 'uniqlo', 
-  'sephora', 'ulta', 'best buy', 'apple store'
+  'sephora', 'ulta', 'best buy', 'apple store',
+  'air canada', 'aircanada', 'delta', 'united', 'american air', 'jetblue', 
+  'southwest', 'alaska air', 'spirit air', 'frontier air', 'airline', 'flight', 
+  'hotel', 'airbnb', 'expedia', 'booking.com', 'travel', 'vrbo'
 ];
 
 export default function Subscriptions() {
@@ -115,33 +118,180 @@ export default function Subscriptions() {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  // 4. Combined Subscriptions Processor
-  const combinedSubscriptions = useMemo(() => {
-    const detectedList = [];
-    const expenses = transactions.filter(t => 
+  const isSubscriptionCategory = (cat) => {
+    if (!cat) return false;
+    const lower = cat.toLowerCase();
+    return lower === 'subscription' || lower === 'subscriptions';
+  };
+
+  // 4. Tracked Subscriptions Processor
+  const trackedSubscriptions = useMemo(() => {
+    const list = [];
+    const trackedExpenses = transactions.filter(t => 
       t.amount < 0 && 
       t.type !== 'Transfer' &&
       t.type !== 'Income' &&
       t.category && 
-      includedCategories.includes(t.category)
+      (isSubscriptionCategory(t.category) || includedCategories.includes(t.category))
     );
     const merchantGroups = {};
 
-    // Group expenses by merchant name
-    expenses.forEach(t => {
+    // Group tracked expenses by merchant name
+    trackedExpenses.forEach(t => {
       const cleanName = cleanMerchantName(t.description);
       if (!cleanName) return;
+
+      // If it's a one-off merchant and NOT under the explicit Subscription category, ignore it
+      const isExplicitSub = isSubscriptionCategory(t.category);
+      if (!isExplicitSub) {
+        const lowerMerchant = cleanName.toLowerCase();
+        if (ONE_OFF_MERCHANTS.some(term => lowerMerchant.includes(term))) return;
+      }
+
       if (!merchantGroups[cleanName]) {
         merchantGroups[cleanName] = [];
       }
       merchantGroups[cleanName].push(t);
     });
 
-    // 4.1 Run Auto-Detection Logic
     Object.entries(merchantGroups).forEach(([merchant, txns]) => {
+      const sorted = [...txns].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const latestTxn = sorted[sorted.length - 1];
+      const latestDate = new Date(latestTxn.date);
+
+      // Auto-detect frequency if possible, else default to Monthly
+      let frequency = 'Monthly';
+      let intervalDays = 30;
+
+      if (txns.length >= 2) {
+        const gaps = [];
+        for (let i = 1; i < sorted.length; i++) {
+          const d1 = new Date(sorted[i-1].date);
+          const d2 = new Date(sorted[i].date);
+          const gap = Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+          gaps.push(gap);
+        }
+
+        const avgGap = gaps.reduce((sum, g) => sum + g, 0) / gaps.length;
+        const variance = gaps.reduce((sum, g) => sum + Math.pow(g - avgGap, 2), 0) / gaps.length;
+        const stdDev = Math.sqrt(variance);
+
+        let detectedFreq = '';
+        let detectedInterval = 0;
+        if (avgGap >= 5 && avgGap <= 9) {
+          detectedFreq = 'Weekly';
+          detectedInterval = 7;
+        } else if (avgGap >= 10 && avgGap <= 18) {
+          detectedFreq = 'Bi-weekly';
+          detectedInterval = 14;
+        } else if (avgGap >= 24 && avgGap <= 35) {
+          detectedFreq = 'Monthly';
+          detectedInterval = 30;
+        } else if (avgGap >= 80 && avgGap <= 100) {
+          detectedFreq = 'Quarterly';
+          detectedInterval = 90;
+        } else if (avgGap >= 340 && avgGap <= 385) {
+          detectedFreq = 'Annually';
+          detectedInterval = 365;
+        }
+
+        const isConsistent = detectedFreq !== '' && (stdDev < 6 || stdDev / detectedInterval < 0.20);
+        if (isConsistent) {
+          frequency = detectedFreq;
+          intervalDays = detectedInterval;
+        }
+      }
+
+      // Project next bill date
+      const nextBill = new Date(latestDate);
+      nextBill.setDate(nextBill.getDate() + intervalDays);
+      while (nextBill < today) {
+        nextBill.setDate(nextBill.getDate() + intervalDays);
+      }
+
+      list.push({
+        id: `tracked_${merchant.replace(/\s+/g, '_')}`,
+        merchant,
+        frequency,
+        intervalDays,
+        amount: Math.abs(latestTxn.amount),
+        lastPaidDate: latestTxn.date,
+        nextBillDate: nextBill.toISOString().split('T')[0],
+        category: latestTxn.category,
+        account: latestTxn.account,
+        type: 'Tracked',
+        status: 'Active'
+      });
+    });
+
+    // Add Custom Manual Subscriptions
+    const manualList = manualSubscriptions.map(s => {
+      const nextBill = new Date(s.nextBillDate);
+      let intervalDays = 30;
+      if (s.frequency === 'Weekly') intervalDays = 7;
+      else if (s.frequency === 'Bi-weekly') intervalDays = 14;
+      else if (s.frequency === 'Quarterly') intervalDays = 90;
+      else if (s.frequency === 'Annually') intervalDays = 365;
+
+      while (nextBill < today) {
+        nextBill.setDate(nextBill.getDate() + intervalDays);
+      }
+
+      return {
+        ...s,
+        intervalDays,
+        nextBillDate: nextBill.toISOString().split('T')[0],
+        type: 'Manual',
+        status: 'Active'
+      };
+    });
+
+    // Merge and deduplicate by merchant name
+    const combined = [...list, ...manualList];
+    const seen = new Set();
+    const result = [];
+
+    combined.forEach(s => {
+      const key = s.merchant.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(s);
+      }
+    });
+
+    return result;
+  }, [transactions, includedCategories, manualSubscriptions, today]);
+
+  // 4.1 Suggested Subscriptions Processor (auto-detected from other categories)
+  const suggestedSubscriptions = useMemo(() => {
+    const suggestionsList = [];
+    const trackedMerchantNames = new Set(trackedSubscriptions.map(s => s.merchant.toLowerCase()));
+    
+    const otherExpenses = transactions.filter(t => 
+      t.amount < 0 && 
+      t.type !== 'Transfer' &&
+      t.type !== 'Income' &&
+      t.category && 
+      !isSubscriptionCategory(t.category) && 
+      !includedCategories.includes(t.category)
+    );
+    const otherMerchantGroups = {};
+
+    otherExpenses.forEach(t => {
+      const cleanName = cleanMerchantName(t.description);
+      if (!cleanName) return;
+      if (!otherMerchantGroups[cleanName]) {
+        otherMerchantGroups[cleanName] = [];
+      }
+      otherMerchantGroups[cleanName].push(t);
+    });
+
+    Object.entries(otherMerchantGroups).forEach(([merchant, txns]) => {
+      const lowerMerchant = merchant.toLowerCase();
+      if (trackedMerchantNames.has(lowerMerchant)) return;
+      if (hiddenSubscriptions.includes(merchant)) return;
       if (txns.length < 2) return;
 
-      const lowerMerchant = merchant.toLowerCase();
       if (ONE_OFF_MERCHANTS.some(term => lowerMerchant.includes(term))) return;
 
       const sorted = [...txns].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -183,17 +333,15 @@ export default function Subscriptions() {
         const latestTxn = sorted[sorted.length - 1];
         const latestDate = new Date(latestTxn.date);
 
-        // Subscriptions are typically consumer billing items; ignore massive debt/mortgage payments over $2000 in auto-detection
         if (avgAmount < 2000) {
-          // Project next bill date
           const nextBill = new Date(latestDate);
           nextBill.setDate(nextBill.getDate() + intervalDays);
           while (nextBill < today) {
             nextBill.setDate(nextBill.getDate() + intervalDays);
           }
 
-          detectedList.push({
-            id: `auto_${merchant.replace(/\s+/g, '_')}`,
+          suggestionsList.push({
+            id: `suggested_${merchant.replace(/\s+/g, '_')}`,
             merchant,
             frequency,
             intervalDays,
@@ -201,102 +349,28 @@ export default function Subscriptions() {
             lastPaidDate: latestTxn.date,
             nextBillDate: nextBill.toISOString().split('T')[0],
             category: latestTxn.category,
-            account: latestTxn.account,
-            type: 'Auto-detected',
+            account: latestTxn.account || 'Checking Account',
+            type: 'Suggested',
             status: 'Active'
           });
         }
       }
     });
 
-    // 4.2 Run Category-Based Inclusion Logic
-    const categorySubs = [];
-    if (includedCategories.length > 0) {
-      expenses.forEach(t => {
-        if (includedCategories.includes(t.category)) {
-          const cleanName = cleanMerchantName(t.description);
-          const lowerMerchant = cleanName.toLowerCase();
-          if (ONE_OFF_MERCHANTS.some(term => lowerMerchant.includes(term))) return;
-
-          const existsInAuto = detectedList.some(s => s.merchant.toLowerCase() === cleanName.toLowerCase());
-          const existsInCat = categorySubs.some(s => s.merchant.toLowerCase() === cleanName.toLowerCase());
-
-          if (!existsInAuto && !existsInCat) {
-            const merchantTxns = expenses.filter(et => cleanMerchantName(et.description).toLowerCase() === cleanName.toLowerCase());
-            const sorted = [...merchantTxns].sort((a, b) => new Date(b.date) - new Date(a.date));
-            const latestTxn = sorted[0];
-            const latestDate = new Date(latestTxn.date);
-
-            const nextBill = new Date(latestDate);
-            nextBill.setDate(nextBill.getDate() + 30); // Default to monthly
-            while (nextBill < today) {
-              nextBill.setDate(nextBill.getDate() + 30);
-            }
-
-            categorySubs.push({
-              id: `cat_${cleanName.replace(/\s+/g, '_')}`,
-              merchant: cleanName,
-              frequency: 'Monthly',
-              intervalDays: 30,
-              amount: Math.abs(latestTxn.amount),
-              lastPaidDate: latestTxn.date,
-              nextBillDate: nextBill.toISOString().split('T')[0],
-              category: latestTxn.category,
-              account: latestTxn.account,
-              type: 'Category-based',
-              status: 'Active'
-            });
-          }
-        }
-      });
-    }
-
-    // 4.3 Add Custom Manual Subscriptions
-    const manualList = manualSubscriptions.map(s => {
-      const nextBill = new Date(s.nextBillDate);
-      let intervalDays = 30;
-      if (s.frequency === 'Weekly') intervalDays = 7;
-      else if (s.frequency === 'Bi-weekly') intervalDays = 14;
-      else if (s.frequency === 'Quarterly') intervalDays = 90;
-      else if (s.frequency === 'Annually') intervalDays = 365;
-
-      while (nextBill < today) {
-        nextBill.setDate(nextBill.getDate() + intervalDays);
-      }
-
-      return {
-        ...s,
-        intervalDays,
-        nextBillDate: nextBill.toISOString().split('T')[0],
-        type: 'Manual',
-        status: 'Active'
-      };
-    });
-
-    // Merge and deduplicate by merchant name
-    const allList = [...detectedList, ...categorySubs, ...manualList];
-    const seen = new Set();
-    const result = [];
-
-    allList.forEach(s => {
-      const key = s.merchant.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        result.push(s);
-      }
-    });
-
-    return result;
-  }, [transactions, includedCategories, manualSubscriptions, today]);
+    return suggestionsList;
+  }, [transactions, includedCategories, trackedSubscriptions, hiddenSubscriptions, today]);
 
   // Helper to calculate lifetime and yearly totals for a specific subscription
   const getSubDetails = useMemo(() => {
     return (merchantName) => {
+      // Filter for all expenses under this merchant (including refunds which have t.amount > 0)
       const matchingTxns = transactions.filter(t => 
-        cleanMerchantName(t.description).toLowerCase() === merchantName.toLowerCase() && t.amount < 0
+        cleanMerchantName(t.description).toLowerCase() === merchantName.toLowerCase() &&
+        t.type === 'Expense'
       );
       
-      const totalEver = matchingTxns.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      // Net spending calculation: subtract t.amount (expenses are negative, refunds are positive)
+      const totalEver = matchingTxns.reduce((sum, t) => sum - t.amount, 0);
       const totalCount = matchingTxns.length;
       
       const yearsMap = {};
@@ -304,7 +378,8 @@ export default function Subscriptions() {
         const d = new Date(t.date);
         if (!isNaN(d.getTime())) {
           const y = d.getFullYear();
-          yearsMap[y] = (yearsMap[y] || 0) + Math.abs(t.amount);
+          // subtract t.amount to accumulate net spending
+          yearsMap[y] = (yearsMap[y] || 0) - t.amount;
         }
       });
       
@@ -322,12 +397,12 @@ export default function Subscriptions() {
 
   // Filtering Lists
   const nonHiddenSubs = useMemo(() => {
-    return combinedSubscriptions.filter(s => !hiddenSubscriptions.includes(s.merchant));
-  }, [combinedSubscriptions, hiddenSubscriptions]);
+    return trackedSubscriptions.filter(s => !hiddenSubscriptions.includes(s.merchant));
+  }, [trackedSubscriptions, hiddenSubscriptions]);
 
   const hiddenSubs = useMemo(() => {
-    return combinedSubscriptions.filter(s => hiddenSubscriptions.includes(s.merchant));
-  }, [combinedSubscriptions, hiddenSubscriptions]);
+    return trackedSubscriptions.filter(s => hiddenSubscriptions.includes(s.merchant));
+  }, [trackedSubscriptions, hiddenSubscriptions]);
 
   const overdueSubs = useMemo(() => {
     return nonHiddenSubs.filter(s => getDaysDiff(today, s.nextBillDate) < 0);
@@ -496,16 +571,43 @@ export default function Subscriptions() {
     });
   };
 
+  // Track a suggestion (add to manual list)
+  const handleTrackSuggestion = (sub) => {
+    const newSub = {
+      id: `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      merchant: sub.merchant,
+      amount: sub.amount,
+      frequency: sub.frequency,
+      nextBillDate: sub.nextBillDate,
+      category: sub.category || 'Subscriptions',
+      account: sub.account || 'Auto-detected'
+    };
+    setManualSubscriptions(prev => {
+      const updated = [...prev, newSub];
+      localStorage.setItem('finflow_manual_subscriptions', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // Dismiss a suggestion (hide it so it's not suggested again)
+  const handleDismissSuggestion = (merchantName) => {
+    setHiddenSubscriptions(prev => {
+      const updated = prev.includes(merchantName) ? prev : [...prev, merchantName];
+      localStorage.setItem('finflow_hidden_subscriptions', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   return (
     <div className="space-y-6 max-w-xl mx-auto md:max-w-3xl px-4 pb-24 relative select-none">
       {/* 1. Header Area: Annual Projection */}
       <div className="flex justify-between items-end border-b border-slate-800/30 pb-5">
         <div className="space-y-1">
           <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">PER YEAR</div>
-          <h1 className="text-5xl md:text-6xl font-serif text-white tracking-tight leading-none mt-1">
+          <h1 className="text-5xl md:text-6xl font-bold text-white tracking-tight leading-none mt-1">
             {formatCurrencyInt(stats.yearlyTotal)}
           </h1>
-          <p className="font-serif italic text-slate-400 text-xs md:text-sm mt-3.5">
+          <p className="text-slate-400 text-xs md:text-sm mt-3.5">
             {nonHiddenSubs.length > 0 
               ? `Tracking ${nonHiddenSubs.length} active recurring expenses.` 
               : 'Nothing recurring yet — add a category below to start tracking.'
@@ -610,7 +712,7 @@ export default function Subscriptions() {
         {activeViewItems.length === 0 ? (
           /* Empty State */
           <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 px-4 max-w-sm mx-auto animate-fade-in">
-            <h3 className="font-serif italic text-2xl text-slate-200">No recurring payments yet.</h3>
+            <h3 className="font-semibold text-2xl text-slate-200">No recurring payments yet.</h3>
             <p className="text-slate-400 text-[13px] leading-relaxed max-w-[280px]">
               finflow detects patterns as you add transactions, or include a category below.
             </p>
@@ -761,6 +863,78 @@ export default function Subscriptions() {
           </div>
         )}
       </div>
+
+      {/* Suggested Subscriptions Section */}
+      {suggestedSubscriptions.length > 0 && activeTab === 'all' && (
+        <div className="mt-8 pt-8 border-t border-slate-800/30 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <div className="text-[9px] font-black text-neon-indigo uppercase tracking-widest flex items-center gap-1.5">
+                <Sparkles size={11} className="text-neon-indigo animate-pulse" /> SUGGESTED RETAIL OR BILLS
+              </div>
+              <h2 className="text-lg font-bold text-white tracking-tight">Potential Subscriptions</h2>
+              <p className="text-xs text-slate-400">
+                We detected these recurring transactions in other categories. Add them to track their annual projections.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-slate-450 bg-obsidian-900 border border-obsidian-750 px-2.5 py-0.5 rounded-full uppercase">
+              {suggestedSubscriptions.length} SUGGESTION{suggestedSubscriptions.length > 1 ? 'S' : ''}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {suggestedSubscriptions.map((sub) => {
+              return (
+                <div 
+                  key={sub.id} 
+                  className="flex items-center justify-between p-4 bg-[#0B0E14] border border-[#161B26] rounded-2xl hover:border-slate-800/80 transition-all duration-200"
+                >
+                  <div className="flex items-center space-x-3.5 min-w-0">
+                    <div className="w-10 h-10 bg-obsidian-900 border border-slate-800/40 rounded-xl flex items-center justify-center text-lg select-none shrink-0">
+                      {getCategoryEmoji(sub.category)}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-100 truncate text-sm">
+                        {sub.merchant}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 truncate flex items-center space-x-1 mt-0.5">
+                        <span>{sub.account}</span>
+                        <span>•</span>
+                        <span>{sub.category}</span>
+                        <span>•</span>
+                        <span className="text-slate-400">{sub.frequency}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-4">
+                    <div className="text-right">
+                      <span className="font-bold text-slate-200 text-sm">
+                        -{formatCurrency(sub.amount)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleTrackSuggestion(sub)}
+                        className="px-3 py-1.5 bg-neon-indigo/15 hover:bg-neon-indigo text-neon-indigo hover:text-white border border-neon-indigo/35 hover:border-neon-indigo rounded-xl text-[10px] font-bold transition-all active:scale-[0.97] cursor-pointer"
+                      >
+                        Track
+                      </button>
+                      <button
+                        onClick={() => handleDismissSuggestion(sub.merchant)}
+                        className="px-3 py-1.5 bg-obsidian-800 hover:bg-rose-500/10 text-slate-400 hover:text-rose-400 border border-obsidian-750 hover:border-rose-500/20 rounded-xl text-[10px] font-bold transition-all active:scale-[0.97] cursor-pointer"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Floating Action Button (FAB) */}
       <button
