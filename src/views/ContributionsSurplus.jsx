@@ -594,13 +594,13 @@ export default function ContributionsSurplus() {
               <rect width="120" height="70" rx="8" fill="#1E1E2E" stroke="#6366F1" strokeWidth="1" />
               <text x="60" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Joint SoFi/Chase</text>
               <text x="60" y="45" textAnchor="middle" fill="#6366F1" fontSize="11" fontWeight="extrabold">{formatCurrency(totalJointInflow)}</text>
-              <text x="60" y="60" textAnchor="middle" fill="#94A3B8" fontSize="8">({((totalJointInflow / totalNetIncome) * 100).toFixed(0)}% Inflow)</text>
+              <text x="60" y="60" textAnchor="middle" fill="#94A3B8" fontSize="8">({totalNetIncome > 0 ? ((totalJointInflow / totalNetIncome) * 100).toFixed(0) : 0}% Inflow)</text>
             </g>
             <g transform="translate(460, 225)">
               <rect width="120" height="70" rx="8" fill="#1E1E2E" stroke="#34D399" strokeWidth="1" />
               <text x="60" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Personal BoFA</text>
               <text x="60" y="45" textAnchor="middle" fill="#34D399" fontSize="11" fontWeight="extrabold">{formatCurrency(totalPersonalInflow)}</text>
-              <text x="60" y="60" textAnchor="middle" fill="#94A3B8" fontSize="8">({((totalPersonalInflow / totalNetIncome) * 100).toFixed(0)}% Inflow)</text>
+              <text x="60" y="60" textAnchor="middle" fill="#94A3B8" fontSize="8">({totalNetIncome > 0 ? ((totalPersonalInflow / totalNetIncome) * 100).toFixed(0) : 0}% Inflow)</text>
             </g>
 
             {/* Column 4: Destinations */}
@@ -888,7 +888,7 @@ export default function ContributionsSurplus() {
 
           <div className="mt-4 bg-amber-500/5 border border-amber-500/10 p-3 rounded-2xl text-[11px] text-amber-300 flex justify-between items-center">
             <span className="font-semibold">Weekly Target Transfer:</span>
-            <span className="font-extrabold text-sm text-white">{formatCurrency(dcaLumpSum / dcaWeeks)}/wk</span>
+            <span className="font-extrabold text-sm text-white">{formatCurrency(dcaWeeks > 0 ? dcaLumpSum / dcaWeeks : 0)}/wk</span>
           </div>
         </Card>
 
