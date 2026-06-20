@@ -2,22 +2,43 @@ import React, { useMemo } from 'react';
 import { Card, CardContent } from './Card';
 import { formatCurrency } from '../../utils/formatting';
 import { Users, Info } from 'lucide-react';
+import { useAppContext } from '../../context/AppContext';
 
 export default function ContributionSplit({ transactions = [] }) {
+  const { 
+    resolvedPartnerAName = "Wife", 
+    resolvedPartnerBName = "Husband", 
+    resolvedPartnerAEmployer = "Employer A", 
+    resolvedPartnerBEmployer = "Employer B" 
+  } = useAppContext() || {};
+
   const splits = useMemo(() => {
     let toddIncome = 0;
     let kaitlynIncome = 0;
     let otherIncome = 0;
+
+    const partnerALower = resolvedPartnerAName.toLowerCase();
+    const partnerBLower = resolvedPartnerBName.toLowerCase();
+    const employerALower = resolvedPartnerAEmployer.toLowerCase();
+    const employerBLower = resolvedPartnerBEmployer.toLowerCase();
 
     transactions.forEach(t => {
       if (t.type !== 'Income') return;
       const descLower = String(t.description || '').toLowerCase();
       const catLower = String(t.category || '').toLowerCase();
 
-      // Differentiate between Kaitlyn Trevisan Payroll, Todd Trevisan Payroll, and others
-      if (descLower.includes('kaitlyn') || descLower.includes('havas') || descLower.includes('everyday checking')) {
+      // Differentiate between Partner A, Partner B, and others
+      if (
+        descLower.includes(partnerALower) || 
+        descLower.includes(employerALower) || 
+        descLower.includes('kaitlyn') || 
+        descLower.includes('havas') || 
+        descLower.includes('everyday checking')
+      ) {
         kaitlynIncome += Number(t.amount) || 0;
       } else if (
+        descLower.includes(partnerBLower) || 
+        descLower.includes(employerBLower) || 
         descLower.includes('todd') || 
         descLower.includes('becton') || 
         descLower.includes('bd ') || 
@@ -25,7 +46,7 @@ export default function ContributionSplit({ transactions = [] }) {
         descLower.includes('salary') || 
         catLower.includes('paycheck')
       ) {
-        // Exclude annuities from Todd's W2 paycheck
+        // Exclude annuities from W2 paycheck
         const isAnnuity = 
           descLower.includes('clear spring') || 
           descLower.includes('clearspring') || 
@@ -59,7 +80,7 @@ export default function ContributionSplit({ transactions = [] }) {
       kaitlynPercent,
       otherPercent
     };
-  }, [transactions]);
+  }, [transactions, resolvedPartnerAName, resolvedPartnerBName, resolvedPartnerAEmployer, resolvedPartnerBEmployer]);
 
   if (splits.total === 0) {
     return null;
@@ -85,14 +106,14 @@ export default function ContributionSplit({ transactions = [] }) {
             <div 
               style={{ width: `${splits.kaitlynPercent}%` }}
               className="h-full bg-neon-emerald transition-all duration-500"
-              title={`Kaitlyn: ${splits.kaitlynPercent.toFixed(0)}%`}
+              title={`${resolvedPartnerAName}: ${splits.kaitlynPercent.toFixed(0)}%`}
             />
           )}
           {splits.toddPercent > 0 && (
             <div 
               style={{ width: `${splits.toddPercent}%` }}
               className="h-full bg-neon-indigo transition-all duration-500"
-              title={`Todd: ${splits.toddPercent.toFixed(0)}%`}
+              title={`${resolvedPartnerBName}: ${splits.toddPercent.toFixed(0)}%`}
             />
           )}
           {splits.otherPercent > 0 && (
@@ -109,7 +130,7 @@ export default function ContributionSplit({ transactions = [] }) {
           <div className="space-y-1">
             <div className="flex items-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded bg-neon-emerald shrink-0" />
-              <span className="text-xs text-slate-400 font-semibold truncate">Kaitlyn (Havas)</span>
+              <span className="text-xs text-slate-400 font-semibold truncate">{resolvedPartnerAName} ({resolvedPartnerAEmployer})</span>
             </div>
             <p className="text-sm font-black text-white">{formatCurrency(splits.kaitlynIncome)}</p>
             <p className="text-[10px] text-slate-500 font-bold">{splits.kaitlynPercent.toFixed(0)}% of total</p>
@@ -118,7 +139,7 @@ export default function ContributionSplit({ transactions = [] }) {
           <div className="space-y-1 text-center">
             <div className="flex items-center justify-center space-x-1.5">
               <span className="w-2.5 h-2.5 rounded bg-neon-indigo shrink-0" />
-              <span className="text-xs text-slate-400 font-semibold truncate">Todd (BD)</span>
+              <span className="text-xs text-slate-400 font-semibold truncate">{resolvedPartnerBName} ({resolvedPartnerBEmployer})</span>
             </div>
             <p className="text-sm font-black text-white">{formatCurrency(splits.toddIncome)}</p>
             <p className="text-[10px] text-slate-500 font-bold">{splits.toddPercent.toFixed(0)}% of total</p>

@@ -232,7 +232,7 @@ export default function Income() {
       </div>
 
       {/* Household Split Card */}
-      {enableCustomSplits && <ContributionSplit transactions={incomeTransactions} />}
+      <ContributionSplit transactions={incomeTransactions} />
 
       {/* Main Income Breakdown Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

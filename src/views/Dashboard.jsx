@@ -333,7 +333,30 @@ export default function Dashboard({ setCurrentView }) {
       (a, b) => new Date(a) - new Date(b)
     );
 
-    const targetDates = uniqueDates.slice(-5);
+    let targetDates = [];
+    const isDownsampled = uniqueDates.length > 12;
+    if (isDownsampled) {
+      const monthlyGroups = {};
+      uniqueDates.forEach(date => {
+        const key = date.substring(0, 7); // YYYY-MM
+        if (!monthlyGroups[key]) {
+          monthlyGroups[key] = [];
+        }
+        monthlyGroups[key].push(date);
+      });
+      
+      const sortedMonths = Object.keys(monthlyGroups).sort();
+      sortedMonths.forEach(m => {
+        const datesInMonth = monthlyGroups[m].sort();
+        targetDates.push(datesInMonth[datesInMonth.length - 1]);
+      });
+      
+      if (targetDates.length > 36) {
+        targetDates = targetDates.slice(-36);
+      }
+    } else {
+      targetDates = uniqueDates;
+    }
 
     return targetDates.map(date => {
       let assetsSum = 0;
@@ -367,10 +390,12 @@ export default function Dashboard({ setCurrentView }) {
         chartVal = liabilitiesSum;
       }
 
-      const dObj = new Date(date);
+      const dObj = new Date(date + 'T00:00:00');
       const label = isNaN(dObj.getTime())
         ? date
-        : dObj.toLocaleString('default', { month: 'short', day: 'numeric' });
+        : isDownsampled
+          ? dObj.toLocaleDateString('default', { month: 'short', year: '2-digit' })
+          : dObj.toLocaleDateString('default', { month: 'short', day: 'numeric' });
 
       return {
         date: label,
@@ -392,7 +417,28 @@ export default function Dashboard({ setCurrentView }) {
     const uniqueDates = Array.from(new Set((balances || []).filter(b => b && b.date).map(b => b.date))).sort(
       (a, b) => new Date(a) - new Date(b)
     );
-    const targetDates = uniqueDates.slice(-5);
+    
+    let targetDates = [];
+    if (uniqueDates.length > 12) {
+      const monthlyGroups = {};
+      uniqueDates.forEach(date => {
+        const key = date.substring(0, 7); // YYYY-MM
+        if (!monthlyGroups[key]) {
+          monthlyGroups[key] = [];
+        }
+        monthlyGroups[key].push(date);
+      });
+      const sortedMonths = Object.keys(monthlyGroups).sort();
+      sortedMonths.forEach(m => {
+        const datesInMonth = monthlyGroups[m].sort();
+        targetDates.push(datesInMonth[datesInMonth.length - 1]);
+      });
+      if (targetDates.length > 36) {
+        targetDates = targetDates.slice(-36);
+      }
+    } else {
+      targetDates = uniqueDates.slice(-5);
+    }
     
     if (targetDates.length < 2) {
       return { pct: '0%', dir: 'up' };

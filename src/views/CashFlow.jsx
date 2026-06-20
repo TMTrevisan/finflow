@@ -9,7 +9,15 @@ import { Card, CardContent } from '../components/ui/Card';
 import { useWindowWidth } from '../utils/hooks';
 
 export default function CashFlow() {
-  const { transactions = [], isLoading, enableCustomSplits } = useAppContext();
+  const { 
+    transactions = [], 
+    isLoading, 
+    enableCustomSplits,
+    resolvedPartnerAName = "Wife",
+    resolvedPartnerBName = "Husband",
+    resolvedPartnerAEmployer = "Employer A",
+    resolvedPartnerBEmployer = "Employer B"
+  } = useAppContext() || {};
   const width = useWindowWidth();
   const [filterType, setFilterType] = useState('this_month');
   const [customStart, setCustomStart] = useState('');
@@ -115,10 +123,15 @@ export default function CashFlow() {
           : catName;
         
         const keyLower = key.toLowerCase();
-        if (enableCustomSplits && keyLower.includes('todd')) {
-          key = 'Todd Payroll';
-        } else if (enableCustomSplits && keyLower.includes('kaitlyn')) {
-          key = 'Kaitlyn Payroll';
+        const partnerALower = resolvedPartnerAName.toLowerCase();
+        const partnerBLower = resolvedPartnerBName.toLowerCase();
+        const employerALower = resolvedPartnerAEmployer.toLowerCase();
+        const employerBLower = resolvedPartnerBEmployer.toLowerCase();
+
+        if (keyLower.includes(partnerBLower) || keyLower.includes(employerBLower) || keyLower.includes('todd')) {
+          key = `${resolvedPartnerBName} Payroll`;
+        } else if (keyLower.includes(partnerALower) || keyLower.includes(employerALower) || keyLower.includes('kaitlyn')) {
+          key = `${resolvedPartnerAName} Payroll`;
         } else if (keyLower.includes('annuity')) {
           key = 'Annuity';
         } else if (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income') {

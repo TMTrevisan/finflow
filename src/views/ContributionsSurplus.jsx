@@ -24,7 +24,15 @@ import {
 } from 'lucide-react';
 
 export default function ContributionsSurplus() {
-  const { transactions = [], balances = [], surplusMetrics = {} } = useAppContext();
+  const { 
+    transactions = [], 
+    balances = [], 
+    surplusMetrics = {},
+    resolvedPartnerAName = "Wife",
+    resolvedPartnerBName = "Husband",
+    resolvedPartnerAEmployer = "Employer A",
+    resolvedPartnerBEmployer = "Employer B"
+  } = useAppContext() || {};
 
   // --- STATE FOR INTERACTIVE CALCULATOR (With default formulas/specifications) ---
   const [toddGrossIncome, setToddGrossIncome] = useState(9500); // monthly gross or net default
@@ -57,16 +65,35 @@ export default function ContributionsSurplus() {
     let kaitlynTotal = 0;
     let kaitlynCount = 0;
     
-    // Scan transactions for Havas, BD, Becton, Kaitlyn, Todd
+    const partnerALower = resolvedPartnerAName.toLowerCase();
+    const partnerBLower = resolvedPartnerBName.toLowerCase();
+    const employerALower = resolvedPartnerAEmployer.toLowerCase();
+    const employerBLower = resolvedPartnerBEmployer.toLowerCase();
+
+    // Scan transactions for Havas, BD, Becton, Kaitlyn, Todd, and dynamic names
     transactions.forEach(t => {
       if (t.type !== 'Income') return;
       const desc = String(t.description || '').toLowerCase();
       const amount = Number(t.amount) || 0;
       
-      if (desc.includes('havas') || desc.includes('kaitlyn') || desc.includes('wf') || desc.includes('wells')) {
+      if (
+        desc.includes(partnerALower) || 
+        desc.includes(employerALower) || 
+        desc.includes('havas') || 
+        desc.includes('kaitlyn') || 
+        desc.includes('wf') || 
+        desc.includes('wells')
+      ) {
         kaitlynTotal += amount;
         kaitlynCount++;
-      } else if (desc.includes('bd') || desc.includes('becton') || desc.includes('todd') || desc.includes('bofa')) {
+      } else if (
+        desc.includes(partnerBLower) || 
+        desc.includes(employerBLower) || 
+        desc.includes('bd') || 
+        desc.includes('becton') || 
+        desc.includes('todd') || 
+        desc.includes('bofa')
+      ) {
         toddTotal += amount;
         toddCount++;
       }
@@ -192,7 +219,7 @@ export default function ContributionsSurplus() {
               <span>Contributions & Surplus Analyzer</span>
             </h2>
             <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
-              Visualize partner income routing (Kaitlyn & Todd), track Joint vs. Personal account dynamics, analyze multi-category spending, and compute surplus for smart taxable investment planning.
+              Visualize partner income routing ({resolvedPartnerAName} & {resolvedPartnerBName}), track Joint vs. Personal account dynamics, analyze multi-category spending, and compute surplus for smart taxable investment planning.
             </p>
           </div>
           <div className="bg-obsidian-900/60 border border-obsidian-850 px-4 py-2.5 rounded-2xl shrink-0">
@@ -210,7 +237,7 @@ export default function ContributionsSurplus() {
           className="bg-amber-500/10 border border-amber-500/35 p-5 rounded-3xl flex items-start gap-4 shadow-xl"
         >
           <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl shrink-0">
-            <AlertTriangle size={24} className="animate-bounce" />
+            <AlertTriangle size={24} />
           </div>
           <div className="space-y-1.5 min-w-0 flex-1">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -235,15 +262,15 @@ export default function ContributionsSurplus() {
 
       {/* Side by Side Comparison Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Kaitlyn Income Card */}
+        {/* Partner A Income Card */}
         <Card className="bg-[#0B0E14] border border-[#161B26] p-6 rounded-3xl relative overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-800/40 pb-4 mb-4">
             <div>
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Partner A</span>
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider mt-0.5">Kaitlyn (Havas)</h3>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider mt-0.5">{resolvedPartnerAName} ({resolvedPartnerAEmployer})</h3>
             </div>
             <span className="text-[10px] font-bold text-slate-400 bg-obsidian-800 border border-slate-700/30 px-2.5 py-0.5 rounded-full">
-              Havas W2 Routing
+              {resolvedPartnerAEmployer} W2 Routing
             </span>
           </div>
           <div className="space-y-4">
@@ -277,7 +304,7 @@ export default function ContributionsSurplus() {
             <div className="bg-obsidian-850 p-3.5 rounded-2xl border border-obsidian-800 text-[11px] text-slate-350 flex flex-col gap-1.5">
               <div className="flex justify-between font-medium">
                 <span>Direct Deposit target:</span>
-                <span className="text-white font-bold">Wells Fargo (WF) Checking</span>
+                <span className="text-white font-bold">{resolvedPartnerAName} Bank Checking</span>
               </div>
               <div className="flex justify-between font-medium">
                 <span>Routing to Joint:</span>
@@ -287,12 +314,12 @@ export default function ContributionsSurplus() {
           </div>
         </Card>
 
-        {/* Todd Income Card */}
+        {/* Partner B Income Card */}
         <Card className="bg-[#0B0E14] border border-[#161B26] p-6 rounded-3xl relative overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-800/40 pb-4 mb-4">
             <div>
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Partner B</span>
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider mt-0.5">Todd (BD)</h3>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider mt-0.5">{resolvedPartnerBName} ({resolvedPartnerBEmployer})</h3>
             </div>
             <span className="text-[10px] font-bold text-slate-400 bg-obsidian-800 border border-slate-700/30 px-2.5 py-0.5 rounded-full">
               3-Way Split: Joint, Mortgage, Personal
@@ -407,14 +434,14 @@ export default function ContributionsSurplus() {
                   />
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-500">
-                  <span>Kaitlyn contribution: {formatCurrency(kaitlynToJoint)}</span>
-                  <span>Todd contribution: {formatCurrency(toddToJoint)}</span>
+                  <span>{resolvedPartnerAName} contribution: {formatCurrency(kaitlynToJoint)}</span>
+                  <span>{resolvedPartnerBName} contribution: {formatCurrency(toddToJoint)}</span>
                 </div>
               </div>
 
               <div className="bg-[#0c0f16] border border-[#161B26] p-4 rounded-2xl space-y-3">
                 <div className="flex justify-between text-xs text-slate-400">
-                  <span>Todd Personal BoFA Inflows</span>
+                  <span>{resolvedPartnerBName} Personal Bank Inflows</span>
                   <span className="text-white font-extrabold">{formatCurrency(totalPersonalInflow)} ({totalNetIncome > 0 ? ((totalPersonalInflow / totalNetIncome) * 100).toFixed(0) : 0}%)</span>
                 </div>
                 <div className="w-full bg-obsidian-900 h-2.5 rounded-full overflow-hidden">
@@ -573,32 +600,32 @@ export default function ContributionsSurplus() {
             {/* Column 1: Sources */}
             <g transform="translate(10, 40)">
               <rect width="110" height="60" rx="8" fill="#1E1E2E" stroke="#818CF8" strokeWidth="1" />
-              <text x="55" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Kaitlyn (Havas)</text>
+              <text x="55" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">{resolvedPartnerAName} ({resolvedPartnerAEmployer})</text>
               <text x="55" y="45" textAnchor="middle" fill="#818CF8" fontSize="11" fontWeight="extrabold">{formatCurrency(kaitlynNetIncome)}</text>
             </g>
             <g transform="translate(10, 195)">
               <rect width="110" height="60" rx="8" fill="#1E1E2E" stroke="#10B981" strokeWidth="1" />
-              <text x="55" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Todd (BD)</text>
+              <text x="55" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">{resolvedPartnerBName} ({resolvedPartnerBEmployer})</text>
               <text x="55" y="45" textAnchor="middle" fill="#10B981" fontSize="11" fontWeight="extrabold">{formatCurrency(toddNetIncome)}</text>
             </g>
 
             {/* Column 2: Intermediate Wells Fargo */}
             <g transform="translate(240, 40)">
               <rect width="100" height="60" rx="8" fill="#1E1E2E" stroke="#4F46E5" strokeWidth="1" />
-              <text x="50" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Wells Fargo (WF)</text>
+              <text x="50" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">{resolvedPartnerAName} Bank</text>
               <text x="50" y="45" textAnchor="middle" fill="#4F46E5" fontSize="11" fontWeight="extrabold">{formatCurrency(kaitlynToWF)}</text>
             </g>
 
             {/* Column 3: Joint vs Personal Pools */}
             <g transform="translate(460, 100)">
               <rect width="120" height="70" rx="8" fill="#1E1E2E" stroke="#6366F1" strokeWidth="1" />
-              <text x="60" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Joint SoFi/Chase</text>
+              <text x="60" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Joint Account</text>
               <text x="60" y="45" textAnchor="middle" fill="#6366F1" fontSize="11" fontWeight="extrabold">{formatCurrency(totalJointInflow)}</text>
               <text x="60" y="60" textAnchor="middle" fill="#94A3B8" fontSize="8">({totalNetIncome > 0 ? ((totalJointInflow / totalNetIncome) * 100).toFixed(0) : 0}% Inflow)</text>
             </g>
             <g transform="translate(460, 225)">
               <rect width="120" height="70" rx="8" fill="#1E1E2E" stroke="#34D399" strokeWidth="1" />
-              <text x="60" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Personal BoFA</text>
+              <text x="60" y="25" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">{resolvedPartnerBName} Bank</text>
               <text x="60" y="45" textAnchor="middle" fill="#34D399" fontSize="11" fontWeight="extrabold">{formatCurrency(totalPersonalInflow)}</text>
               <text x="60" y="60" textAnchor="middle" fill="#94A3B8" fontSize="8">({totalNetIncome > 0 ? ((totalPersonalInflow / totalNetIncome) * 100).toFixed(0) : 0}% Inflow)</text>
             </g>
@@ -611,7 +638,7 @@ export default function ContributionsSurplus() {
             </g>
             <g transform="translate(740, 145)">
               <rect width="130" height="50" rx="8" fill="#1E1E2E" stroke="#EF4444" strokeWidth="1" />
-              <text x="65" y="20" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Mortgage (Todd)</text>
+              <text x="65" y="20" textAnchor="middle" fill="#E2E8F0" fontSize="10" fontWeight="bold">Mortgage</text>
               <text x="65" y="38" textAnchor="middle" fill="#EF4444" fontSize="11" fontWeight="extrabold">{formatCurrency(mortgagePayment)}</text>
             </g>
             <g transform="translate(740, 235)">

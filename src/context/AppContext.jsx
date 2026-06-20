@@ -183,14 +183,26 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
 
     // Sign-based fallback for type detection (using Tiller convention: negative = income)
     if (!type) {
-      if (catName === 'uncategorized' || !catName) {
-        // Tiller: negative amount = credit/income, positive = debit/expense
-        type = rawAmt < 0 ? 'Income' : 'Expense';
-        group = 'Uncategorized';
+      const isExpenseCat = catName.includes('grocer') || catName.includes('rent') || catName.includes('dining') || 
+                           catName.includes('shopping') || catName.includes('utilit') || catName.includes('travel') || 
+                           catName.includes('auto') || catName.includes('park') || catName.includes('subscr') || 
+                           catName.includes('gas') || catName.includes('expens') || catName.includes('fee');
+      const isIncomeCat = catName.includes('paycheck') || catName.includes('salary') || catName.includes('deposit') || 
+                          catName.includes('bonus') || catName.includes('wages') || catName.includes('dividend') ||
+                          catName.includes('annuity') || catName.includes('interest');
+      
+      if (isExpenseCat) {
+        type = 'Expense';
+      } else if (isIncomeCat) {
+        type = 'Income';
       } else {
-        type = rawAmt < 0 ? 'Income' : 'Expense';
-        group = 'Other';
+        if (isTillerConvention) {
+          type = rawAmt < 0 ? 'Income' : 'Expense';
+        } else {
+          type = rawAmt > 0 ? 'Income' : 'Expense';
+        }
       }
+      group = (catName === 'uncategorized' || !catName) ? 'Uncategorized' : 'Other';
     }
 
     // Force 401(k), retirement, and investment transfers to be categorized correctly as 'Transfer'
@@ -310,14 +322,14 @@ const safeSetItem = (key, value) => {
 };
 
 // Helper to inject manual mortgage liability dynamically and amortize it over time
-const injectMortgage = (rawBalances, enableCustomSplits = false) => {
+const injectMortgage = (rawBalances, enableCustomSplits = false, partnerBName = "Todd") => {
   if (!rawBalances || rawBalances.length === 0) return rawBalances;
   
   // Find all unique dates in the balances
   const uniqueDates = Array.from(new Set(rawBalances.map(b => b.date)));
   
-  const accountName = enableCustomSplits ? "Todd's Mortgage" : "Mortgage Account";
-  const institutionName = enableCustomSplits ? "Todd Mortgage Account" : "Mortgage Account";
+  const accountName = enableCustomSplits ? `${partnerBName}'s Mortgage` : "Mortgage Account";
+  const institutionName = enableCustomSplits ? `${partnerBName} Mortgage Account` : "Mortgage Account";
 
   // Create mortgage entry for each unique date
   const mortgageEntries = uniqueDates.map(dateStr => {
@@ -345,7 +357,7 @@ const injectMortgage = (rawBalances, enableCustomSplits = false) => {
   });
   
   // Combine, filtering out any existing manual mortgage entries to prevent duplication
-  const filtered = rawBalances.filter(b => b.id !== `manual_mortgage_${b.date}` && b.account !== accountName && b.account !== "Todd's Mortgage" && b.account !== "Mortgage Account");
+  const filtered = rawBalances.filter(b => b.id !== `manual_mortgage_${b.date}` && b.account !== accountName && b.account !== "Todd's Mortgage" && b.account !== "Mortgage Account" && b.account !== `${partnerBName}'s Mortgage`);
   return [...filtered, ...mortgageEntries];
 };
 
@@ -413,6 +425,52 @@ export const AppProvider = ({ children, setCurrentView }) => {
     safeStorage.setItem('finflow_enable_custom_splits', val ? 'true' : 'false');
   };
 
+  const [partnerAName, setPartnerANameState] = useState(() => {
+    return safeStorage.getItem('finflow_partner_a_name') || '';
+  });
+  const [partnerBName, setPartnerBNameState] = useState(() => {
+    return safeStorage.getItem('finflow_partner_b_name') || '';
+  });
+  const [partnerAEmployer, setPartnerAEmployerState] = useState(() => {
+    return safeStorage.getItem('finflow_partner_a_employer') || '';
+  });
+  const [partnerBEmployer, setPartnerBEmployerState] = useState(() => {
+    return safeStorage.getItem('finflow_partner_b_employer') || '';
+  });
+
+  const handleSetPartnerAName = (val) => {
+    setPartnerANameState(val);
+    safeStorage.setItem('finflow_partner_a_name', val);
+  };
+  const handleSetPartnerBName = (val) => {
+    setPartnerBNameState(val);
+    safeStorage.setItem('finflow_partner_b_name', val);
+  };
+  const handleSetPartnerAEmployer = (val) => {
+    setPartnerAEmployerState(val);
+    safeStorage.setItem('finflow_partner_a_employer', val);
+  };
+  const handleSetPartnerBEmployer = (val) => {
+    setPartnerBEmployerState(val);
+    safeStorage.setItem('finflow_partner_b_employer', val);
+  };
+
+  const resolvedPartnerAName = useMemo(() => {
+    return partnerAName || (enableCustomSplits ? 'Kaitlyn' : 'Wife');
+  }, [partnerAName, enableCustomSplits]);
+
+  const resolvedPartnerBName = useMemo(() => {
+    return partnerBName || (enableCustomSplits ? 'Todd' : 'Husband');
+  }, [partnerBName, enableCustomSplits]);
+
+  const resolvedPartnerAEmployer = useMemo(() => {
+    return partnerAEmployer || (enableCustomSplits ? 'Havas' : 'Employer A');
+  }, [partnerAEmployer, enableCustomSplits]);
+
+  const resolvedPartnerBEmployer = useMemo(() => {
+    return partnerBEmployer || (enableCustomSplits ? 'BD' : 'Employer B');
+  }, [partnerBEmployer, enableCustomSplits]);
+
   const { transactions, categories } = useMemo(() => {
     return decorateData(rawTransactions, rawCategories, useCalendarToday);
   }, [rawTransactions, rawCategories, useCalendarToday]);
@@ -428,8 +486,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
   });
 
   const decoratedBalances = useMemo(() => {
-    return injectMortgage(balances, enableCustomSplits);
-  }, [balances, enableCustomSplits]);
+    return injectMortgage(balances, enableCustomSplits, resolvedPartnerBName);
+  }, [balances, enableCustomSplits, resolvedPartnerBName]);
 
   const [lifeOptimization, setLifeOptimization] = useState(() => {
     try {
@@ -875,6 +933,18 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setUseCalendarToday: handleSetUseCalendarToday,
       enableCustomSplits,
       setEnableCustomSplits: handleSetEnableCustomSplits,
+      partnerAName,
+      setPartnerAName: handleSetPartnerAName,
+      partnerBName,
+      setPartnerBName: handleSetPartnerBName,
+      partnerAEmployer,
+      setPartnerAEmployer: handleSetPartnerAEmployer,
+      partnerBEmployer,
+      setPartnerBEmployer: handleSetPartnerBEmployer,
+      resolvedPartnerAName,
+      resolvedPartnerBName,
+      resolvedPartnerAEmployer,
+      resolvedPartnerBEmployer,
       referenceDate,
       globalSearchOpen,
       setGlobalSearchOpen,

@@ -199,6 +199,32 @@ export default function Subscriptions() {
         if (isConsistent) {
           frequency = detectedFreq;
           intervalDays = detectedInterval;
+        } else {
+          const amt = Math.abs(latestTxn.amount);
+          const daysSinceLatest = getDaysDiff(latestDate, today);
+          const descLower = (latestTxn.description || '').toLowerCase();
+          const isKnownAnnual = descLower.includes('annual') || descLower.includes('yearly') || descLower.includes('aa ') || descLower.includes('tiller') || descLower.includes('prime');
+          
+          if (isKnownAnnual || amt >= 45.0 || daysSinceLatest > 45) {
+            frequency = 'Annually';
+            intervalDays = 365;
+          } else {
+            frequency = 'Monthly';
+            intervalDays = 30;
+          }
+        }
+      } else {
+        const amt = Math.abs(latestTxn.amount);
+        const daysSinceLatest = getDaysDiff(latestDate, today);
+        const descLower = (latestTxn.description || '').toLowerCase();
+        const isKnownAnnual = descLower.includes('annual') || descLower.includes('yearly') || descLower.includes('aa ') || descLower.includes('tiller') || descLower.includes('prime');
+        
+        if (isKnownAnnual || amt >= 45.0 || daysSinceLatest > 45) {
+          frequency = 'Annually';
+          intervalDays = 365;
+        } else {
+          frequency = 'Monthly';
+          intervalDays = 30;
         }
       }
 

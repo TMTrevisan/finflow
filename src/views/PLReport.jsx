@@ -344,7 +344,7 @@ export default function PLReport() {
 
       {/* Desktop Spreadsheet Grid Layout */}
       <div className="hidden md:block bg-obsidian-800 border border-obsidian-700 rounded-3xl shadow-xl overflow-hidden">
-        <div className="overflow-auto max-h-[600px] custom-scrollbar">
+        <div className="overflow-auto max-h-[85vh] custom-scrollbar">
           <table className="w-full border-collapse text-left relative">
             <thead>
               <tr className="border-b border-obsidian-750 font-semibold text-slate-300 text-xs">

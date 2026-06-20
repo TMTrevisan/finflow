@@ -5,7 +5,13 @@ import { useAppContext } from '../../context/AppContext';
 const sanitizeId = (str) => (str || '').replace(/[^a-zA-Z0-9_-]/g, '_');
 
 export default function SankeyDiagram({ transactions, onSelectNode, activeFilter }) {
-  const { enableCustomSplits } = useAppContext();
+  const { 
+    enableCustomSplits,
+    resolvedPartnerAName = "Wife",
+    resolvedPartnerBName = "Husband",
+    resolvedPartnerAEmployer = "Employer A",
+    resolvedPartnerBEmployer = "Employer B"
+  } = useAppContext() || {};
   const [hoveredNode, setHoveredNode] = useState(null);
   const [hoveredLink, setHoveredLink] = useState(null);
 
@@ -41,10 +47,15 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
           : catName;
 
         const sourceLower = sourceName.toLowerCase();
-        if (enableCustomSplits && sourceLower.includes('todd')) {
-          sourceName = 'Todd Payroll';
-        } else if (enableCustomSplits && sourceLower.includes('kaitlyn')) {
-          sourceName = 'Kaitlyn Payroll';
+        const partnerALower = resolvedPartnerAName.toLowerCase();
+        const partnerBLower = resolvedPartnerBName.toLowerCase();
+        const employerALower = resolvedPartnerAEmployer.toLowerCase();
+        const employerBLower = resolvedPartnerBEmployer.toLowerCase();
+
+        if (sourceLower.includes(partnerBLower) || sourceLower.includes(employerBLower) || sourceLower.includes('todd')) {
+          sourceName = `${resolvedPartnerBName} Payroll`;
+        } else if (sourceLower.includes(partnerALower) || sourceLower.includes(employerALower) || sourceLower.includes('kaitlyn')) {
+          sourceName = `${resolvedPartnerAName} Payroll`;
         } else if (sourceLower.includes('annuity')) {
           sourceName = 'Annuity';
         } else if (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income') {
