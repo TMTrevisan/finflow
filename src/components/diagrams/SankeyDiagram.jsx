@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { formatCurrency, cleanMerchantName } from '../../utils/formatting';
 import { useAppContext } from '../../context/AppContext';
+import { Download } from 'lucide-react';
 
 const sanitizeId = (str) => (str || '').replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -14,6 +15,46 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
   } = useAppContext() || {};
   const [hoveredNode, setHoveredNode] = useState(null);
   const [hoveredLink, setHoveredLink] = useState(null);
+
+  const downloadPng = () => {
+    const svgEl = document.getElementById('sankey-flow-svg');
+    if (!svgEl) return;
+
+    const svgWidth = 1200;
+    const svgHeight = height;
+
+    const svgXml = new XMLSerializer().serializeToString(svgEl);
+    const svgBlob = new Blob([svgXml], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = svgWidth;
+      canvas.height = svgHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#0B0F19'; // Obsidian 900 dark background
+        ctx.fillRect(0, 0, svgWidth, svgHeight);
+        ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
+        
+        const a = document.createElement('a');
+        a.download = `finflow-cashflow-sankey-${new Date().toISOString().slice(0, 10)}.png`;
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+      }
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      const a = document.createElement('a');
+      a.download = `finflow-cashflow-sankey-${new Date().toISOString().slice(0, 10)}.svg`;
+      a.href = url;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    };
+    img.src = url;
+  };
 
   const getMonthKey = (date) => {
     if (!(date instanceof Date) || isNaN(date.getTime())) return 'Invalid Date';
@@ -445,7 +486,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
             )}
           </div>
         </div>
-        <div className="flex space-x-6 text-xs text-slate-400">
+        <div className="flex items-center space-x-6 text-xs text-slate-400">
           <div>
             <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">Total Inflow</span>
             <span className="text-white font-bold text-sm">{formatCurrency(totalIncome)}</span>
@@ -454,12 +495,19 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
             <span className="block text-[9px] text-slate-500 font-bold uppercase tracking-wider">Total Outflow</span>
             <span className="text-white font-bold text-sm">{formatCurrency(totalExpense)}</span>
           </div>
+          <button 
+            onClick={downloadPng}
+            title="Download Flow Diagram"
+            className="flex items-center justify-center p-2 rounded-xl bg-obsidian-750 hover:bg-obsidian-700 text-slate-400 hover:text-white transition-all border border-obsidian-700 cursor-pointer shrink-0"
+          >
+            <Download size={16} />
+          </button>
         </div>
       </div>
 
       <div className="w-full overflow-x-auto hide-scrollbar">
         <div className="min-w-[1050px] relative">
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none">
+          <svg id="sankey-flow-svg" viewBox={`0 0 ${width} ${height}`} className="w-full h-auto select-none">
             <defs>
               {/* Gradients for ribbons */}
               {links.map(l => (

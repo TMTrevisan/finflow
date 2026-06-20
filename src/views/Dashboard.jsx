@@ -390,7 +390,7 @@ export default function Dashboard({ setCurrentView }) {
         chartVal = liabilitiesSum;
       }
 
-      const dObj = new Date(date + 'T00:00:00');
+      const dObj = String(date).includes('T') ? new Date(date) : new Date(date + 'T00:00:00');
       const label = isNaN(dObj.getTime())
         ? date
         : isDownsampled
