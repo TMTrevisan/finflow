@@ -102,21 +102,48 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
   });
 
   // Detect if raw data uses Tiller convention (positive expenses, negative income/credits)
-  const isTillerConvention = txnsList.some(t => {
+  // We use a majority-based check on Expense transactions rather than some() to prevent
+  // refunds (which are positive expenses in normalized data) from falsely triggering a double flip.
+  // We fall back to Income transactions if no Expense transactions exist (useful in isolated unit tests).
+  let positiveExpenses = 0;
+  let negativeExpenses = 0;
+  let positiveIncomes = 0;
+  let negativeIncomes = 0;
+  
+  txnsList.forEach(t => {
     const amt = Number(t.amount) || 0;
-    const cat = String(t.category || '').toLowerCase();
+    const cat = String(t.category || '').trim().toLowerCase();
     const catMeta = catMap[cat];
     const type = catMeta?.type || t.type || '';
     
-    if (type === 'Expense' && amt > 0) return true;
-    if (type === 'Income' && amt < 0) return true;
-    
-    if (!type) {
-      const isExpenseCat = cat.includes('grocer') || cat.includes('rent') || cat.includes('dining') || cat.includes('shopping') || cat.includes('utilit') || cat.includes('travel') || cat.includes('auto');
-      if (isExpenseCat && amt > 0) return true;
+    if (type === 'Expense') {
+      if (amt > 0) positiveExpenses++;
+      if (amt < 0) negativeExpenses++;
+    } else if (type === 'Income') {
+      if (amt > 0) positiveIncomes++;
+      if (amt < 0) negativeIncomes++;
+    } else if (!type) {
+      const isExpenseCat = cat.includes('grocer') || cat.includes('rent') || cat.includes('dining') || 
+                           cat.includes('shopping') || cat.includes('utilit') || cat.includes('travel') || 
+                           cat.includes('auto');
+      if (isExpenseCat) {
+        if (amt > 0) positiveExpenses++;
+        if (amt < 0) negativeExpenses++;
+      } else {
+        const isIncomeCat = cat.includes('paycheck') || cat.includes('salary') || cat.includes('deposit') || 
+                            cat.includes('bonus') || cat.includes('wages') || cat.includes('dividend');
+        if (isIncomeCat) {
+          if (amt > 0) positiveIncomes++;
+          if (amt < 0) negativeIncomes++;
+        }
+      }
     }
-    return false;
   });
+
+  const hasExpenses = (positiveExpenses + negativeExpenses) > 0;
+  const isTillerConvention = hasExpenses 
+    ? (positiveExpenses > negativeExpenses)
+    : (negativeIncomes > positiveIncomes);
 
   const txns = txnsList.map(t => {
     const catName = String(t.category || '').trim().toLowerCase();
@@ -283,12 +310,15 @@ const safeSetItem = (key, value) => {
 };
 
 // Helper to inject manual mortgage liability dynamically and amortize it over time
-const injectMortgage = (rawBalances) => {
+const injectMortgage = (rawBalances, enableCustomSplits = false) => {
   if (!rawBalances || rawBalances.length === 0) return rawBalances;
   
   // Find all unique dates in the balances
   const uniqueDates = Array.from(new Set(rawBalances.map(b => b.date)));
   
+  const accountName = enableCustomSplits ? "Todd's Mortgage" : "Mortgage Account";
+  const institutionName = enableCustomSplits ? "Todd Mortgage Account" : "Mortgage Account";
+
   // Create mortgage entry for each unique date
   const mortgageEntries = uniqueDates.map(dateStr => {
     // Calculate days since a baseline date: 2026-04-01
@@ -304,9 +334,9 @@ const injectMortgage = (rawBalances) => {
     return {
       id: `manual_mortgage_${dateStr}`,
       date: dateStr,
-      account: "Todd's Mortgage",
+      account: accountName,
       account_id: 'XXXX-MORT',
-      institution: 'Todd Mortgage Account',
+      institution: institutionName,
       balance: -mortgageBalance, // negative because it's a Liability class
       class: 'Liability',
       type: 'Mortgage',
@@ -315,7 +345,7 @@ const injectMortgage = (rawBalances) => {
   });
   
   // Combine, filtering out any existing manual mortgage entries to prevent duplication
-  const filtered = rawBalances.filter(b => b.id !== `manual_mortgage_${b.date}` && b.account !== "Todd's Mortgage");
+  const filtered = rawBalances.filter(b => b.id !== `manual_mortgage_${b.date}` && b.account !== accountName && b.account !== "Todd's Mortgage" && b.account !== "Mortgage Account");
   return [...filtered, ...mortgageEntries];
 };
 
@@ -374,6 +404,15 @@ export const AppProvider = ({ children, setCurrentView }) => {
     safeStorage.setItem('finflow_use_calendar_today', val ? 'true' : 'false');
   };
 
+  const [enableCustomSplits, setEnableCustomSplits] = useState(() => {
+    return safeStorage.getItem('finflow_enable_custom_splits') === 'true';
+  });
+
+  const handleSetEnableCustomSplits = (val) => {
+    setEnableCustomSplits(val);
+    safeStorage.setItem('finflow_enable_custom_splits', val ? 'true' : 'false');
+  };
+
   const { transactions, categories } = useMemo(() => {
     return decorateData(rawTransactions, rawCategories, useCalendarToday);
   }, [rawTransactions, rawCategories, useCalendarToday]);
@@ -389,8 +428,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
   });
 
   const decoratedBalances = useMemo(() => {
-    return injectMortgage(balances);
-  }, [balances]);
+    return injectMortgage(balances, enableCustomSplits);
+  }, [balances, enableCustomSplits]);
 
   const [lifeOptimization, setLifeOptimization] = useState(() => {
     try {
@@ -834,6 +873,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
       updateCategory,
       useCalendarToday,
       setUseCalendarToday: handleSetUseCalendarToday,
+      enableCustomSplits,
+      setEnableCustomSplits: handleSetEnableCustomSplits,
       referenceDate,
       globalSearchOpen,
       setGlobalSearchOpen,

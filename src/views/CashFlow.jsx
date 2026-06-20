@@ -9,7 +9,7 @@ import { Card, CardContent } from '../components/ui/Card';
 import { useWindowWidth } from '../utils/hooks';
 
 export default function CashFlow() {
-  const { transactions = [], isLoading } = useAppContext();
+  const { transactions = [], isLoading, enableCustomSplits } = useAppContext();
   const width = useWindowWidth();
   const [filterType, setFilterType] = useState('this_month');
   const [customStart, setCustomStart] = useState('');
@@ -115,14 +115,16 @@ export default function CashFlow() {
           : catName;
         
         const keyLower = key.toLowerCase();
-        if (keyLower.includes('todd')) {
+        if (enableCustomSplits && keyLower.includes('todd')) {
           key = 'Todd Payroll';
-        } else if (keyLower.includes('kaitlyn')) {
+        } else if (enableCustomSplits && keyLower.includes('kaitlyn')) {
           key = 'Kaitlyn Payroll';
         } else if (keyLower.includes('annuity')) {
           key = 'Annuity';
+        } else if (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income') {
+          key = key || 'Other Income';
         } else {
-          key = 'Other Income';
+          key = catName;
         }
 
         const amount = Number(t.amount) || 0;
@@ -136,7 +138,7 @@ export default function CashFlow() {
         percentage: total > 0 ? (value / total) * 100 : 0
       }))
       .sort((a, b) => b.value - a.value);
-  }, [dateFilteredTransactions]);
+  }, [dateFilteredTransactions, enableCustomSplits]);
 
   // Grouped Expense Sources
   const expenseSources = useMemo(() => {

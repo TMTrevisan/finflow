@@ -7,14 +7,16 @@ import PLReport from './PLReport';
 import YearlyInsights from './YearlyInsights';
 import ContributionsSurplus from './ContributionsSurplus';
 import { cn } from '../components/ui/Card';
+import { useAppContext } from '../context/AppContext';
 
 export default function Insights() {
+  const { enableCustomSplits } = useAppContext();
   const [activeSubTab, setActiveSubTab] = useState('spending_trends');
 
   const TABS = [
     { id: 'spending_trends', label: 'Spending Trends' },
     { id: 'life_optimization', label: 'Permission to Spend' },
-    { id: 'contributions_surplus', label: 'Contributions & Surplus' },
+    ...(enableCustomSplits ? [{ id: 'contributions_surplus', label: 'Contributions & Surplus' }] : []),
     { id: 'spending', label: 'Spending Breakdown' },
     { id: 'income', label: 'Income Breakdown' },
     { id: 'pl', label: 'P&L Report' },

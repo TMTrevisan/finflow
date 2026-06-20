@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export default function Income() {
-  const { transactions = [], isLoading } = useAppContext();
+  const { transactions = [], isLoading, enableCustomSplits } = useAppContext();
   const [filterType, setFilterType] = useState('this_month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -232,7 +232,7 @@ export default function Income() {
       </div>
 
       {/* Household Split Card */}
-      <ContributionSplit transactions={incomeTransactions} />
+      {enableCustomSplits && <ContributionSplit transactions={incomeTransactions} />}
 
       {/* Main Income Breakdown Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

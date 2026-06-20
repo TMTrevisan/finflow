@@ -1,3 +1,5 @@
+import { safeStorage } from './storage';
+
 export const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -16,27 +18,32 @@ export const cleanMerchantName = (description) => {
   let cleaned = description;
   const lower = description.toLowerCase();
   
-  // Specific Payroll/Employer / Tax Refund Mappings
-  if (lower.includes('becton dickinson') || lower.includes('becton')) {
-    return 'Becton Dickinson';
-  }
-  if (lower.includes('kaitlyn trevisan') && (lower.includes('payroll') || lower.includes('ayroll') || lower.includes('cerx'))) {
-    return 'Kaitlyn Trevisan Payroll';
-  }
-  const isAnnuity = 
-    lower.includes('clear spring') || 
-    lower.includes('clearspring') || 
-    lower.includes('guggenheim') || 
-    lower.includes('natl west') || 
-    lower.includes('national western') || 
-    lower.includes('north american');
+  const customSplitsEnabled = safeStorage.getItem('finflow_enable_custom_splits') === 'true';
 
-  if (!isAnnuity) {
-    if (lower.includes('trevisan,todd') || (lower.includes('todd trevisan') && (lower.includes('zik') || lower.includes('ppd')))) {
-      return 'Todd Trevisan Payroll';
+  // Specific Payroll/Employer / Tax Refund Mappings
+  if (customSplitsEnabled) {
+    if (lower.includes('becton dickinson') || lower.includes('becton')) {
+      return 'Becton Dickinson';
     }
-    if (lower.includes('todd michael trevisan') && (lower.includes('ppd') || lower.includes('bc'))) {
-      return 'Todd Trevisan Payroll';
+    if (lower.includes('kaitlyn trevisan') && (lower.includes('payroll') || lower.includes('ayroll') || lower.includes('cerx'))) {
+      return 'Kaitlyn Trevisan Payroll';
+    }
+
+    const isAnnuity = 
+      lower.includes('clear spring') || 
+      lower.includes('clearspring') || 
+      lower.includes('guggenheim') || 
+      lower.includes('natl west') || 
+      lower.includes('national western') || 
+      lower.includes('north american');
+
+    if (!isAnnuity) {
+      if (lower.includes('trevisan,todd') || (lower.includes('todd trevisan') && (lower.includes('zik') || lower.includes('ppd')))) {
+        return 'Todd Trevisan Payroll';
+      }
+      if (lower.includes('todd michael trevisan') && (lower.includes('ppd') || lower.includes('bc'))) {
+        return 'Todd Trevisan Payroll';
+      }
     }
   }
   if (lower.includes('franchise tax bd') || lower.includes('casttaxrfd')) {

@@ -18,13 +18,13 @@ FinFlow is a modern personal finance dashboard built on top of Tiller Sheets exp
 
 ### A. Transaction Type & Group Decoration
 Transactions fetch raw from the Google Sheets API. They are decorated in `decorateData` inside [AppContext.jsx](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/context/AppContext.jsx):
-*   **Type Normalization**: Tiller represents Expenses as positive numbers and Income as negative numbers. FinFlow normalizes this in `AppContext` so that **Income is positive** and **Expenses/Outflows are negative**.
+*   **Type Normalization**: Tiller represents Expenses as positive numbers and Income as negative numbers. FinFlow normalizes this in `AppContext` so that **Income is positive** and **Expenses/Outflows are negative**. FinFlow uses a majority-based counter check on raw transaction sign directions to identify when the input data is in Tiller convention, preventing refunds (which are positive expenses in normalized datasets) from triggering false double-flips.
 *   **Refund Handling**: Under Tiller's convention, refunds appear as negative expense values. In `decorateData`, the signs are flipped (`normalizedAmt = -rawAmt`) so refunds resolve back to positive credits, preventing double/triple counting of merchant charges (e.g. ticket cancellations).
 *   **Transfers vs. Consumption**: Credit card payments or internal bank transfers are typed as `Transfer` and grouped under `Other` (or similar). They must be **excluded** from general expense/spending totals to avoid double-counting.
 *   **Investments**: Transfers to retirement accounts (401(k), IRA, 529) are typed as `Transfer` with `group === 'Investments'` or `group === 'Wealth Building'`. They are tracked separately as "Invested & Saved" metrics.
 
 ### B. Payroll & Merchant Grouping
-Paycheck entries and direct deposits are cleaned via `cleanMerchantName` in [formatting.js](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/utils/formatting.js). Specific employer splits (e.g., *Becton Dickinson*, *Havas*, *Kaitlyn Trevisan Payroll*, *Todd Trevisan Payroll*, and *Franchise Tax Board*) are mapped to consolidated parent strings so they don't split into separate rows/nodes on dashboards and diagrams.
+Paycheck entries and direct deposits are cleaned via `cleanMerchantName` in [formatting.js](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/utils/formatting.js). Under Custom Income Split Mode, specific employer splits (e.g., *Becton Dickinson*, *Havas*, *Kaitlyn Trevisan Payroll*, *Todd Trevisan Payroll*, and *Franchise Tax Board*) are mapped to consolidated parent strings so they don't split into separate rows/nodes on dashboards and diagrams. If Custom Income Split Mode is disabled, they resolve directly to their generic cleaned merchant strings.
 
 ### C. Cash Flow & Sankey Diagrams
 *   The **Sankey Flow Diagram** in [SankeyDiagram.jsx](file:///Users/toddtrevisan/Documents/Tiller%20Sheets/FinFlow/src/components/diagrams/SankeyDiagram.jsx) visualizes:

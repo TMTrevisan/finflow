@@ -16,7 +16,8 @@ import {
   Brain,
   Fingerprint,
   Bell,
-  Calendar
+  Calendar,
+  Sliders
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BottomSheet } from '../components/ui/BottomSheet';
@@ -34,7 +35,9 @@ export default function Settings() {
     isMockData,
     isSyncing,
     useCalendarToday,
-    setUseCalendarToday
+    setUseCalendarToday,
+    enableCustomSplits,
+    setEnableCustomSplits
   } = useAppContext();
 
   // URL state
@@ -587,6 +590,38 @@ export default function Settings() {
                 <div>
                   <span className="text-xs font-bold text-white block">Use Latest Transaction Date</span>
                   <span className="text-[10px] text-slate-400">Anchor dates around the latest transaction in your sheets (best for stale data).</span>
+                </div>
+              </label>
+            </div>
+          </div>
+        </Card>
+
+        {/* Custom Splits Settings Card */}
+        <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-neon-indigo/10 rounded-xl text-neon-indigo">
+                <Sliders size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Advanced Features</h3>
+                <p className="text-xs text-slate-500">Toggle personalized views and custom splitting configurations.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="flex items-start space-x-3 bg-obsidian-800/30 p-3 rounded-xl border border-obsidian-850 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={enableCustomSplits}
+                  onChange={(e) => setEnableCustomSplits(e.target.checked)}
+                  className="mt-1 border-slate-700 rounded text-neon-indigo focus:ring-neon-indigo bg-obsidian-800"
+                />
+                <div>
+                  <span className="text-xs font-bold text-white block">Custom Income Split Mode</span>
+                  <span className="text-[10px] text-slate-400">
+                    Enable specific calculations, custom payroll merchant cleanup, and the Contributions & Surplus planning dashboard.
+                  </span>
                 </div>
               </label>
             </div>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { formatCurrency, cleanMerchantName, getCategoryEmoji } from './formatting';
+import { safeStorage } from './storage';
 
 describe('Formatting Utilities', () => {
   describe('formatCurrency', () => {
@@ -37,6 +38,20 @@ describe('Formatting Utilities', () => {
       expect(cleanMerchantName('Guggenheim Life Des:ins.prem Id:xxxx2600bc Indn:todd Michael Trevisan Co Id:1471')).not.toBe('Todd Trevisan Payroll');
       expect(cleanMerchantName('Natl West Life Des:inst Bn Pd Id:xxxxxx5655 Indn:todd M Trevisan Co Id:1840')).not.toBe('Todd Trevisan Payroll');
       expect(cleanMerchantName('North American L Des:benef Pymt Id:xxxx6860 Indn:todd Trevisan Co Id:4362')).not.toBe('Todd Trevisan Payroll');
+    });
+
+    it('maps payroll descriptions when custom splits are enabled', () => {
+      safeStorage.setItem('finflow_enable_custom_splits', 'true');
+      expect(cleanMerchantName('Becton')).toBe('Becton Dickinson');
+      expect(cleanMerchantName('trevisan,todd')).toBe('Todd Trevisan Payroll');
+      expect(cleanMerchantName('Kaitlyn Trevisan Payroll cerx')).toBe('Kaitlyn Trevisan Payroll');
+    });
+
+    it('does not map payroll descriptions when custom splits are disabled', () => {
+      safeStorage.setItem('finflow_enable_custom_splits', 'false');
+      expect(cleanMerchantName('Becton')).toBe('Becton');
+      expect(cleanMerchantName('trevisan,todd')).toBe('trevisan,todd');
+      expect(cleanMerchantName('Kaitlyn Trevisan Payroll cerx')).toBe('Kaitlyn Trevisan Payroll cerx');
     });
 
     it('handles null/undefined descriptions gracefully', () => {

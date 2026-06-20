@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { formatCurrency, cleanMerchantName } from '../../utils/formatting';
+import { useAppContext } from '../../context/AppContext';
 
 const sanitizeId = (str) => (str || '').replace(/[^a-zA-Z0-9_-]/g, '_');
 
 export default function SankeyDiagram({ transactions, onSelectNode, activeFilter }) {
+  const { enableCustomSplits } = useAppContext();
   const [hoveredNode, setHoveredNode] = useState(null);
   const [hoveredLink, setHoveredLink] = useState(null);
 
@@ -39,14 +41,17 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
           : catName;
 
         const sourceLower = sourceName.toLowerCase();
-        if (sourceLower.includes('todd')) {
+        if (enableCustomSplits && sourceLower.includes('todd')) {
           sourceName = 'Todd Payroll';
-        } else if (sourceLower.includes('kaitlyn')) {
+        } else if (enableCustomSplits && sourceLower.includes('kaitlyn')) {
           sourceName = 'Kaitlyn Payroll';
         } else if (sourceLower.includes('annuity')) {
           sourceName = 'Annuity';
+        } else if (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income') {
+          // If custom splits are off, keep the cleaned merchant name or fallback to category/Other
+          sourceName = sourceName || 'Other Income';
         } else {
-          sourceName = 'Other Income';
+          sourceName = catName;
         }
 
         incomeMap[sourceName] = (incomeMap[sourceName] || 0) + amount;
@@ -83,7 +88,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       totalExpense,
       totalSavings
     };
-  }, [filteredTxns]);
+  }, [filteredTxns, enableCustomSplits]);
 
   const { incomeMap, groupMap, categoryMap, totalIncome, totalExpense, totalSavings } = flowData;
 
