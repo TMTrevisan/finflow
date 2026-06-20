@@ -6,6 +6,8 @@ import {
   Compass, Landmark 
 } from 'lucide-react';
 import { haptics } from '../../utils/haptics';
+import { useAppContext } from '../../context/AppContext';
+
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'accounts', label: 'Accounts', icon: Landmark },
@@ -23,6 +25,19 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ currentView, setCurrentView }) {
+  const { 
+    resolvedPartnerAName = "Wife",
+    resolvedPartnerBName = "Husband"
+  } = useAppContext() || {};
+
+  const initials = resolvedPartnerBName && resolvedPartnerAName 
+    ? `${resolvedPartnerBName[0]}${resolvedPartnerAName[0]}`
+    : "U";
+
+  const displayName = resolvedPartnerBName && resolvedPartnerAName
+    ? `${resolvedPartnerBName} & ${resolvedPartnerAName}`
+    : "User Profile";
+
   return (
     <aside className="hidden md:flex flex-col w-64 bg-obsidian-800 border-r border-obsidian-700 h-screen sticky top-0">
       <div className="p-6">
@@ -31,7 +46,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
         </h1>
       </div>
       
-      <nav className="flex-1 px-4 space-y-2 mt-4">
+      <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto hide-scrollbar">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = currentView === item.id;
@@ -64,12 +79,21 @@ export default function Sidebar({ currentView, setCurrentView }) {
       </nav>
       
       <div className="p-4 border-t border-obsidian-700">
-        <div className="flex items-center space-x-3 px-4 py-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-neon-indigo to-neon-violet flex items-center justify-center text-sm font-bold">
-            U
+        <button
+          onClick={() => {
+            haptics.light();
+            setCurrentView('settings');
+          }}
+          className="w-full flex items-center space-x-3 px-4 py-3 rounded-2xl hover:bg-obsidian-700/50 transition-all cursor-pointer group text-left"
+        >
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-neon-indigo to-neon-violet flex items-center justify-center text-xs font-bold text-white shrink-0 group-hover:scale-105 transition-transform">
+            {initials}
           </div>
-          <span className="text-sm font-medium text-slate-300">User</span>
-        </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold text-slate-100 truncate group-hover:text-neon-indigo transition-colors">{displayName}</p>
+            <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5">Settings Dashboard</p>
+          </div>
+        </button>
       </div>
     </aside>
   );
