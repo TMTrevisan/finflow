@@ -198,7 +198,7 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
             <span className="text-sm font-bold text-emerald-400">{formatCurrency(totalAssets)}</span>
           </div>
           
-          <div className="divide-y divide-slate-850/45 space-y-1">
+          <div className="space-y-1.5">
             {assets.map(acc => {
               const status = getAccountSyncStatus(acc.account);
               return (
@@ -239,7 +239,7 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
             <span className="text-sm font-bold text-rose-455">-{formatCurrency(totalLiabilities)}</span>
           </div>
 
-          <div className="divide-y divide-slate-850/45 space-y-1">
+          <div className="space-y-1.5">
             {liabilities.map(acc => {
               const status = getAccountSyncStatus(acc.account);
               return (

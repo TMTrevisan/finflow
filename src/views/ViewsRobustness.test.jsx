@@ -200,7 +200,7 @@ describe('Views Robustness Tests', () => {
 
   describe('Stage 4 Regression Tests', () => {
     it('1. decorateData converts ISO timestamps to local YYYY-MM-DD', async () => {
-      const { decorateData } = await vi.importActual('../context/AppContext');
+      const { decorateData } = await vi.importActual('../utils/dataPrep');
       const rawTxns = [
         { id: '1', date: '2026-05-30T14:02:49.000Z', description: 'Test', amount: -50 }
       ];
@@ -209,7 +209,7 @@ describe('Views Robustness Tests', () => {
     });
 
     it('2. decorateData positive expense -> stored as negative amount', async () => {
-      const { decorateData } = await vi.importActual('../context/AppContext');
+      const { decorateData } = await vi.importActual('../utils/dataPrep');
       const rawTxns = [
         { id: '1', date: '2026-05-30', description: 'Groceries', category: 'Groceries', amount: 50.00 }
       ];
@@ -222,7 +222,7 @@ describe('Views Robustness Tests', () => {
     });
 
     it('3. decorateData negative income -> stored as positive amount', async () => {
-      const { decorateData } = await vi.importActual('../context/AppContext');
+      const { decorateData } = await vi.importActual('../utils/dataPrep');
       const rawTxns = [
         { id: '1', date: '2026-05-30', description: 'Salary', category: 'Salary', amount: -3000.00 }
       ];
@@ -235,7 +235,7 @@ describe('Views Robustness Tests', () => {
     });
 
     it('4. resolveBudget matches long Tiller month-keys exactly without false matching', async () => {
-      const { resolveBudget } = await vi.importActual('../context/AppContext');
+      const { resolveBudget } = await vi.importActual('../utils/dataPrep');
       const budgetObj = {
         'fri_may_01_2026_00:00:00_gmt-0700_': 500.00,
         'summary': 1000.00

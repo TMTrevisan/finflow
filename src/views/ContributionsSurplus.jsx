@@ -49,7 +49,7 @@ export default function ContributionsSurplus() {
   const [toddDcaYr, setToddDcaYr] = useState(5000); // Todd DCA $5k/yr
   
   // Spending Settings
-  const [mortgagePayment, setMortgagePayment] = useState(2200); // Todd pays mortgage
+  const [mortgagePayment, setMortgagePayment] = useState(2259.97); // Todd pays mortgage
   const [jointSpendingSettings, setJointSpendingSettings] = useState(3800); // Groceries, Dining, Travel, Costco, Amazon, Misc
   const [personalSpendingSettings, setPersonalSpendingSettings] = useState(1500);
 
@@ -452,7 +452,7 @@ export default function ContributionsSurplus() {
                 </div>
                 <div className="flex justify-between text-[10px] text-slate-500">
                   <span>Stay-in-Personal: {formatCurrency(toddToPersonal)}</span>
-                  <span>Used for: Mortgage ($2,200) + Personal savings</span>
+                  <span>Used for: Mortgage ({formatCurrency(mortgagePayment)}) + Personal savings</span>
                 </div>
               </div>
             </div>
@@ -581,7 +581,7 @@ export default function ContributionsSurplus() {
               stroke="url(#g-joint-spending)"
               strokeWidth={Math.max(4, Math.min(20, (jointSpending / 1000) * 2))}
             />
-            {/* Personal BoFA to Mortgage ($2,200) */}
+            {/* Personal BoFA to Mortgage ($2,259.97) */}
             <path
               d="M 580 250 C 640 250, 680 175, 740 175"
               fill="none"

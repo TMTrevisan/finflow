@@ -27,11 +27,11 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
 
   // 2. Compute Nodes and Heights
   const flowData = useMemo(() => {
-    const incomeMap = {};
+    const rawIncomeMap = {};
+    const incomeTransactionsList = [];
     const groupMap = {};
     const categoryMap = {}; // groupName -> { categoryName: amount }
 
-    let totalIncome = 0;
     let totalExpense = 0;
     
     filteredTxns.forEach(t => {
@@ -52,39 +52,89 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
         const employerALower = resolvedPartnerAEmployer.toLowerCase();
         const employerBLower = resolvedPartnerBEmployer.toLowerCase();
 
-        if (sourceLower.includes(partnerBLower) || sourceLower.includes(employerBLower) || sourceLower.includes('todd')) {
+        // Standardize employer/partner mappings to consolidate Todd's (BD/Becton) and Kaitlyn's (Havas) payrolls
+        if (
+          sourceLower.includes(partnerBLower) || 
+          sourceLower.includes(employerBLower) || 
+          sourceLower.includes('todd') || 
+          sourceLower.includes('becton') || 
+          sourceLower.includes('bd')
+        ) {
           sourceName = `${resolvedPartnerBName} Payroll`;
-        } else if (sourceLower.includes(partnerALower) || sourceLower.includes(employerALower) || sourceLower.includes('kaitlyn')) {
+        } else if (
+          sourceLower.includes(partnerALower) || 
+          sourceLower.includes(employerALower) || 
+          sourceLower.includes('kaitlyn') || 
+          sourceLower.includes('havas')
+        ) {
           sourceName = `${resolvedPartnerAName} Payroll`;
         } else if (sourceLower.includes('annuity')) {
           sourceName = 'Annuity';
         } else if (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income') {
-          // If custom splits are off, keep the cleaned merchant name or fallback to category/Other
           sourceName = sourceName || 'Other Income';
         } else {
           sourceName = catName;
         }
 
-        incomeMap[sourceName] = (incomeMap[sourceName] || 0) + amount;
-        totalIncome += amount;
+        rawIncomeMap[sourceName] = (rawIncomeMap[sourceName] || 0) + amount;
+        incomeTransactionsList.push({ sourceName, amount });
       } else if (type === 'Expense') {
         const absVal = Math.abs(amount);
-        groupMap[groupName] = (groupMap[groupName] || 0) + absVal;
         
-        if (!categoryMap[groupName]) categoryMap[groupName] = {};
-        categoryMap[groupName][catName] = (categoryMap[groupName][catName] || 0) + absVal;
+        // Consolidate specific category groups under major parent categories (Living / Discretionary)
+        let resolvedGroup = groupName;
+        const groupLower = groupName.toLowerCase().trim();
+        if (groupLower === 'utilities') {
+          resolvedGroup = 'Living';
+        } else if (groupLower === 'financial' || groupLower === 'other' || groupLower === 'uncategorized' || groupLower === 'other expense') {
+          const catLower = catName.toLowerCase().trim();
+          if (catLower.includes('fee') || catLower.includes('interest') || catLower.includes('tax') || catLower.includes('parking') || catLower.includes('gas') || catLower.includes('auto')) {
+            resolvedGroup = 'Living';
+          } else {
+            resolvedGroup = 'Discretionary';
+          }
+        }
+
+        groupMap[resolvedGroup] = (groupMap[resolvedGroup] || 0) + absVal;
+        
+        if (!categoryMap[resolvedGroup]) categoryMap[resolvedGroup] = {};
+        categoryMap[resolvedGroup][catName] = (categoryMap[resolvedGroup][catName] || 0) + absVal;
         
         totalExpense += absVal;
       } else if (type === 'Transfer' && (groupName === 'Investments' || groupName === 'Cash Savings')) {
-        // Include investments and savings transfers in the sankey flow
         const absVal = Math.abs(amount);
-        groupMap[groupName] = (groupMap[groupName] || 0) + absVal;
         
-        if (!categoryMap[groupName]) categoryMap[groupName] = {};
-        categoryMap[groupName][catName] = (categoryMap[groupName][catName] || 0) + absVal;
+        let resolvedGroup = groupName === 'Cash Savings' ? 'Net Savings' : groupName;
+        if (groupName === 'Investments') {
+          resolvedGroup = 'Investments';
+        }
+
+        groupMap[resolvedGroup] = (groupMap[resolvedGroup] || 0) + absVal;
+        
+        if (!categoryMap[resolvedGroup]) categoryMap[resolvedGroup] = {};
+        categoryMap[resolvedGroup][catName] = (categoryMap[resolvedGroup][catName] || 0) + absVal;
         
         totalExpense += absVal;
       }
+    });
+
+    // Consolidate income sources: merge minor sources under $500 to "Other Income"
+    const incomeMap = {};
+    let totalIncome = 0;
+    
+    incomeTransactionsList.forEach(item => {
+      let name = item.sourceName;
+      const totalForSource = rawIncomeMap[name] || 0;
+      if (
+        totalForSource < 500 && 
+        name !== `${resolvedPartnerBName} Payroll` && 
+        name !== `${resolvedPartnerAName} Payroll` && 
+        name !== 'Annuity'
+      ) {
+        name = 'Other Income';
+      }
+      incomeMap[name] = (incomeMap[name] || 0) + item.amount;
+      totalIncome += item.amount;
     });
 
     const investmentGroupsSum = (groupMap['Investments'] || 0) + (groupMap['Wealth Building'] || 0);
@@ -99,7 +149,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       totalExpense,
       totalSavings
     };
-  }, [filteredTxns, enableCustomSplits]);
+  }, [filteredTxns, enableCustomSplits, resolvedPartnerAName, resolvedPartnerBName, resolvedPartnerAEmployer, resolvedPartnerBEmployer]);
 
   const { incomeMap, groupMap, categoryMap, totalIncome, totalExpense, totalSavings } = flowData;
 

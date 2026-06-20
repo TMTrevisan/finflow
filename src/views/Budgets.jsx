@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { useAppContext, resolveBudget } from '../context/AppContext';
+import { useAppContext } from '../context/AppContext';
+import { resolveBudget } from '../utils/dataPrep';
 import { Card, CardContent } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { formatCurrency } from '../utils/formatting';

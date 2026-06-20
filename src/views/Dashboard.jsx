@@ -1228,12 +1228,14 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
               <div className="h-28 flex items-end justify-between gap-1 select-none">
                 {savingsHistory.map((bar, i) => (
                   <div key={i} className="flex-1 flex flex-col items-center">
-                    <div 
-                      className="w-full rounded-t-sm bg-neon-indigo/20 hover:bg-neon-indigo/40 transition-colors relative group"
-                      style={{ height: `${bar.val}%` }}
-                    >
-                      <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black px-2 py-1 rounded text-[10px] font-bold text-white whitespace-nowrap z-10">
-                        {bar.m}: {bar.isPlaceholder ? 'Placeholder Trend' : formatCurrency(bar.actualVal)}
+                    <div className="w-full h-20 flex items-end">
+                      <div 
+                        className="w-full rounded-t bg-neon-indigo/35 hover:bg-neon-indigo/60 transition-all relative group"
+                        style={{ height: `${bar.val}%` }}
+                      >
+                        <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black px-2 py-1 rounded text-[10px] font-bold text-white whitespace-nowrap z-10">
+                          {bar.m}: {bar.isPlaceholder ? 'Placeholder Trend' : formatCurrency(bar.actualVal)}
+                        </div>
                       </div>
                     </div>
                     <span className="text-[8px] font-black text-slate-500 mt-2 block uppercase text-center min-h-[10px]">

@@ -17,7 +17,7 @@ import {
 
 export default function Income() {
   const { transactions = [], isLoading, enableCustomSplits } = useAppContext();
-  const [filterType, setFilterType] = useState('this_month');
+  const [filterType, setFilterType] = useState('last_3_months');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
