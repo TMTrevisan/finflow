@@ -148,9 +148,79 @@ export const AppProvider = ({ children, setCurrentView }) => {
     }
   });
 
+  const [plaidStatus, setPlaidStatus] = useState({ connected: false });
+  const [plaidHoldings, setPlaidHoldings] = useState(null);
+
+  const getPlaidUrl = (path) => {
+    const rawUrl = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
+    const cleanUrl = rawUrl.trim().replace(/\/+$/, '');
+    const mcpSecret = safeStorage.getItem('finflow_mcp_secret') || '';
+    
+    if (mcpSecret) {
+      return cleanUrl.endsWith(mcpSecret) 
+        ? `${cleanUrl}/${path}` 
+        : `${cleanUrl}/${mcpSecret}/${path}`;
+    }
+    return `${cleanUrl}/${path}`;
+  };
+
+  const loadPlaidData = async () => {
+    try {
+      const statusUrl = getPlaidUrl('api/plaid/status');
+      const statusRes = await fetch(statusUrl);
+      if (!statusRes.ok) throw new Error('Status failed');
+      const statusData = await statusRes.json();
+      setPlaidStatus(statusData);
+
+      if (statusData.connected) {
+        const holdingsUrl = getPlaidUrl('api/plaid/holdings');
+        const holdingsRes = await fetch(holdingsUrl);
+        if (!holdingsRes.ok) throw new Error('Holdings failed');
+        const holdingsData = await holdingsRes.json();
+        setPlaidHoldings(holdingsData);
+        return holdingsData;
+      } else {
+        setPlaidHoldings(null);
+      }
+    } catch (err) {
+      console.warn('[Plaid Context] Failed to fetch Plaid data:', err.message);
+    }
+    return null;
+  };
+
+  const mergedBalances = useMemo(() => {
+    let list = [...balances];
+    if (plaidStatus.connected && plaidHoldings && plaidHoldings.accounts) {
+      plaidHoldings.accounts.forEach(acc => {
+        const existingIdx = list.findIndex(b => 
+          b.account_id === acc.account_id || 
+          (b.account && b.account.toLowerCase() === acc.name.toLowerCase())
+        );
+        
+        const balanceRecord = {
+          id: `plaid_${acc.account_id}`,
+          date: new Date().toISOString().split('T')[0],
+          institution: plaidStatus.institution_name || 'Plaid Connected Bank',
+          account: acc.name,
+          account_id: acc.account_id,
+          balance: acc.balances.current,
+          class: 'Asset',
+          type: acc.type === 'investment' ? 'Investment' : 'Checking'
+        };
+
+        if (existingIdx !== -1) {
+          list[existingIdx] = { ...list[existingIdx], ...balanceRecord };
+        } else {
+          list.push(balanceRecord);
+        }
+      });
+    }
+    return list;
+  }, [balances, plaidHoldings, plaidStatus]);
+
   const decoratedBalances = useMemo(() => {
-    return injectMortgage(balances, enableCustomSplits, resolvedPartnerBName);
-  }, [balances, enableCustomSplits, resolvedPartnerBName]);
+    return injectMortgage(mergedBalances, enableCustomSplits, resolvedPartnerBName);
+  }, [mergedBalances, enableCustomSplits, resolvedPartnerBName]);
 
   const [lifeOptimization, setLifeOptimization] = useState(() => {
     try {
@@ -241,6 +311,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
       safeStorage.setItem('finflow_last_sync', timestamp);
       setLastSync(timestamp);
       logSync('Database local storage caches written', 'success');
+
+      // Load Plaid data in the background
+      await loadPlaidData().catch(e => console.warn('Plaid background load failed:', e));
     } catch (err) {
       logSync('Database fetch failed', 'error', err.message);
       console.warn("Failed to load live data, falling back to mock/cache:", err);
@@ -288,6 +361,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
       safeStorage.setItem('finflow_last_sync', timestamp);
       setLastSync(timestamp);
       logSync('Sync cached written to browser', 'success');
+
+      // Sync Plaid data
+      await loadPlaidData().catch(e => console.warn('Plaid sync failed:', e));
       return true;
     } catch (err) {
       logSync('Sync process crashed', 'error', err.message);
@@ -614,6 +690,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
       globalSearchQuery,
       setGlobalSearchQuery,
       logSync,
+      plaidStatus,
+      plaidHoldings,
+      loadPlaidData,
+      getPlaidUrl
     }}>
       {children}
     </AppContext.Provider>

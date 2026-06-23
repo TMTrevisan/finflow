@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext';
 import { safeStorage } from '../utils/storage';
 import { Card, CardContent } from '../components/ui/Card';
 import { cleanMerchantName } from '../utils/formatting';
+import { usePlaidLink } from 'react-plaid-link';
 import { 
   Link, 
   Lock, 
@@ -17,7 +18,8 @@ import {
   Fingerprint,
   Bell,
   Calendar,
-  Sliders
+  Sliders,
+  CreditCard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BottomSheet } from '../components/ui/BottomSheet';
@@ -45,8 +47,87 @@ export default function Settings() {
     partnerAEmployer,
     setPartnerAEmployer,
     partnerBEmployer,
-    setPartnerBEmployer
+    setPartnerBEmployer,
+    plaidStatus,
+    plaidHoldings,
+    loadPlaidData,
+    getPlaidUrl
   } = useAppContext();
+
+  // Plaid Integration state
+  const [linkToken, setLinkToken] = useState(null);
+  const [plaidSyncing, setPlaidSyncing] = useState(false);
+  const [plaidMessage, setPlaidMessage] = useState(null);
+
+  // Generate Plaid link token
+  const getLinkToken = async () => {
+    try {
+      const url = getPlaidUrl('api/plaid/create_link_token');
+      const response = await fetch(url, { method: 'POST' });
+      const data = await response.json();
+      if (data.link_token) {
+        setLinkToken(data.link_token);
+      } else {
+        throw new Error(data.error || 'Failed to generate link token');
+      }
+    } catch (err) {
+      console.warn('Error generating Plaid link token:', err);
+      // Soft fail in settings if server is not fully configured yet
+    }
+  };
+
+  useEffect(() => {
+    getLinkToken();
+    loadPlaidData().catch(() => {});
+  }, []);
+
+  const onPlaidSuccess = async (public_token, metadata) => {
+    setPlaidSyncing(true);
+    setPlaidMessage({ type: 'info', text: 'Exchanging tokens and establishing connection...' });
+    try {
+      const url = getPlaidUrl('api/plaid/exchange_public_token');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          public_token,
+          institution: metadata.institution
+        })
+      });
+      const result = await response.json();
+      if (result.success) {
+        setPlaidMessage({ type: 'success', text: `Successfully linked ${metadata.institution?.name || 'Bank'}!` });
+        await loadPlaidData();
+      } else {
+        throw new Error(result.error || 'Token exchange failed');
+      }
+    } catch (err) {
+      setPlaidMessage({ type: 'error', text: `Link exchange failed: ${err.message}` });
+    } finally {
+      setPlaidSyncing(false);
+    }
+  };
+
+  const { open: openPlaidLink, ready: plaidLinkReady } = usePlaidLink({
+    token: linkToken,
+    onSuccess: onPlaidSuccess,
+  });
+
+  const handlePlaidSync = async () => {
+    setPlaidSyncing(true);
+    setPlaidMessage({ type: 'info', text: 'Refreshing investments holdings (cache TTL 24h)...' });
+    try {
+      const url = `${getPlaidUrl('api/plaid/holdings')}?force=true`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Refresh failed');
+      await loadPlaidData();
+      setPlaidMessage({ type: 'success', text: 'Plaid investments synced successfully!' });
+    } catch (err) {
+      setPlaidMessage({ type: 'error', text: `Sync failed: ${err.message}` });
+    } finally {
+      setPlaidSyncing(false);
+    }
+  };
 
   // URL state
   const [apiUrlInput, setApiUrlInput] = useState(() => {
@@ -1106,6 +1187,92 @@ export default function Settings() {
               <Fingerprint size={14} />
               <span>{biometricsEnabled ? 'Disable Biometrics' : 'Enable TouchID / FaceID'}</span>
             </button>
+          </div>
+        </Card>
+
+        {/* Plaid Integration Card */}
+        <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="p-2 bg-neon-indigo/10 rounded-xl text-neon-indigo">
+                <CreditCard size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Bank Connections (Plaid)</h3>
+                <p className="text-xs text-slate-500">Automate your investments and holdings synchronization.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between bg-obsidian-800/40 p-3 rounded-xl border border-obsidian-850">
+                <span className="text-xs font-semibold text-slate-300">Connection Status</span>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                  plaidStatus.connected 
+                    ? 'bg-neon-emerald/15 text-neon-emerald border-neon-emerald/25' 
+                    : 'bg-slate-500/10 text-slate-400 border-slate-700/25'
+                }`}>
+                  {plaidStatus.connected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+
+              {plaidStatus.connected && (
+                <div className="bg-obsidian-900/45 p-3 rounded-xl border border-obsidian-850 text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Institution:</span>
+                    <span className="text-white font-medium">{plaidStatus.institution_name}</span>
+                  </div>
+                  {plaidStatus.last_sync && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Last Synced:</span>
+                      <span className="text-slate-300 font-mono text-[10px]">
+                        {new Date(plaidStatus.last_sync).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {plaidMessage && (
+                <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
+                  plaidMessage.type === 'success' 
+                    ? 'bg-neon-emerald/10 border-neon-emerald/20 text-neon-emerald'
+                    : plaidMessage.type === 'error'
+                      ? 'bg-neon-crimson/10 border-neon-crimson/20 text-neon-crimson'
+                      : 'bg-obsidian-850 border-obsidian-750 text-slate-300'
+                }`}>
+                  {plaidMessage.type === 'success' ? (
+                    <CheckCircle2 size={16} className="shrink-0 text-neon-emerald" />
+                  ) : plaidMessage.type === 'error' ? (
+                    <AlertTriangle size={16} className="shrink-0 text-neon-crimson" />
+                  ) : (
+                    <RefreshCw size={16} className="animate-spin shrink-0 text-neon-indigo" />
+                  )}
+                  <span>{plaidMessage.text}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-obsidian-800/40 flex justify-end space-x-3">
+            {plaidStatus.connected ? (
+              <button
+                onClick={handlePlaidSync}
+                disabled={plaidSyncing}
+                className="px-4 py-2 bg-obsidian-800 hover:bg-obsidian-750 border border-obsidian-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center space-x-2"
+              >
+                <RefreshCw size={14} className={plaidSyncing ? 'animate-spin' : ''} />
+                <span>Sync Now</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => openPlaidLink()}
+                disabled={!plaidLinkReady || plaidSyncing}
+                className="px-4 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                <Link size={14} />
+                <span>Link Account</span>
+              </button>
+            )}
           </div>
         </Card>
 

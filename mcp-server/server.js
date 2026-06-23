@@ -10,11 +10,137 @@
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const MCP_SECRET = process.env.MCP_SECRET || '';
 const SHEETS_API_URL = process.env.SHEETS_API_URL || ''; // Your Google Apps Script URL
+
+const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID || '';
+const PLAID_SECRET = process.env.PLAID_SECRET || '';
+const PLAID_ENV = process.env.PLAID_ENV || 'sandbox';
+
+// Initialize Plaid Client
+let plaidClient = null;
+if (PLAID_CLIENT_ID && PLAID_SECRET) {
+  const configuration = new Configuration({
+    basePath: PlaidEnvironments[PLAID_ENV],
+    baseOptions: {
+      headers: {
+        'PLAID-CLIENT-ID': PLAID_CLIENT_ID,
+        'PLAID-SECRET': PLAID_SECRET,
+      },
+    },
+  });
+  plaidClient = new PlaidApi(configuration);
+  console.log(`[Plaid] Client initialized in ${PLAID_ENV} mode.`);
+} else {
+  console.warn(`[Plaid] Missing PLAID_CLIENT_ID or PLAID_SECRET. Running in Mock/Dry-run mode.`);
+}
+
+// Token Storage Setup (simple local JSON file)
+const TOKEN_FILE_PATH = path.join(__dirname, 'plaid_tokens.json');
+
+function saveAccessToken(tokenData) {
+  try {
+    fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(tokenData, null, 2));
+    console.log(`[Plaid] Successfully saved access token.`);
+  } catch (err) {
+    console.error(`[Plaid] Error saving access token:`, err.message);
+  }
+}
+
+function loadAccessToken() {
+  try {
+    if (fs.existsSync(TOKEN_FILE_PATH)) {
+      const data = fs.readFileSync(TOKEN_FILE_PATH, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error(`[Plaid] Error loading access token:`, err.message);
+  }
+  return null;
+}
+
+// Holdings Caching to prevent extra Investments charges
+const HOLDINGS_CACHE_FILE = path.join(__dirname, 'plaid_holdings_cache.json');
+const CACHE_HOLDINGS_TTL_MS = 24 * 60 * 60 * 1000; // 24 Hours
+
+function loadHoldingsCache() {
+  try {
+    if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
+      return JSON.parse(fs.readFileSync(HOLDINGS_CACHE_FILE, 'utf8'));
+    }
+  } catch (err) {
+    console.error(`[Plaid Cache] Error loading holdings cache:`, err.message);
+  }
+  return null;
+}
+
+function saveHoldingsCache(data) {
+  try {
+    fs.writeFileSync(HOLDINGS_CACHE_FILE, JSON.stringify({
+      timestamp: Date.now(),
+      data
+    }, null, 2));
+  } catch (err) {
+    console.error(`[Plaid Cache] Error saving holdings cache:`, err.message);
+  }
+}
+
+async function getPlaidHoldings(forceRefresh = false) {
+  const tokenData = loadAccessToken();
+  if (!tokenData || !tokenData.access_token) {
+    return null;
+  }
+
+  // Check cache first
+  const cache = loadHoldingsCache();
+  if (cache && !forceRefresh && (Date.now() - cache.timestamp < CACHE_HOLDINGS_TTL_MS)) {
+    console.log(`[Plaid Cache] Returning cached holdings data.`);
+    return cache.data;
+  }
+
+  if (!plaidClient || tokenData.access_token.includes('mock')) {
+    // Generate mock sandbox holdings
+    console.log(`[Plaid] Generating mock sandbox holdings.`);
+    const mockHoldings = {
+      holdings: [
+        { security_id: 'sec_1', institution_value: 353623.00, quantity: 1000, institution_price: 353.62 },
+        { security_id: 'sec_2', institution_value: 100981.00, quantity: 500, institution_price: 201.96 }
+      ],
+      securities: [
+        { security_id: 'sec_1', ticker_symbol: 'FXAIX', name: 'Fidelity 500 Index Fund', type: 'mutual fund' },
+        { security_id: 'sec_2', ticker_symbol: 'VTI', name: 'Vanguard Total Stock Market ETF', type: 'etf' }
+      ],
+      accounts: [
+        { account_id: 'acc_1', name: 'Fidelity 401k', official_name: 'Fidelity Growth Account', balances: { current: 454604.00 } }
+      ]
+    };
+    saveHoldingsCache(mockHoldings);
+    return mockHoldings;
+  }
+
+  console.log(`[Plaid] Fetching holdings from Plaid API...`);
+  const response = await plaidClient.investmentsHoldingsGet({
+    access_token: tokenData.access_token
+  });
+  
+  saveHoldingsCache(response.data);
+  
+  // Also update last_sync in tokenData
+  tokenData.last_sync = new Date().toISOString();
+  saveAccessToken(tokenData);
+  
+  return response.data;
+}
 
 app.use(cors());
 app.use(express.json());
@@ -463,12 +589,45 @@ async function runTool(toolName, args) {
         { ticker: 'CLSK', name: 'CleanSpark Inc', value: 115.32, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin Mining', geography: 'United States' }
       ];
 
-      let totalVal = ACTUAL_HOLDINGS.reduce((sum, h) => sum + h.value, 0);
+      let holdingsList = ACTUAL_HOLDINGS;
+      const plaidData = await getPlaidHoldings(false).catch(() => null);
+      if (plaidData && plaidData.holdings && plaidData.securities) {
+        const secMap = new Map(plaidData.securities.map(s => [s.security_id, s]));
+        const accMap = new Map(plaidData.accounts.map(a => [a.account_id, a]));
+        
+        holdingsList = plaidData.holdings.map(h => {
+          const sec = secMap.get(h.security_id) || {};
+          const acc = accMap.get(h.account_id) || {};
+          const ticker = sec.ticker_symbol || 'Unknown';
+          const name = sec.name || 'Unknown Security';
+          const value = h.institution_value || (h.quantity * h.institution_price) || 0;
+          const { assetClass, sector, geography } = categorizeSecurity(name, acc.name || '');
+          
+          return {
+            ticker,
+            name,
+            value,
+            assetClass,
+            sector,
+            geography,
+            accountName: acc.name || 'Plaid Account'
+          };
+        });
+      }
+
+      if (account) {
+        holdingsList = holdingsList.filter(h => 
+          (h.accountName && h.accountName.toLowerCase().includes(account.toLowerCase())) ||
+          (h.name && h.name.toLowerCase().includes(account.toLowerCase()))
+        );
+      }
+
+      let totalVal = holdingsList.reduce((sum, h) => sum + h.value, 0);
       const classMap = {};
       const sectorMap = {};
       const geoMap = {};
 
-      ACTUAL_HOLDINGS.forEach(h => {
+      holdingsList.forEach(h => {
         classMap[h.assetClass] = (classMap[h.assetClass] || 0) + h.value;
         sectorMap[h.sector] = (sectorMap[h.sector] || 0) + h.value;
         geoMap[h.geography] = (geoMap[h.geography] || 0) + h.value;
@@ -487,7 +646,7 @@ async function runTool(toolName, args) {
         allocation_by_class: getPercentages(classMap),
         allocation_by_sector: getPercentages(sectorMap),
         allocation_by_geography: getPercentages(geoMap),
-        holdings: ACTUAL_HOLDINGS.map(h => ({
+        holdings: holdingsList.map(h => ({
           ticker: h.ticker,
           name: h.name,
           value: h.value,
@@ -857,7 +1016,105 @@ async function handleJsonRpc(payload) {
   }
 }
 
+// ─── Plaid HTTP Route Handlers ────────────────────────────────────────────────
+async function handleCreateLinkToken(req, res) {
+  try {
+    if (!plaidClient) {
+      return res.json({ link_token: 'mock_link_token_sandbox' });
+    }
+    const clientUserId = 'finflow_user';
+    const request = {
+      user: { client_user_id: clientUserId },
+      client_name: 'FinFlow Dashboard',
+      products: ['investments'],
+      language: 'en',
+      country_codes: ['US'],
+    };
+    const response = await plaidClient.linkTokenCreate(request);
+    res.json(response.data);
+  } catch (err) {
+    console.error(`[Plaid] Error creating link token:`, err.response?.data || err.message);
+    res.status(500).json({ error: err.response?.data?.error_message || err.message });
+  }
+}
+
+async function handleExchangePublicToken(req, res) {
+  const { public_token, institution } = req.body;
+  if (!public_token) {
+    return res.status(400).json({ error: 'Missing public_token' });
+  }
+
+  try {
+    if (!plaidClient || public_token === 'mock_link_token_sandbox') {
+      const mockData = {
+        access_token: 'access-sandbox-mock-12345',
+        item_id: 'item-sandbox-mock-12345',
+        institution_name: institution?.name || 'Sandbox Bank',
+        last_sync: new Date().toISOString()
+      };
+      saveAccessToken(mockData);
+      return res.json({ success: true, mock: true });
+    }
+
+    const response = await plaidClient.itemPublicTokenExchange({ public_token });
+    const { access_token, item_id } = response.data;
+    
+    saveAccessToken({
+      access_token,
+      item_id,
+      institution_name: institution?.name || 'Connected Bank',
+      last_sync: new Date().toISOString()
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(`[Plaid] Error exchanging public token:`, err.response?.data || err.message);
+    res.status(500).json({ error: err.response?.data?.error_message || err.message });
+  }
+}
+
+function handlePlaidStatus(req, res) {
+  const tokenData = loadAccessToken();
+  if (tokenData) {
+    res.json({
+      connected: true,
+      institution_name: tokenData.institution_name,
+      last_sync: tokenData.last_sync
+    });
+  } else {
+    res.json({ connected: false });
+  }
+}
+
+async function handleGetHoldings(req, res) {
+  const forceRefresh = req.query.force === 'true';
+  try {
+    const data = await getPlaidHoldings(forceRefresh);
+    if (!data) {
+      return res.status(404).json({ error: 'No Plaid integration configured.' });
+    }
+    res.json(data);
+  } catch (err) {
+    console.error(`[Plaid] Error getting holdings:`, err.response?.data || err.message);
+    res.status(500).json({ error: err.response?.data?.error_message || err.message });
+  }
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
+
+// Plaid endpoints
+app.post('/api/plaid/create_link_token', handleCreateLinkToken);
+app.post('/:secretPrefix/api/plaid/create_link_token', handleCreateLinkToken);
+
+app.post('/api/plaid/exchange_public_token', handleExchangePublicToken);
+app.post('/:secretPrefix/api/plaid/exchange_public_token', handleExchangePublicToken);
+
+app.get('/api/plaid/status', handlePlaidStatus);
+app.get('/:secretPrefix/api/plaid/status', handlePlaidStatus);
+
+app.get('/api/plaid/holdings', handleGetHoldings);
+app.get('/:secretPrefix/api/plaid/holdings', handleGetHoldings);
+
 
 // Health check
 function handleHealthCheck(req, res) {
