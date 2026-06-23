@@ -531,16 +531,25 @@ Rules:
               // Log tool invocation in feed
               setChatLog(prev => [...prev, {
                 role: 'model',
-                content: `🔧 *System: Executing local tool ${toolCalls[0].name}...*`
+                content: `🔧 *System: Executing ${toolCalls.length} tool(s)...*`
               }]);
 
-              // Run the first tool call
-              const toolResult = await runMcpTool(toolCalls[0].name, toolCalls[0].args);
+              // Run all tool calls
+              const toolResponses = [];
+              for (const tc of toolCalls) {
+                const toolResult = await runMcpTool(tc.name, tc.args);
+                toolResponses.push({
+                  role: 'tool',
+                  tool_call_id: tc.id,
+                  name: tc.name,
+                  content: JSON.stringify(toolResult)
+                });
+              }
               
               // Remove system execution message and record in history
               setChatLog(prev => prev.slice(0, -1));
               activeHistory.push({ role: 'model', tool_calls: toolCalls });
-              activeHistory.push({ role: 'tool', name: toolCalls[0].name, content: JSON.stringify(toolResult) });
+              activeHistory.push(...toolResponses);
             } else if (inlineFuncCall) {
               toolCallAttempts++;
               setChatLog(prev => [...prev, {
@@ -550,7 +559,12 @@ Rules:
               const toolResult = await runMcpTool(inlineFuncCall.name, inlineFuncCall.args);
               setChatLog(prev => prev.slice(0, -1));
               activeHistory.push({ role: 'model', tool_calls: [inlineFuncCall] });
-              activeHistory.push({ role: 'tool', name: inlineFuncCall.name, content: JSON.stringify(toolResult) });
+              activeHistory.push({
+                role: 'tool',
+                tool_call_id: inlineFuncCall.id,
+                name: inlineFuncCall.name,
+                content: JSON.stringify(toolResult)
+              });
             } else {
               const text = response.text();
               setChatLog(prev => [...prev, { role: 'model', content: text }]);
@@ -849,22 +863,26 @@ Rules:
             // Log tool execution in feed
             setChatLog(prev => [...prev, {
               role: 'model',
-              content: `🔧 *System: Executing local tool ${requestedToolCalls[0].name}...*`
+              content: `🔧 *System: Executing ${requestedToolCalls.length} tool(s)...*`
             }]);
 
-            const toolResult = await runMcpTool(requestedToolCalls[0].name, requestedToolCalls[0].args);
+            const toolResponses = [];
+            for (const tc of requestedToolCalls) {
+              const toolResult = await runMcpTool(tc.name, tc.args);
+              toolResponses.push({
+                role: 'tool',
+                tool_call_id: tc.id,
+                name: tc.name,
+                content: JSON.stringify(toolResult)
+              });
+            }
 
             // Remove system execution message
             setChatLog(prev => prev.slice(0, -1));
 
             // Append context
             activeHistory.push({ role: 'model', tool_calls: requestedToolCalls });
-            activeHistory.push({
-              role: 'tool',
-              tool_call_id: requestedToolCalls[0].id,
-              name: requestedToolCalls[0].name,
-              content: JSON.stringify(toolResult)
-            });
+            activeHistory.push(...toolResponses);
           } else {
             finalResponseGenerated = true;
           }
