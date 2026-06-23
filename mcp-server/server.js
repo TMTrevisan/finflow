@@ -353,49 +353,132 @@ async function runTool(toolName, args) {
     
     case 'get_portfolio_allocation': {
       const { account } = args || {};
-      let investmentAccounts = latestBalances.filter(a => {
-        const tLower = (a.type || '').toLowerCase();
-        return tLower.includes('investment') || tLower.includes('brokerage') || tLower.includes('401') || tLower.includes('ira') || tLower.includes('savings');
-      });
+      
+      const ACTUAL_HOLDINGS = [
+        { ticker: 'FXAIX', name: 'Fidelity 500 Index Fund', value: 345267.45, assetClass: 'US Equities', sector: 'Large Blend / Diversified', geography: 'United States' },
+        { ticker: 'VTI', name: 'Vanguard Total Stock Market Index Fund ETF', value: 267083.82, assetClass: 'US Equities', sector: 'Broad Market / Diversified', geography: 'United States' },
+        { ticker: 'Cash', name: 'Cash', value: 63259.14, assetClass: 'Cash & Equivalents', sector: 'Cash', geography: 'United States' },
+        { ticker: 'NT S&P 500 IDX NL 4', name: 'NT S&P 500 Index NL 4', value: 61504.04, assetClass: 'US Equities', sector: 'Large Blend / Diversified', geography: 'United States' },
+        { ticker: 'WEEK', name: 'WEEK ETF', value: 43047.30, assetClass: 'US Equities', sector: 'Broad Market / Diversified', geography: 'United States' },
+        { ticker: 'ARM', name: 'Arm Holdings plc', value: 40772.00, assetClass: 'International Equities', sector: 'Semiconductors / Technology', geography: 'United Kingdom' },
+        { ticker: 'VXUS', name: 'Vanguard Total International Stock Index Fund ETF', value: 30850.76, assetClass: 'International Equities', sector: 'Broad International / Diversified', geography: 'Global Ex-US' },
+        { ticker: 'VB', name: 'Vanguard Small-Cap Index Fund ETF', value: 29235.20, assetClass: 'US Equities', sector: 'Small Cap / Diversified', geography: 'United States' },
+        { ticker: 'VOO', name: 'Vanguard S&P 500 ETF', value: 17584.84, assetClass: 'US Equities', sector: 'Large Blend / Diversified', geography: 'United States' },
+        { ticker: 'QQQI', name: 'NEOS NASDAQ 100 HIGH INCOME ETF', value: 13077.71, assetClass: 'US Equities', sector: 'Nasdaq 100 / Technology / Income', geography: 'United States' },
+        { ticker: 'SPYI', name: 'Neos S&P 500 High Income ETF', value: 11776.66, assetClass: 'US Equities', sector: 'Large Blend / Income', geography: 'United States' },
+        { ticker: 'W', name: 'Wayfair Inc', value: 8485.00, assetClass: 'US Equities', sector: 'Consumer Cyclical / E-Commerce', geography: 'United States' },
+        { ticker: 'IBIT', name: 'iShares Bitcoin Trust', value: 8382.37, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin', geography: 'Global' },
+        { ticker: 'UTSTX', name: 'Total US Stock Market', value: 7854.59, assetClass: 'US Equities', sector: 'Broad Market / Diversified', geography: 'United States' },
+        { ticker: 'NFLX', name: 'Netflix Inc', value: 7282.00, assetClass: 'US Equities', sector: 'Media / Communication Services', geography: 'United States' },
+        { ticker: 'VIIIX', name: 'Vanguard Institutional Index Fund', value: 7252.25, assetClass: 'US Equities', sector: 'Large Blend / Diversified', geography: 'United States' },
+        { ticker: 'VIGIX', name: 'Vanguard Growth Index Fund', value: 6937.40, assetClass: 'US Equities', sector: 'Large Growth / Tech-Leaning', geography: 'United States' },
+        { ticker: 'BTCI', name: 'NEOS Bitcoin High Income ETF', value: 5404.49, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin', geography: 'Global' },
+        { ticker: 'INTC', name: 'Intel Corp', value: 5291.20, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'SOFI', name: 'SoFi Technologies Inc', value: 5187.00, assetClass: 'US Equities', sector: 'Financial Services / Fintech', geography: 'United States' },
+        { ticker: 'VCAIX', name: 'Vanguard California Intermediate-Term Tax-Exempt Fund', value: 4947.17, assetClass: 'Fixed Income', sector: 'Municipal Bonds', geography: 'United States' },
+        { ticker: 'APLD', name: 'Applied Digital Corp', value: 4869.40, assetClass: 'US Equities', sector: 'Technology Infrastructure / Data Centers', geography: 'United States' },
+        { ticker: 'TEM', name: 'Tempus AI Inc Class A', value: 4785.00, assetClass: 'US Equities', sector: 'Healthcare / Biotechnology / AI', geography: 'United States' },
+        { ticker: 'NBIS', name: 'NBIS', value: 3920.51, assetClass: 'US Equities', sector: 'Broad Market / Diversified', geography: 'United States' },
+        { ticker: 'RVI', name: 'RVI', value: 3868.00, assetClass: 'US Equities', sector: 'Broad Market / Diversified', geography: 'United States' },
+        { ticker: 'GLXY', name: 'Galaxy Digital Holdings Ltd', value: 3310.00, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Financial Services', geography: 'Canada' },
+        { ticker: 'SGOV', name: 'iShares 0-3 Month Treasury Bond ETF', value: 2865.70, assetClass: 'Fixed Income', sector: 'Government / Short-Term Treasuries', geography: 'United States' },
+        { ticker: 'SIVEF', name: 'Sivers Semiconductors AB', value: 2808.00, assetClass: 'International Equities', sector: 'Semiconductors / Technology', geography: 'Sweden' },
+        { ticker: 'DRAM', name: 'Roundhill Memory ETF', value: 2768.80, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'Global' },
+        { ticker: 'IBM', name: 'International Business Machines Corp', value: 2649.40, assetClass: 'US Equities', sector: 'Information Technology Services', geography: 'United States' },
+        { ticker: 'GEV', name: 'GE Vernova Inc', value: 2621.50, assetClass: 'US Equities', sector: 'Industrials / Clean Energy', geography: 'United States' },
+        { ticker: 'CRDO', name: 'Credo Technology Group', value: 2520.56, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'AMD', name: 'Advanced Micro Devices Inc', value: 2354.09, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'USAR', name: 'USA Restaurant Funding Inc', value: 2289.00, assetClass: 'US Equities', sector: 'Consumer Cyclical / Restaurants', geography: 'United States' },
+        { ticker: 'Cash 2', name: 'Cash', value: 2275.24, assetClass: 'Cash & Equivalents', sector: 'Cash', geography: 'United States' },
+        { ticker: 'GLD', name: 'SPDR Gold Trust', value: 1886.60, assetClass: 'Alternatives (Commodities)', sector: 'Precious Metals / Gold', geography: 'Global' },
+        { ticker: 'COHR', name: 'Coherent Corp', value: 1858.68, assetClass: 'US Equities', sector: 'Technology / Photonics', geography: 'United States' },
+        { ticker: 'SG', name: 'Sweetgreen Inc', value: 1658.00, assetClass: 'US Equities', sector: 'Consumer Cyclical / Restaurants', geography: 'United States' },
+        { ticker: 'IQEPY', name: 'IQE PLC', value: 1650.00, assetClass: 'International Equities', sector: 'Semiconductors / Tech', geography: 'United Kingdom' },
+        { ticker: 'INFQ', name: 'Churchill Capital Corp X', value: 1596.00, assetClass: 'US Equities', sector: 'Financial Services / SPAC', geography: 'United States' },
+        { ticker: 'AMZN', name: 'Amazon.com Inc', value: 1508.75, assetClass: 'US Equities', sector: 'Consumer Cyclical / Retail / Cloud', geography: 'United States' },
+        { ticker: 'GOOGL', name: 'Alphabet Inc', value: 1491.79, assetClass: 'US Equities', sector: 'Interactive Media / Tech', geography: 'United States' },
+        { ticker: 'RIVN', name: 'Rivian Automotive Inc', value: 1489.00, assetClass: 'US Equities', sector: 'Consumer Cyclical / Auto Manufacturers', geography: 'United States' },
+        { ticker: 'JD', name: 'JD.com Inc', value: 1337.28, assetClass: 'International Equities', sector: 'Consumer Cyclical / E-Commerce', geography: 'China' },
+        { ticker: 'SMCX', name: 'SMCX', value: 1335.00, assetClass: 'US Equities', sector: 'Broad Market / Diversified', geography: 'United States' },
+        { ticker: 'ETHA', name: 'iShares Ethereum Trust', value: 1307.00, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Ethereum', geography: 'Global' },
+        { ticker: 'NXT', name: 'Next PLC', value: 1290.60, assetClass: 'International Equities', sector: 'Consumer Cyclical / Retail', geography: 'United Kingdom' },
+        { ticker: 'NVDA', name: 'NVIDIA Corp', value: 1242.03, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'ANET', name: 'Arista Networks Inc', value: 1189.07, assetClass: 'US Equities', sector: 'Technology / Networking Infrastructure', geography: 'United States' },
+        { ticker: 'OKLO', name: 'Oklo Inc', value: 1167.70, assetClass: 'US Equities', sector: 'Utilities / Clean Energy / Nuclear', geography: 'United States' },
+        { ticker: 'BE', name: 'Bloom Energy Corp', value: 1140.03, assetClass: 'US Equities', sector: 'Industrials / Clean Energy', geography: 'United States' },
+        { ticker: 'SNDK', name: 'SanDisk Corp', value: 1126.52, assetClass: 'US Equities', sector: 'Technology / Storage', geography: 'United States' },
+        { ticker: 'JBL', name: 'Jabil Inc', value: 1118.97, assetClass: 'US Equities', sector: 'Technology Hardware / Manufacturing', geography: 'United States' },
+        { ticker: 'SLV', name: 'iShares Silver Trust', value: 1114.60, assetClass: 'Alternatives (Commodities)', sector: 'Precious Metals / Silver', geography: 'Global' },
+        { ticker: 'ALAB', name: 'Astera Labs Inc', value: 1000.07, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'AVGO', name: 'Broadcom Inc', value: 987.78, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'CAT', name: 'Caterpillar Inc', value: 984.24, assetClass: 'US Equities', sector: 'Industrials / Machinery', geography: 'United States' },
+        { ticker: 'IREN', name: 'Iris Energy Ltd', value: 980.49, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin Mining', geography: 'Australia' },
+        { ticker: 'CENX', name: 'Century Aluminum Co', value: 946.60, assetClass: 'US Equities', sector: 'Basic Materials / Aluminum', geography: 'United States' },
+        { ticker: 'AAOI', name: 'Applied Optoelectronics Inc', value: 916.19, assetClass: 'US Equities', sector: 'Technology / Fiber Optics', geography: 'United States' },
+        { ticker: 'TER', name: 'Teradyne Inc', value: 909.22, assetClass: 'US Equities', sector: 'Technology Hardware / Test Equipment', geography: 'United States' },
+        { ticker: 'AOSL', name: 'Alpha and Omega Semiconductor Ltd', value: 901.40, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'VIAV', name: 'Viavi Solutions Inc', value: 746.77, assetClass: 'US Equities', sector: 'Technology / Telecommunications', geography: 'United States' },
+        { ticker: 'LITE', name: 'Lumentum Holdings Inc', value: 713.92, assetClass: 'US Equities', sector: 'Technology / Photonics', geography: 'United States' },
+        { ticker: 'SOUN', name: 'SoundHound AI Inc', value: 686.50, assetClass: 'US Equities', sector: 'Technology / AI / Software', geography: 'United States' },
+        { ticker: 'VBMPX', name: 'Vanguard Total Bond Market Index Fund', value: 676.66, assetClass: 'Fixed Income', sector: 'Broad Bond Market', geography: 'United States' },
+        { ticker: 'GRCV', name: 'Grand Capital Ventures Inc', value: 658.35, assetClass: 'US Equities', sector: 'Financial Services', geography: 'United States' },
+        { ticker: 'EOSE', name: 'Eos Energy Enterprises Inc', value: 649.00, assetClass: 'US Equities', sector: 'Technology / Energy Storage', geography: 'United States' },
+        { ticker: 'SERV', name: 'Serve Robotics Inc', value: 641.00, assetClass: 'US Equities', sector: 'Technology / Robotics', geography: 'United States' },
+        { ticker: 'HIMS', name: 'Hims & Hers Health Inc', value: 613.58, assetClass: 'US Equities', sector: 'Healthcare / Wellness', geography: 'United States' },
+        { ticker: 'MSFT', name: 'Microsoft Corp', value: 605.93, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'PANW', name: 'Palo Alto Networks Inc', value: 599.66, assetClass: 'US Equities', sector: 'Technology / Cybersecurity', geography: 'United States' },
+        { ticker: 'TSEM', name: 'Tower Semiconductor Ltd', value: 540.37, assetClass: 'International Equities', sector: 'Semiconductors / Technology', geography: 'Israel' },
+        { ticker: 'CIFR', name: 'Cipher Mining Inc', value: 522.09, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin Mining', geography: 'United States' },
+        { ticker: 'CORZ', name: 'Core Scientific Inc', value: 489.02, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin Mining', geography: 'United States' },
+        { ticker: 'META', name: 'Meta Platforms Inc', value: 465.73, assetClass: 'US Equities', sector: 'Interactive Media / Tech', geography: 'United States' },
+        { ticker: 'GPDNF', name: 'Danone SA', value: 444.48, assetClass: 'International Equities', sector: 'Consumer Defensive / Food', geography: 'France' },
+        { ticker: 'APM', name: 'Aptorum Group Ltd', value: 414.20, assetClass: 'International Equities', sector: 'Healthcare / Biotechnology', geography: 'Hong Kong' },
+        { ticker: 'TEM 2', name: 'Tempus AI Inc Class A', value: 394.20, assetClass: 'US Equities', sector: 'Healthcare / Biotechnology / AI', geography: 'United States' },
+        { ticker: 'ELV', name: 'SPDR DJ Wilshire Large Cap Value ETF', value: 378.65, assetClass: 'US Equities', sector: 'Large Value / Diversified', geography: 'United States' },
+        { ticker: 'LLY', name: 'Eli Lilly and Co', value: 378.51, assetClass: 'US Equities', sector: 'Healthcare / Pharmaceuticals', geography: 'United States' },
+        { ticker: 'BRK.B', name: 'Berkshire Hathaway Inc', value: 374.04, assetClass: 'US Equities', sector: 'Financial Services / Conglomerate', geography: 'United States' },
+        { ticker: 'WULF', name: 'TeraWulf Inc', value: 367.08, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin Mining', geography: 'United States' },
+        { ticker: 'CRWD', name: 'CrowdStrike Holdings Inc', value: 349.86, assetClass: 'US Equities', sector: 'Technology / Cybersecurity', geography: 'United States' },
+        { ticker: 'VST', name: 'Vistra Corp', value: 346.87, assetClass: 'US Equities', sector: 'Utilities / Power Generation', geography: 'United States' },
+        { ticker: 'CIEN', name: 'Ciena Corp', value: 339.83, assetClass: 'US Equities', sector: 'Technology / Networking', geography: 'United States' },
+        { ticker: 'AEHR', name: 'Aehr Test Systems', value: 295.08, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'SPGI', name: 'S&P Global Inc', value: 277.39, assetClass: 'US Equities', sector: 'Financial Services / Information', geography: 'United States' },
+        { ticker: 'PR', name: 'Permian Resources Corp', value: 273.84, assetClass: 'US Equities', sector: 'Energy / Oil & Gas', geography: 'United States' },
+        { ticker: 'NOW', name: 'ServiceNow Inc', value: 263.90, assetClass: 'US Equities', sector: 'Technology / Software', geography: 'United States' },
+        { ticker: 'SCHO', name: 'Schwab Short-Term U.S. Treasury ETF', value: 259.85, assetClass: 'Fixed Income', sector: 'Government / Short-Term Treasuries', geography: 'United States' },
+        { ticker: 'NOK', name: 'Nokia Oyj', value: 256.61, assetClass: 'International Equities', sector: 'Technology / Telecommunications', geography: 'Finland' },
+        { ticker: 'PLTR', name: 'Palantir Technologies Inc', value: 241.64, assetClass: 'US Equities', sector: 'Technology / AI / Software', geography: 'United States' },
+        { ticker: 'AAPL', name: 'Apple Inc', value: 233.88, assetClass: 'US Equities', sector: 'Technology / Consumer Electronics', geography: 'United States' },
+        { ticker: 'GRAB', name: 'Grab Holdings Ltd', value: 227.27, assetClass: 'International Equities', sector: 'Technology / Super-app', geography: 'Singapore' },
+        { ticker: 'MELI', name: 'MercadoLibre Inc', value: 223.61, assetClass: 'International Equities', sector: 'Consumer Cyclical / E-Commerce', geography: 'Latin America' },
+        { ticker: 'LHX', name: 'L3Harris Technologies Inc', value: 190.10, assetClass: 'US Equities', sector: 'Industrials / Aerospace & Defense', geography: 'United States' },
+        { ticker: 'RIOT', name: 'Riot Platforms Inc', value: 178.13, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin Mining', geography: 'United States' },
+        { ticker: 'NVDS', name: 'AXS 1.25X NVDA Bear Daily ETF', value: 171.76, assetClass: 'Alternatives (Trading)', sector: 'Inverse Equity / Trading', geography: 'United States' },
+        { ticker: 'IBP', name: 'Installed Building Products Inc', value: 166.40, assetClass: 'US Equities', sector: 'Industrials / Homebuilding', geography: 'United States' },
+        { ticker: 'SPCK', name: 'SPAC and New Issue ETF', value: 156.11, assetClass: 'US Equities', sector: 'Financial Services / SPAC', geography: 'United States' },
+        { ticker: 'MNST.o', name: 'Monster Beverage Call Option', value: 150.00, assetClass: 'Alternatives (Options)', sector: 'Derivatives / Beverage', geography: 'United States' },
+        { ticker: 'AMAT', name: 'Applied Materials Inc', value: 148.64, assetClass: 'US Equities', sector: 'Semiconductors / Technology', geography: 'United States' },
+        { ticker: 'CDE', name: 'Coeur Mining Inc', value: 144.53, assetClass: 'US Equities', sector: 'Basic Materials / Silver & Gold Mining', geography: 'United States' },
+        { ticker: 'HL', name: 'Hecla Mining Co', value: 122.49, assetClass: 'US Equities', sector: 'Basic Materials / Silver & Gold Mining', geography: 'United States' },
+        { ticker: 'CLSK', name: 'CleanSpark Inc', value: 115.32, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin Mining', geography: 'United States' }
+      ];
 
-      if (account) {
-        investmentAccounts = investmentAccounts.filter(a => a.account.toLowerCase().includes(account.toLowerCase()));
-      }
-
-      let totalVal = 0;
+      let totalVal = ACTUAL_HOLDINGS.reduce((sum, h) => sum + h.value, 0);
       const classMap = {};
       const sectorMap = {};
       const geoMap = {};
-      const accountsBreakdown = [];
 
-      investmentAccounts.forEach(acc => {
-        const bal = Math.max(0, Number(acc.balance || 0));
-        if (bal === 0) return;
-        totalVal += bal;
-
-        // Categorize account mapping holding (Using account type/name to derive security profile simulation)
-        const { assetClass, sector, geography } = categorizeSecurity(acc.account, acc.type);
-        
-        classMap[assetClass] = (classMap[assetClass] || 0) + bal;
-        sectorMap[sector] = (sectorMap[sector] || 0) + bal;
-        geoMap[geography] = (geoMap[geography] || 0) + bal;
-
-        accountsBreakdown.push({
-          institution: acc.institution,
-          account: acc.account,
-          type: acc.type,
-          value: bal,
-          assetClass,
-          sector,
-          geography
-        });
+      ACTUAL_HOLDINGS.forEach(h => {
+        classMap[h.assetClass] = (classMap[h.assetClass] || 0) + h.value;
+        sectorMap[h.sector] = (sectorMap[h.sector] || 0) + h.value;
+        geoMap[h.geography] = (geoMap[h.geography] || 0) + h.value;
       });
 
       const getPercentages = (map) => {
         return Object.entries(map).map(([name, val]) => ({
           name,
           value: val,
-          percentage: totalVal > 0 ? Math.round((val / totalVal) * 100) : 0
+          percentage: totalVal > 0 ? parseFloat(((val / totalVal) * 100).toFixed(1)) : 0
         })).sort((a, b) => b.value - a.value);
       };
 
@@ -404,7 +487,15 @@ async function runTool(toolName, args) {
         allocation_by_class: getPercentages(classMap),
         allocation_by_sector: getPercentages(sectorMap),
         allocation_by_geography: getPercentages(geoMap),
-        accounts: accountsBreakdown
+        holdings: ACTUAL_HOLDINGS.map(h => ({
+          ticker: h.ticker,
+          name: h.name,
+          value: h.value,
+          percentage: totalVal > 0 ? parseFloat(((h.value / totalVal) * 100).toFixed(2)) : 0,
+          assetClass: h.assetClass,
+          sector: h.sector,
+          geography: h.geography
+        }))
       };
     }
 
