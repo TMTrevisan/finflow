@@ -129,6 +129,30 @@ export default function Settings() {
     }
   };
 
+  const handlePlaidDisconnect = async (item_id) => {
+    setPlaidSyncing(true);
+    setPlaidMessage({ type: 'info', text: 'Disconnecting bank connection...' });
+    try {
+      const url = getPlaidUrl('api/plaid/disconnect');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id })
+      });
+      const result = await response.json();
+      if (result.success) {
+        setPlaidMessage({ type: 'success', text: 'Bank connection removed successfully.' });
+        await loadPlaidData();
+      } else {
+        throw new Error(result.error || 'Failed to disconnect');
+      }
+    } catch (err) {
+      setPlaidMessage({ type: 'error', text: `Disconnect failed: ${err.message}` });
+    } finally {
+      setPlaidSyncing(false);
+    }
+  };
+
   // URL state
   const [apiUrlInput, setApiUrlInput] = useState(() => {
     return safeStorage.getItem('finflow_api_url') || '';
@@ -1211,24 +1235,33 @@ export default function Settings() {
                     ? 'bg-neon-emerald/15 text-neon-emerald border-neon-emerald/25' 
                     : 'bg-slate-500/10 text-slate-400 border-slate-700/25'
                 }`}>
-                  {plaidStatus.connected ? 'Connected' : 'Disconnected'}
+                  {plaidStatus.connected ? `${plaidStatus.connections?.length || 0} Linked` : 'Disconnected'}
                 </span>
               </div>
 
-              {plaidStatus.connected && (
-                <div className="bg-obsidian-900/45 p-3 rounded-xl border border-obsidian-850 text-xs space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Institution:</span>
-                    <span className="text-white font-medium">{plaidStatus.institution_name}</span>
-                  </div>
-                  {plaidStatus.last_sync && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Last Synced:</span>
-                      <span className="text-slate-300 font-mono text-[10px]">
-                        {new Date(plaidStatus.last_sync).toLocaleString()}
-                      </span>
+              {plaidStatus.connected && plaidStatus.connections && plaidStatus.connections.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Linked Institutions</span>
+                  {plaidStatus.connections.map((conn) => (
+                    <div key={conn.item_id} className="bg-obsidian-900/45 p-3 rounded-xl border border-obsidian-850 text-xs flex items-center justify-between">
+                      <div className="space-y-1">
+                        <span className="text-white font-medium block">{conn.institution_name}</span>
+                        {conn.last_sync && (
+                          <span className="text-slate-400 block text-[9px] font-mono">
+                            Last synced: {new Date(conn.last_sync).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handlePlaidDisconnect(conn.item_id)}
+                        disabled={plaidSyncing}
+                        className="p-1.5 bg-neon-crimson/10 hover:bg-neon-crimson/20 border border-neon-crimson/25 rounded-lg text-neon-crimson transition-colors cursor-pointer"
+                        title="Disconnect"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
 
@@ -1253,26 +1286,25 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="pt-6 border-t border-obsidian-800/40 flex justify-end space-x-3">
-            {plaidStatus.connected ? (
+          <div className="pt-6 border-t border-obsidian-800/40 flex justify-between space-x-3 items-center">
+            {plaidStatus.connected && (
               <button
                 onClick={handlePlaidSync}
                 disabled={plaidSyncing}
-                className="px-4 py-2 bg-obsidian-800 hover:bg-obsidian-750 border border-obsidian-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center space-x-2"
+                className="px-3.5 py-2 bg-obsidian-800 hover:bg-obsidian-750 border border-obsidian-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center space-x-2 cursor-pointer"
               >
                 <RefreshCw size={14} className={plaidSyncing ? 'animate-spin' : ''} />
-                <span>Sync Now</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => openPlaidLink()}
-                disabled={!plaidLinkReady || plaidSyncing}
-                className="px-4 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-2"
-              >
-                <Link size={14} />
-                <span>Link Account</span>
+                <span>Sync All</span>
               </button>
             )}
+            <button
+              onClick={() => openPlaidLink()}
+              disabled={!plaidLinkReady || plaidSyncing}
+              className="px-3.5 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-2 ml-auto cursor-pointer"
+            >
+              <Link size={14} />
+              <span>Link Account</span>
+            </button>
           </div>
         </Card>
 

@@ -200,7 +200,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
         const balanceRecord = {
           id: `plaid_${acc.account_id}`,
           date: new Date().toISOString().split('T')[0],
-          institution: plaidStatus.institution_name || 'Plaid Connected Bank',
+          institution: acc.institution_name || 'Plaid Connected Bank',
           account: acc.name,
           account_id: acc.account_id,
           balance: acc.balances.current,

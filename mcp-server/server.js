@@ -45,28 +45,36 @@ if (PLAID_CLIENT_ID && PLAID_SECRET) {
   console.warn(`[Plaid] Missing PLAID_CLIENT_ID or PLAID_SECRET. Running in Mock/Dry-run mode.`);
 }
 
-// Token Storage Setup (simple local JSON file)
+// Token Storage Setup (simple local JSON file supporting multiple connection items)
 const TOKEN_FILE_PATH = path.join(__dirname, 'plaid_tokens.json');
 
 function saveAccessToken(tokenData) {
   try {
-    fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(tokenData, null, 2));
+    const tokens = loadAccessTokens();
+    const existingIdx = tokens.findIndex(t => t.item_id === tokenData.item_id);
+    if (existingIdx !== -1) {
+      tokens[existingIdx] = { ...tokens[existingIdx], ...tokenData };
+    } else {
+      tokens.push(tokenData);
+    }
+    fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2));
     console.log(`[Plaid] Successfully saved access token.`);
   } catch (err) {
     console.error(`[Plaid] Error saving access token:`, err.message);
   }
 }
 
-function loadAccessToken() {
+function loadAccessTokens() {
   try {
     if (fs.existsSync(TOKEN_FILE_PATH)) {
       const data = fs.readFileSync(TOKEN_FILE_PATH, 'utf8');
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
     }
   } catch (err) {
-    console.error(`[Plaid] Error loading access token:`, err.message);
+    console.error(`[Plaid] Error loading access tokens:`, err.message);
   }
-  return null;
+  return [];
 }
 
 // Holdings Caching to prevent extra Investments charges
@@ -96,50 +104,96 @@ function saveHoldingsCache(data) {
 }
 
 async function getPlaidHoldings(forceRefresh = false) {
-  const tokenData = loadAccessToken();
-  if (!tokenData || !tokenData.access_token) {
+  const tokens = loadAccessTokens();
+  if (tokens.length === 0) {
     return null;
   }
 
   // Check cache first
   const cache = loadHoldingsCache();
   if (cache && !forceRefresh && (Date.now() - cache.timestamp < CACHE_HOLDINGS_TTL_MS)) {
-    console.log(`[Plaid Cache] Returning cached holdings data.`);
+    console.log(`[Plaid Cache] Returning cached holdings data for multiple accounts.`);
     return cache.data;
   }
 
-  if (!plaidClient || tokenData.access_token.includes('mock')) {
-    // Generate mock sandbox holdings
-    console.log(`[Plaid] Generating mock sandbox holdings.`);
-    const mockHoldings = {
-      holdings: [
-        { security_id: 'sec_1', institution_value: 353623.00, quantity: 1000, institution_price: 353.62 },
-        { security_id: 'sec_2', institution_value: 100981.00, quantity: 500, institution_price: 201.96 }
-      ],
-      securities: [
-        { security_id: 'sec_1', ticker_symbol: 'FXAIX', name: 'Fidelity 500 Index Fund', type: 'mutual fund' },
-        { security_id: 'sec_2', ticker_symbol: 'VTI', name: 'Vanguard Total Stock Market ETF', type: 'etf' }
-      ],
-      accounts: [
-        { account_id: 'acc_1', name: 'Fidelity 401k', official_name: 'Fidelity Growth Account', balances: { current: 454604.00 } }
-      ]
-    };
-    saveHoldingsCache(mockHoldings);
-    return mockHoldings;
+  const aggregatedHoldings = {
+    holdings: [],
+    securities: [],
+    accounts: []
+  };
+
+  const updatedTokens = [];
+
+  for (const tokenData of tokens) {
+    try {
+      let data;
+      if (!plaidClient || tokenData.access_token.includes('mock')) {
+        // Generate mock sandbox holdings
+        console.log(`[Plaid] Generating mock sandbox holdings for item ${tokenData.item_id}`);
+        const isSecond = tokenData.item_id.includes('2') || tokens.indexOf(tokenData) > 0;
+        data = {
+          holdings: isSecond ? [
+            { security_id: 'sec_3', institution_value: 220900.00, quantity: 1100, institution_price: 200.81 }
+          ] : [
+            { security_id: 'sec_1', institution_value: 353623.00, quantity: 1000, institution_price: 353.62 },
+            { security_id: 'sec_2', institution_value: 100981.00, quantity: 500, institution_price: 201.96 }
+          ],
+          securities: isSecond ? [
+            { security_id: 'sec_3', ticker_symbol: 'QQQ', name: 'Invesco QQQ Trust Series 1', type: 'etf' }
+          ] : [
+            { security_id: 'sec_1', ticker_symbol: 'FXAIX', name: 'Fidelity 500 Index Fund', type: 'mutual fund' },
+            { security_id: 'sec_2', ticker_symbol: 'VTI', name: 'Vanguard Total Stock Market ETF', type: 'etf' }
+          ],
+          accounts: isSecond ? [
+            { account_id: 'acc_2', name: 'Robinhood Roth', official_name: 'Robinhood Individual', balances: { current: 220900.00 } }
+          ] : [
+            { account_id: 'acc_1', name: 'Fidelity 401k', official_name: 'Fidelity Growth Account', balances: { current: 454604.00 } }
+          ]
+        };
+      } else {
+        console.log(`[Plaid] Fetching holdings from Plaid API for ${tokenData.institution_name}...`);
+        const response = await plaidClient.investmentsHoldingsGet({
+          access_token: tokenData.access_token
+        });
+        data = response.data;
+      }
+
+      if (data) {
+        // Map account IDs to include item ID prefix to prevent collisions between institutions
+        const accountsWithItem = (data.accounts || []).map(a => ({
+          ...a,
+          institution_name: tokenData.institution_name,
+          account_id: `${tokenData.item_id}_${a.account_id}`
+        }));
+        
+        const holdingsWithItem = (data.holdings || []).map(h => ({
+          ...h,
+          account_id: `${tokenData.item_id}_${h.account_id}`
+        }));
+
+        aggregatedHoldings.accounts.push(...accountsWithItem);
+        aggregatedHoldings.holdings.push(...holdingsWithItem);
+        
+        (data.securities || []).forEach(sec => {
+          if (!aggregatedHoldings.securities.some(s => s.security_id === sec.security_id)) {
+            aggregatedHoldings.securities.push(sec);
+          }
+        });
+      }
+
+      tokenData.last_sync = new Date().toISOString();
+      updatedTokens.push(tokenData);
+    } catch (err) {
+      console.error(`[Plaid] Error fetching holdings for ${tokenData.institution_name}:`, err.message);
+      updatedTokens.push(tokenData);
+    }
   }
 
-  console.log(`[Plaid] Fetching holdings from Plaid API...`);
-  const response = await plaidClient.investmentsHoldingsGet({
-    access_token: tokenData.access_token
-  });
-  
-  saveHoldingsCache(response.data);
-  
-  // Also update last_sync in tokenData
-  tokenData.last_sync = new Date().toISOString();
-  saveAccessToken(tokenData);
-  
-  return response.data;
+  // Update token file with sync timestamps
+  fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(updatedTokens, null, 2));
+
+  saveHoldingsCache(aggregatedHoldings);
+  return aggregatedHoldings;
 }
 
 app.use(cors());
@@ -1046,10 +1100,12 @@ async function handleExchangePublicToken(req, res) {
 
   try {
     if (!plaidClient || public_token === 'mock_link_token_sandbox') {
+      const existingCount = loadAccessTokens().length;
+      const itemId = `item-sandbox-mock-${existingCount + 1}`;
       const mockData = {
-        access_token: 'access-sandbox-mock-12345',
-        item_id: 'item-sandbox-mock-12345',
-        institution_name: institution?.name || 'Sandbox Bank',
+        access_token: `access-sandbox-mock-${existingCount + 1}`,
+        item_id: itemId,
+        institution_name: institution?.name || `Sandbox Bank ${existingCount + 1}`,
         last_sync: new Date().toISOString()
       };
       saveAccessToken(mockData);
@@ -1074,16 +1130,15 @@ async function handleExchangePublicToken(req, res) {
 }
 
 function handlePlaidStatus(req, res) {
-  const tokenData = loadAccessToken();
-  if (tokenData) {
-    res.json({
-      connected: true,
-      institution_name: tokenData.institution_name,
-      last_sync: tokenData.last_sync
-    });
-  } else {
-    res.json({ connected: false });
-  }
+  const tokens = loadAccessTokens();
+  res.json({
+    connected: tokens.length > 0,
+    connections: tokens.map(t => ({
+      institution_name: t.institution_name,
+      item_id: t.item_id,
+      last_sync: t.last_sync
+    }))
+  });
 }
 
 async function handleGetHoldings(req, res) {
@@ -1097,6 +1152,33 @@ async function handleGetHoldings(req, res) {
   } catch (err) {
     console.error(`[Plaid] Error getting holdings:`, err.response?.data || err.message);
     res.status(500).json({ error: err.response?.data?.error_message || err.message });
+  }
+}
+
+function handlePlaidDisconnect(req, res) {
+  const { item_id } = req.body;
+  if (!item_id) {
+    return res.status(400).json({ error: 'Missing item_id' });
+  }
+
+  try {
+    let tokens = loadAccessTokens();
+    const beforeLength = tokens.length;
+    tokens = tokens.filter(t => t.item_id !== item_id);
+    
+    if (tokens.length < beforeLength) {
+      fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2));
+      // Invalidate holdings cache to ensure fresh sync
+      if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
+        fs.unlinkSync(HOLDINGS_CACHE_FILE);
+      }
+      return res.json({ success: true });
+    }
+    
+    res.status(404).json({ error: 'Connection not found.' });
+  } catch (err) {
+    console.error(`[Plaid] Error disconnecting item:`, err.message);
+    res.status(500).json({ error: err.message });
   }
 }
 
@@ -1114,6 +1196,9 @@ app.get('/:secretPrefix/api/plaid/status', handlePlaidStatus);
 
 app.get('/api/plaid/holdings', handleGetHoldings);
 app.get('/:secretPrefix/api/plaid/holdings', handleGetHoldings);
+
+app.post('/api/plaid/disconnect', handlePlaidDisconnect);
+app.post('/:secretPrefix/api/plaid/disconnect', handlePlaidDisconnect);
 
 
 // Health check
