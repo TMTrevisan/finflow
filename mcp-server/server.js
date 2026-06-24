@@ -1288,21 +1288,27 @@ async function ensureSnapTradeUserForClient(client, config) {
     const users = usersResponse.data || [];
     let targetUserId = '';
 
+    let userSecret = '';
+
     if (users.length > 0) {
       targetUserId = users[0].id || users[0].userId || users[0];
-      console.log(`[SnapTrade] Found pre-provisioned user: ${targetUserId}. Resolving credentials via idempotency hack...`);
+      console.log(`[SnapTrade] Found pre-provisioned user: ${targetUserId}. Resolving credentials via resetSnapTradeUserSecret...`);
+      const resetResponse = await client.authentication.resetSnapTradeUserSecret({
+        userId: targetUserId
+      });
+      userSecret = resetResponse.data.userSecret;
     } else {
       targetUserId = `finflow_user_${Math.random().toString(36).substring(2, 10)}`;
       console.log(`[SnapTrade] No existing users. Registering new unique user: ${targetUserId}`);
+      const registerResponse = await client.authentication.registerSnapTradeUser({
+        userId: targetUserId,
+      });
+      userSecret = registerResponse.data.userSecret;
     }
-
-    const registerResponse = await client.authentication.registerSnapTradeUser({
-      userId: targetUserId,
-    });
 
     const newConfig = {
       userId: targetUserId,
-      userSecret: registerResponse.data.userSecret
+      userSecret
     };
     saveSnapTradeConfig(newConfig);
     return newConfig;
