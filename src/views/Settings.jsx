@@ -18,7 +18,8 @@ import {
   Bell,
   Calendar,
   Sliders,
-  CreditCard
+  CreditCard,
+  Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BottomSheet } from '../components/ui/BottomSheet';
@@ -59,6 +60,7 @@ export default function Settings() {
 
   // Sync Diagnostics state
   const [syncLogs, setSyncLogs] = useState([]);
+  const [logsCopied, setLogsCopied] = useState(false);
 
   useEffect(() => {
     const loadLogs = () => {
@@ -73,6 +75,30 @@ export default function Settings() {
     const interval = setInterval(loadLogs, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleCopyLogs = async () => {
+    const text = syncLogs.length > 0 ? syncLogs.join('\n') : 'No diagnostic events logged yet.';
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setLogsCopied(true);
+      setTimeout(() => setLogsCopied(false), 2000);
+    } catch (err) {
+      console.warn('Failed to copy sync logs:', err);
+      setLogsCopied(false);
+    }
+  };
 
   // SnapTrade Integration state
   const [snapTradeSyncing, setSnapTradeSyncing] = useState(false);
@@ -1659,19 +1685,31 @@ export default function Settings() {
 
           {/* Sync Diagnostics Terminal */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-450 uppercase tracking-wider">Sync logs & Diagnostics</span>
-              <button
-                onClick={() => {
-                  safeStorage.setItem('finflow_sync_logs', JSON.stringify([]));
-                  setSyncLogs([]);
-                }}
-                className="text-[10px] font-bold text-slate-500 hover:text-neon-crimson transition-colors"
-              >
-                Clear logs
-              </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-450 uppercase tracking-wider">Sync logs & Diagnostics</span>
+                <p className="text-[10px] text-slate-600 mt-0.5">Stores the latest 300 events. Copy this block when sharing sync failures.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopyLogs}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-obsidian-850 border border-obsidian-750 text-[10px] font-bold text-slate-300 hover:text-white hover:border-neon-indigo/50 transition-colors"
+                >
+                  <Copy size={12} />
+                  {logsCopied ? 'Copied' : 'Copy logs'}
+                </button>
+                <button
+                  onClick={() => {
+                    safeStorage.setItem('finflow_sync_logs', JSON.stringify([]));
+                    setSyncLogs([]);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-obsidian-850 border border-obsidian-750 text-[10px] font-bold text-slate-500 hover:text-neon-crimson transition-colors"
+                >
+                  Clear logs
+                </button>
+              </div>
             </div>
-            <div className="h-48 overflow-y-auto bg-black/80 border border-obsidian-800 rounded-2xl p-4 font-mono text-xs space-y-1 text-slate-350 scrollbar-thin scrollbar-thumb-obsidian-750">
+            <div className="h-96 max-h-[60vh] overflow-y-auto bg-black/80 border border-obsidian-800 rounded-2xl p-4 font-mono text-xs space-y-1 text-slate-350 scrollbar-thin scrollbar-thumb-obsidian-750">
               {syncLogs.length === 0 ? (
                 <div className="text-slate-600 italic">No diagnostic events logged yet. Trigger a refetch or sync to generate logs.</div>
               ) : (

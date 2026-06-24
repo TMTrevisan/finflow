@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { fetchFinData, updateTransactionCategory, updateAccountBalance } from '../services/api';
 import { MOCK_TRANSACTIONS, MOCK_CATEGORIES, MOCK_BALANCES } from '../services/mockData';
 import { safeStorage } from '../utils/storage';
@@ -33,7 +33,7 @@ const logSync = (stepName, status, details = '') => {
   try {
     const logs = JSON.parse(safeStorage.getItem('finflow_sync_logs') || '[]');
     logs.push(newLog);
-    if (logs.length > 50) logs.shift();
+    if (logs.length > 300) logs.splice(0, logs.length - 300);
     safeStorage.setItem('finflow_sync_logs', JSON.stringify(logs));
   } catch (e) {}
 
@@ -159,7 +159,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
   });
   const [snapTradeError, setSnapTradeError] = useState(null);
 
-  const getSnapTradeUrl = (path) => {
+  const snapTradeLoadPromiseRef = useRef(null);
+
+  const getSnapTradeUrl = useCallback((path) => {
     const rawUrl = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
     const cleanUrl = rawUrl.trim().replace(/\/+$/, '');
     const mcpSecret = safeStorage.getItem('finflow_mcp_secret') || '';
@@ -170,9 +172,15 @@ export const AppProvider = ({ children, setCurrentView }) => {
         : `${cleanUrl}/${mcpSecret}/${path}`;
     }
     return `${cleanUrl}/${path}`;
-  };
+  }, []);
 
-  const loadSnapTradeData = async () => {
+  const loadSnapTradeData = useCallback(async () => {
+    if (snapTradeLoadPromiseRef.current) {
+      logSync('SnapTrade sync already in progress; joining existing request', 'info');
+      return snapTradeLoadPromiseRef.current;
+    }
+
+    const loadPromise = (async () => {
     try {
       const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
       const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
@@ -272,7 +280,17 @@ export const AppProvider = ({ children, setCurrentView }) => {
       throw err;
     }
     return null;
-  };
+    })();
+
+    snapTradeLoadPromiseRef.current = loadPromise;
+    try {
+      return await loadPromise;
+    } finally {
+      if (snapTradeLoadPromiseRef.current === loadPromise) {
+        snapTradeLoadPromiseRef.current = null;
+      }
+    }
+  }, [getSnapTradeUrl]);
 
   const mergedBalances = useMemo(() => {
     let list = [...balances];
