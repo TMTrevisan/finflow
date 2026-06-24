@@ -64,14 +64,33 @@ export default function Settings() {
     loadSnapTradeData().catch(() => {});
   }, []);
 
+  const getSnapTradeHeaders = () => {
+    return {
+      'Content-Type': 'application/json',
+      'x-snaptrade-client-id': safeStorage.getItem('finflow_snaptrade_client_id') || '',
+      'x-snaptrade-consumer-key': safeStorage.getItem('finflow_snaptrade_consumer_key') || '',
+      'x-snaptrade-user-id': safeStorage.getItem('finflow_snaptrade_user_id') || '',
+      'x-snaptrade-user-secret': safeStorage.getItem('finflow_snaptrade_user_secret') || ''
+    };
+  };
+
   const handleLinkAccount = async () => {
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Generating connection portal link...' });
     try {
       const url = getSnapTradeUrl('api/snaptrade/create_portal_url');
-      const response = await fetch(url, { method: 'POST' });
+      const response = await fetch(url, { 
+        method: 'POST',
+        headers: getSnapTradeHeaders()
+      });
       if (!response.ok) throw new Error('Failed to generate connection portal URL');
       const data = await response.json();
+      
+      if (data.userId && data.userSecret) {
+        safeStorage.setItem('finflow_snaptrade_user_id', data.userId);
+        safeStorage.setItem('finflow_snaptrade_user_secret', data.userSecret);
+      }
+
       if (data.redirectURI) {
         setSnapTradeMessage({ type: 'info', text: 'Opening SnapTrade Connection Portal. Please complete the login in the new tab.' });
         window.open(data.redirectURI, '_blank');
@@ -96,7 +115,9 @@ export default function Settings() {
     setSnapTradeMessage({ type: 'info', text: 'Refreshing investments holdings (cache TTL 24h)...' });
     try {
       const url = `${getSnapTradeUrl('api/snaptrade/holdings')}?force=true`;
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: getSnapTradeHeaders()
+      });
       if (!response.ok) throw new Error('Refresh failed');
       await loadSnapTradeData();
       setSnapTradeMessage({ type: 'success', text: 'SnapTrade investments synced successfully!' });
@@ -126,6 +147,10 @@ export default function Settings() {
       if (response.ok && data.success) {
         safeStorage.setItem('finflow_snaptrade_client_id', clientId.trim());
         safeStorage.setItem('finflow_snaptrade_consumer_key', consumerKey.trim());
+        if (data.userId && data.userSecret) {
+          safeStorage.setItem('finflow_snaptrade_user_id', data.userId);
+          safeStorage.setItem('finflow_snaptrade_user_secret', data.userSecret);
+        }
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade credentials saved and initialized successfully!' });
         await loadSnapTradeData();
       } else {
@@ -143,12 +168,17 @@ export default function Settings() {
     setSnapTradeMessage({ type: 'info', text: 'Disconnecting SnapTrade connection...' });
     try {
       const url = getSnapTradeUrl('api/snaptrade/disconnect');
-      const response = await fetch(url, { method: 'POST' });
+      const response = await fetch(url, { 
+        method: 'POST',
+        headers: getSnapTradeHeaders()
+      });
       if (!response.ok) throw new Error('Failed to disconnect');
       const result = await response.json();
       if (result.success) {
         safeStorage.removeItem('finflow_snaptrade_client_id');
         safeStorage.removeItem('finflow_snaptrade_consumer_key');
+        safeStorage.removeItem('finflow_snaptrade_user_id');
+        safeStorage.removeItem('finflow_snaptrade_user_secret');
         setClientId('');
         setConsumerKey('');
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade connection removed successfully.' });
@@ -170,7 +200,7 @@ export default function Settings() {
       const url = getSnapTradeUrl('api/snaptrade/disconnect');
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getSnapTradeHeaders(),
         body: JSON.stringify({ authorizationId })
       });
       if (!response.ok) throw new Error('Failed to remove connection');

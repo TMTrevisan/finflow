@@ -89,7 +89,7 @@ async function ensureSnapTradeUser() {
     }
   }
   
-  const userId = 'finflow_user';
+  const userId = `finflow_user_${Math.random().toString(36).substring(2, 10)}`;
   console.log(`[SnapTrade] Registering default user "${userId}"...`);
   
   if (!client) {
@@ -107,7 +107,7 @@ async function ensureSnapTradeUser() {
       userSecret: registerResponse.data.userSecret
     };
     saveSnapTradeConfig(config);
-    console.log(`[SnapTrade] Default user registered successfully.`);
+    console.log(`[SnapTrade] Default user registered successfully: ${userId}`);
     return config;
   } catch (err) {
     console.error(`[SnapTrade] Error registering user:`, err.message);
@@ -1193,43 +1193,64 @@ async function handleJsonRpc(payload) {
 
       case 'tools/call': {
         const { name, arguments: args } = params || {};
-        const toolDef = TOOLS.find(t => t.name === name);
-        if (!toolDef) {
-          return {
-            jsonrpc: '2.0',
-            id,
-            error: { code: -32601, message: `Tool "${name}" not found.` }
-          };
-        }
-        
-        const result = await runTool(name, args);
-        return {
-          jsonrpc: '2.0',
-          id,
-          result: {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }
-            ]
-          }
-        };
-      }
+// ─── SnapTrade Stateless Credential Resolvers ───────────────────────────────
+function getSnapTradeClientAndConfig(req) {
+  let cId = req?.headers?.['x-snaptrade-client-id'] || req?.body?.clientId || snaptradeClientId;
+  let cKey = req?.headers?.['x-snaptrade-consumer-key'] || req?.body?.consumerKey || snaptradeConsumerKey;
+  let uId = req?.headers?.['x-snaptrade-user-id'] || req?.body?.userId;
+  let uSec = req?.headers?.['x-snaptrade-user-secret'] || req?.body?.userSecret;
 
-      default:
-        return {
-          jsonrpc: '2.0',
-          id,
-          error: { code: -32601, message: `Method not found: ${method}` }
-        };
-    }
-  } catch (err) {
+  // Fallback to loaded config if not in headers/body
+  if (!uId || !uSec) {
+    const fileConfig = loadSnapTradeConfig() || {};
+    uId = uId || fileConfig.userId;
+    uSec = uSec || fileConfig.userSecret;
+  }
+
+  // Fallback to env
+  if (!cId) cId = process.env.SNAPTRADE_CLIENT_ID || '';
+  if (!cKey) cKey = process.env.SNAPTRADE_CONSUMER_KEY || '';
+
+  if (!cId || !cKey) {
     return {
-      jsonrpc: '2.0',
-      id,
-      error: { code: -32000, message: err.message }
+      client: null,
+      config: {
+        userId: uId || 'finflow_user',
+        userSecret: uSec || 'mock-user-secret-fallback'
+      }
     };
+  }
+
+  const client = new Snaptrade({
+    clientId: cId,
+    consumerKey: cKey,
+  });
+
+  return { client, config: { userId: uId, userSecret: uSec } };
+}
+
+async function ensureSnapTradeUserForClient(client, config) {
+  if (config && config.userId && config.userSecret && !config.userSecret.includes('mock')) {
+    return config;
+  }
+  if (!client) {
+    return { userId: config?.userId || 'finflow_user', userSecret: 'mock-user-secret-fallback' };
+  }
+  const uniqueId = `finflow_user_${Math.random().toString(36).substring(2, 10)}`;
+  try {
+    console.log(`[SnapTrade] Registering unique user: ${uniqueId}`);
+    const registerResponse = await client.authentication.registerSnapTradeUser({
+      userId: uniqueId,
+    });
+    const newConfig = {
+      userId: uniqueId,
+      userSecret: registerResponse.data.userSecret
+    };
+    saveSnapTradeConfig(newConfig);
+    return newConfig;
+  } catch (err) {
+    console.error(`[SnapTrade] Error registering user:`, err.message);
+    return { userId: uniqueId, userSecret: 'mock-user-secret-fallback' };
   }
 }
 
@@ -1244,17 +1265,23 @@ async function handleSaveConfig(req, res) {
     snaptradeConsumerKey = consumerKey;
     snaptradeClient = null; // force reinitialization
     
-    // Test if we can initialize it
+    // Save keys first
+    saveSnapTradeConfig({});
+
     const client = getSnapTradeClient();
     if (!client) {
       return res.status(500).json({ error: 'Failed to initialize SnapTrade client with provided keys' });
     }
     
-    // Trigger user registration attempt to make sure everything works
-    // and keys are saved
     const config = await ensureSnapTradeUser();
     
-    res.json({ success: true, configured: true, connected: config && !config.userSecret.includes('mock') });
+    res.json({ 
+      success: true, 
+      configured: true, 
+      connected: config && !config.userSecret.includes('mock'),
+      userId: config.userId,
+      userSecret: config.userSecret
+    });
   } catch (err) {
     console.error(`[SnapTrade] Error saving config:`, err.message);
     res.status(500).json({ error: err.message });
@@ -1263,16 +1290,20 @@ async function handleSaveConfig(req, res) {
 
 async function handleCreatePortalUrl(req, res) {
   try {
-    const config = await ensureSnapTradeUser();
-    const client = getSnapTradeClient();
-    if (!client || config.userSecret.includes('mock')) {
+    const { client, config } = getSnapTradeClientAndConfig(req);
+    const finalConfig = await ensureSnapTradeUserForClient(client, config);
+    if (!client || !finalConfig.userSecret || finalConfig.userSecret.includes('mock')) {
       return res.json({ redirectURI: 'https://web.snaptrade.com/session/mock-portal-url' });
     }
     const response = await client.authentication.login({
-      userId: config.userId,
-      userSecret: config.userSecret
+      userId: finalConfig.userId,
+      userSecret: finalConfig.userSecret
     });
-    res.json({ redirectURI: response.data?.redirectURI || response.data });
+    res.json({ 
+      redirectURI: response.data?.redirectURI || response.data,
+      userId: finalConfig.userId,
+      userSecret: finalConfig.userSecret
+    });
   } catch (err) {
     console.error(`[SnapTrade] Error creating portal url:`, err.message);
     res.status(500).json({ error: err.message });
@@ -1281,21 +1312,23 @@ async function handleCreatePortalUrl(req, res) {
 
 async function handleSnapTradeStatus(req, res) {
   try {
-    const config = await ensureSnapTradeUser();
-    const client = getSnapTradeClient();
-    const configured = !!(snaptradeClientId && snaptradeConsumerKey);
+    const { client, config } = getSnapTradeClientAndConfig(req);
+    const finalConfig = await ensureSnapTradeUserForClient(client, config);
+    const configured = !!client;
 
-    if (!client || config.userSecret.includes('mock')) {
+    if (!client || !finalConfig.userSecret || finalConfig.userSecret.includes('mock')) {
       return res.json({
         configured,
         connected: false,
-        connections: []
+        connections: [],
+        userId: finalConfig.userId,
+        userSecret: finalConfig.userSecret
       });
     }
 
     const response = await client.accountInformationUser.listUserAccounts({
-      userId: config.userId,
-      userSecret: config.userSecret
+      userId: finalConfig.userId,
+      userSecret: finalConfig.userSecret
     });
 
     const accounts = response.data || [];
@@ -1315,22 +1348,159 @@ async function handleSnapTradeStatus(req, res) {
     res.json({
       configured,
       connected: connectionsMap.size > 0,
-      connections: Array.from(connectionsMap.values())
+      connections: Array.from(connectionsMap.values()),
+      userId: finalConfig.userId,
+      userSecret: finalConfig.userSecret
     });
   } catch (err) {
     console.error(`[SnapTrade] Error getting status:`, err.message);
-    res.status(500).json({ error: err.message, configured: !!(snaptradeClientId && snaptradeConsumerKey) });
+    res.status(500).json({ 
+      error: err.message, 
+      configured: !!getSnapTradeClientAndConfig(req).client 
+    });
   }
 }
 
 async function handleGetSnapTradeHoldings(req, res) {
   const forceRefresh = req.query.force === 'true';
   try {
-    const data = await getSnapTradeHoldings(forceRefresh);
-    if (!data) {
-      return res.status(404).json({ error: 'No SnapTrade integration configured.' });
+    const { client, config } = getSnapTradeClientAndConfig(req);
+    const finalConfig = await ensureSnapTradeUserForClient(client, config);
+
+    // Dynamic cache file based on user
+    const userCacheFile = path.join(__dirname, `snaptrade_holdings_${finalConfig.userId}_cache.json`);
+
+    function loadHoldingsCache() {
+      try {
+        if (fs.existsSync(userCacheFile)) {
+          return JSON.parse(fs.readFileSync(userCacheFile, 'utf8'));
+        }
+      } catch (err) {
+        console.error(`[SnapTrade Cache] Error loading holdings cache:`, err.message);
+      }
+      return null;
     }
-    res.json(data);
+
+    function saveHoldingsCache(data) {
+      try {
+        fs.writeFileSync(userCacheFile, JSON.stringify({
+          timestamp: Date.now(),
+          data
+        }, null, 2));
+      } catch (err) {
+        console.error(`[SnapTrade Cache] Error saving holdings cache:`, err.message);
+      }
+    }
+
+    const cache = loadHoldingsCache();
+    if (cache && !forceRefresh && (Date.now() - cache.timestamp < CACHE_HOLDINGS_TTL_MS)) {
+      console.log(`[SnapTrade Cache] Returning cached holdings.`);
+      return res.json(cache.data);
+    }
+
+    if (!client || !finalConfig.userSecret || finalConfig.userSecret.includes('mock')) {
+      console.log(`[SnapTrade] Generating mock sandbox holdings.`);
+      const mockData = {
+        accounts: [
+          {
+            id: 'acc_1',
+            name: 'Fidelity 401k',
+            number: 'FID-401K-123',
+            institution_name: 'Fidelity',
+            brokerage: { name: 'Fidelity' },
+            balances: { current: 454604.00 }
+          },
+          {
+            id: 'acc_2',
+            name: 'Robinhood Roth',
+            number: 'RH-ROTH-456',
+            institution_name: 'Robinhood',
+            brokerage: { name: 'Robinhood' },
+            balances: { current: 220900.00 }
+          }
+        ],
+        positions: [
+          {
+            account_id: 'acc_1',
+            symbol: { symbol: 'FXAIX', name: 'Fidelity 500 Index Fund' },
+            units: 1000,
+            price: 454.604,
+            value: 454604.00,
+            average_buy_price: 380.00,
+            total_cost: 380000.00,
+            open_pnl: 74604.00,
+            total_pnl_percent: 19.63,
+            day_pnl: 2250.00,
+            day_pnl_percent: 0.50,
+            assetClass: 'US Equities',
+            sector: 'Technology',
+            geography: 'United States'
+          },
+          {
+            account_id: 'acc_1',
+            symbol: { symbol: 'VTI', name: 'Vanguard Total Stock Market ETF' },
+            units: 500,
+            price: 201.96,
+            value: 100980.00,
+            average_buy_price: 190.00,
+            total_cost: 95000.00,
+            open_pnl: 5980.00,
+            total_pnl_percent: 6.29,
+            day_pnl: -120.00,
+            day_pnl_percent: -0.12,
+            assetClass: 'US Equities',
+            sector: 'Financials',
+            geography: 'United States'
+          }
+        ]
+      };
+      return res.json(mockData);
+    }
+
+    const accResponse = await client.accountInformationUser.listUserAccounts({
+      userId: finalConfig.userId,
+      userSecret: finalConfig.userSecret
+    });
+
+    const posResponse = await client.accountInformationUser.getUserHoldings({
+      userId: finalConfig.userId,
+      userSecret: finalConfig.userSecret
+    });
+
+    const accounts = accResponse.data || [];
+    const positionsRaw = posResponse.data || [];
+
+    const positions = positionsRaw.map(pos => {
+      const uPrice = pos.price || 0;
+      const units = pos.units || 0;
+      const val = pos.value || (units * uPrice);
+      const avgPrice = pos.average_buy_price || uPrice;
+      const totalCost = avgPrice * units;
+      const openPnl = val - totalCost;
+      const pnlPercent = totalCost > 0 ? (openPnl / totalCost) * 100 : 0;
+      
+      const symbolText = pos.symbol?.symbol || '';
+      const sector = categorizeSecurity(symbolText, 'sector');
+      const assetClass = categorizeSecurity(symbolText, 'assetClass');
+      const geography = categorizeSecurity(symbolText, 'geography');
+
+      return {
+        ...pos,
+        value: val,
+        total_cost: totalCost,
+        open_pnl: openPnl,
+        total_pnl_percent: pnlPercent,
+        day_pnl: pos.day_pnl || 0,
+        day_pnl_percent: pos.day_pnl_percent || 0,
+        assetClass,
+        sector,
+        geography
+      };
+    });
+
+    const result = { accounts, positions };
+    saveHoldingsCache(result);
+    res.json(result);
   } catch (err) {
     console.error(`[SnapTrade] Error getting holdings:`, err.message);
     res.status(500).json({ error: err.message });
@@ -1340,13 +1510,11 @@ async function handleGetSnapTradeHoldings(req, res) {
 async function handleSnapTradeDisconnect(req, res) {
   try {
     const { authorizationId } = req.body;
-    const config = loadSnapTradeConfig();
-    const client = getSnapTradeClient();
+    const { client, config } = getSnapTradeClientAndConfig(req);
     
     if (config && config.userId) {
       if (authorizationId) {
-        // Delete a SPECIFIC connection
-        if (client && !config.userSecret.includes('mock')) {
+        if (client && config.userSecret && !config.userSecret.includes('mock')) {
           await client.connections.removeBrokerageAuthorization({
             authorizationId,
             userId: config.userId,
@@ -1354,14 +1522,13 @@ async function handleSnapTradeDisconnect(req, res) {
           });
           console.log(`[SnapTrade] Connection ${authorizationId} removed.`);
           
-          // Clear holdings cache to force refresh
-          if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
-            fs.unlinkSync(HOLDINGS_CACHE_FILE);
+          const userCacheFile = path.join(__dirname, `snaptrade_holdings_${config.userId}_cache.json`);
+          if (fs.existsSync(userCacheFile)) {
+            fs.unlinkSync(userCacheFile);
           }
         }
       } else {
-        // Delete the ENTIRE user
-        if (client && !config.userSecret.includes('mock')) {
+        if (client && config.userSecret && !config.userSecret.includes('mock')) {
           await client.authentication.deleteSnapTradeUser({
             userId: config.userId
           }).catch(e => console.warn('[SnapTrade] Delete user API warning:', e.message));

@@ -166,27 +166,53 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   const loadSnapTradeData = async () => {
     try {
+      const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
+      const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
+      const localUserId = safeStorage.getItem('finflow_snaptrade_user_id') || '';
+      const localUserSecret = safeStorage.getItem('finflow_snaptrade_user_secret') || '';
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-snaptrade-client-id': localClientId,
+        'x-snaptrade-consumer-key': localConsumerKey,
+        'x-snaptrade-user-id': localUserId,
+        'x-snaptrade-user-secret': localUserSecret
+      };
+
       const statusUrl = getSnapTradeUrl('api/snaptrade/status');
-      let statusRes = await fetch(statusUrl);
+      let statusRes = await fetch(statusUrl, { headers });
       if (!statusRes.ok) throw new Error('Status failed');
       let statusData = await statusRes.json();
 
+      // If backend registered/resolved new credentials, save them
+      if (statusData.userId && statusData.userSecret) {
+        if (statusData.userId !== localUserId || statusData.userSecret !== localUserSecret) {
+          safeStorage.setItem('finflow_snaptrade_user_id', statusData.userId);
+          safeStorage.setItem('finflow_snaptrade_user_secret', statusData.userSecret);
+          headers['x-snaptrade-user-id'] = statusData.userId;
+          headers['x-snaptrade-user-secret'] = statusData.userSecret;
+        }
+      }
+
       // Dynamic backend self-healing configuration check
-      if (!statusData.configured) {
-        const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
-        const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
-        if (localClientId && localConsumerKey) {
-          const configUrl = getSnapTradeUrl('api/snaptrade/config');
-          const configRes = await fetch(configUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clientId: localClientId, consumerKey: localConsumerKey })
-          });
-          if (configRes.ok) {
-            statusRes = await fetch(statusUrl);
-            if (statusRes.ok) {
-              statusData = await statusRes.json();
-            }
+      if (!statusData.configured && localClientId && localConsumerKey) {
+        const configUrl = getSnapTradeUrl('api/snaptrade/config');
+        const configRes = await fetch(configUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ clientId: localClientId, consumerKey: localConsumerKey })
+        });
+        if (configRes.ok) {
+          const configData = await configRes.json();
+          if (configData.userId && configData.userSecret) {
+            safeStorage.setItem('finflow_snaptrade_user_id', configData.userId);
+            safeStorage.setItem('finflow_snaptrade_user_secret', configData.userSecret);
+            headers['x-snaptrade-user-id'] = configData.userId;
+            headers['x-snaptrade-user-secret'] = configData.userSecret;
+          }
+          statusRes = await fetch(statusUrl, { headers });
+          if (statusRes.ok) {
+            statusData = await statusRes.json();
           }
         }
       }
@@ -195,7 +221,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
       if (statusData.connected) {
         const holdingsUrl = getSnapTradeUrl('api/snaptrade/holdings');
-        const holdingsRes = await fetch(holdingsUrl);
+        const holdingsRes = await fetch(holdingsUrl, { headers });
         if (!holdingsRes.ok) throw new Error('Holdings failed');
         const holdingsData = await holdingsRes.json();
         setSnapTradeHoldings(holdingsData);
@@ -205,6 +231,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
       }
     } catch (err) {
       console.warn('[SnapTrade Context] Failed to fetch SnapTrade data:', err.message);
+      setSnapTradeStatus({ connected: false });
+      setSnapTradeHoldings(null);
     }
     return null;
   };
