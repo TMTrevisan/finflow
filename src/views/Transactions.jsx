@@ -263,7 +263,7 @@ export default function Transactions() {
     });
 
     return { reviewTransactions: applySort(review), filteredTransactions: applySort(standard) };
-  }, [transactions, searchTerm, typeFilter, datePreset, selectedDateRange, accountFilter, categoryFilter, minAmount, maxAmount, sortBy]);
+  }, [transactions, searchTerm, typeFilter, datePreset, selectedDateRange, accountFilter, categoryFilter, minAmount, maxAmount, sortBy, referenceDate]);
 
   const slicedTransactions = useMemo(() => {
     return filteredTransactions.slice(0, visibleCount);

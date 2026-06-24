@@ -8,7 +8,14 @@ import {
 } from 'lucide-react';
 
 export default function Accounts({ setCurrentView }) {
-  const { balances = [], navigateToTransactions, isLoading } = useAppContext();
+  const { 
+    balances = [], 
+    navigateToTransactions, 
+    isLoading,
+    updateBalance,
+    snapTradeHoldings,
+    snapTradeStatus
+  } = useAppContext();
 
   // Deduplicate and get latest balance snapshots per account
   const latestBalances = useMemo(() => {
@@ -22,6 +29,47 @@ export default function Accounts({ setCurrentView }) {
     });
     return Array.from(latestMap.values());
   }, [balances]);
+
+  const reconciliationData = useMemo(() => {
+    if (!snapTradeStatus?.connected || !snapTradeHoldings?.accounts) return [];
+    
+    return snapTradeHoldings.accounts.map(stAcc => {
+      // Find matching Sheets account (case insensitive, partial match)
+      const sheetMatch = latestBalances.find(b => 
+        b.account_id === stAcc.id || 
+        b.account?.toLowerCase().includes(stAcc.name?.toLowerCase()) ||
+        stAcc.name?.toLowerCase().includes(b.account?.toLowerCase())
+      );
+      
+      const stVal = stAcc.balances?.current || 0;
+      const sheetsVal = sheetMatch ? Number(sheetMatch.balance) || 0 : 0;
+      const variance = stVal - sheetsVal;
+      const variancePercent = sheetsVal > 0 ? (variance / sheetsVal) * 100 : 0;
+      
+      return {
+        id: stAcc.id,
+        name: stAcc.name,
+        institution: stAcc.institution_name || 'Brokerage',
+        stValue: stVal,
+        sheetsValue: sheetsVal,
+        sheetsMatch: sheetMatch,
+        variance,
+        variancePercent
+      };
+    });
+  }, [latestBalances, snapTradeHoldings, snapTradeStatus]);
+
+  const handleReconcile = async (item) => {
+    if (!updateBalance) return;
+    await updateBalance({
+      accountName: item.sheetsMatch?.account || item.name,
+      institution: item.sheetsMatch?.institution || item.institution,
+      balance: item.stValue,
+      accountId: item.id,
+      accountClass: 'Asset',
+      accountType: 'Investment'
+    });
+  };
 
   // Group accounts by Assets vs Liabilities
   const { assets, liabilities, totalAssets, totalLiabilities } = useMemo(() => {
@@ -189,6 +237,70 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
           </div>
         </Card>
       </div>
+      {snapTradeStatus?.connected && reconciliationData.length > 0 && (
+        <Card className="bg-obsidian-900 border border-obsidian-750 p-6 space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-obsidian-850">
+            <div>
+              <h3 className="font-bold text-white text-base flex items-center space-x-2">
+                <RefreshCw size={16} className="text-neon-indigo" />
+                <span>Brokerage Ledger Reconciliation</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5 font-medium">Compare Google Sheets ledger balances with live brokerage evaluations.</p>
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-obsidian-800 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  <th className="pb-3 pt-1">Account</th>
+                  <th className="pb-3 pt-1 text-right">Google Sheets</th>
+                  <th className="pb-3 pt-1 text-right">Live SnapTrade</th>
+                  <th className="pb-3 pt-1 text-right">Variance</th>
+                  <th className="pb-3 pt-1 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-obsidian-850">
+                {reconciliationData.map((item) => {
+                  const hasDiscrepancy = Math.abs(item.variance) > 0.01;
+                  return (
+                    <tr key={item.id} className="hover:bg-obsidian-800/10 text-slate-350">
+                      <td className="py-3">
+                        <span className="font-bold text-white block">{item.name}</span>
+                        <span className="text-[10px] text-slate-500 font-semibold">{item.institution}</span>
+                      </td>
+                      <td className="py-3 text-right font-mono font-medium">{formatCurrency(item.sheetsValue)}</td>
+                      <td className="py-3 text-right font-mono font-bold text-white">{formatCurrency(item.stValue)}</td>
+                      <td className="py-3 text-right font-mono">
+                        {hasDiscrepancy ? (
+                          <span className={item.variance > 0 ? 'text-neon-emerald' : 'text-neon-crimson'}>
+                            {item.variance > 0 ? '+' : ''}{formatCurrency(item.variance)}
+                            <span className="block text-[9px] opacity-80">({item.variancePercent.toFixed(1)}%)</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">Perfect Match</span>
+                        )}
+                      </td>
+                      <td className="py-3 text-center">
+                        {hasDiscrepancy ? (
+                          <button
+                            onClick={() => handleReconcile(item)}
+                            className="px-2.5 py-1 bg-neon-indigo/10 border border-neon-indigo/35 hover:bg-neon-indigo/25 text-neon-indigo text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
+                          >
+                            Sync Ledger
+                          </button>
+                        ) : (
+                          <span className="text-neon-emerald font-semibold text-[10px]">Synced</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Assets List */}

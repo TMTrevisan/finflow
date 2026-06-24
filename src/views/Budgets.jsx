@@ -116,6 +116,42 @@ function BudgetProgressBar({ spent, budget }) {
   }
 }
 
+// Mock data representing the exact values in the user's second screenshot
+const mockBudgetGroups = {
+  'Home & Bills': [
+    { category: 'Internet', budget: 70.00, spent: -70.00, balance: 0.00, percent: 100 },
+    { category: 'Phone', budget: 85.05, spent: -85.05, balance: 0.00, percent: 100 }, // Matching exact totals
+    { category: 'Rent', budget: 1600.00, spent: -1400.00, balance: 900.00, percent: 87.5 }, // 700 rollover
+    { category: 'Utilities', budget: 140.00, spent: -96.00, balance: 36.00, percent: 68.6 }
+  ],
+  'Daily Life': [
+    { category: 'Coffee & Bars', budget: 150.00, spent: -142.00, balance: 228.00, percent: 94.7 },
+    { category: 'Dining Out', budget: 320.00, spent: -138.00, balance: 363.00, percent: 43.1 },
+    { category: 'Entertainment', budget: 180.00, spent: -142.00, balance: 242.00, percent: 78.9 },
+    { category: 'Groceries', budget: 750.00, spent: -205.00, balance: 1131.55, percent: 27.3 },
+    { category: 'Personal Care', budget: 120.00, spent: -64.00, balance: 128.00, percent: 53.3 },
+    { category: 'Shopping', budget: 350.00, spent: -154.00, balance: 415.00, percent: 44.0 },
+    { category: 'Subscriptions', budget: 60.00, spent: -46.00, balance: 62.01, percent: 76.7 }
+  ],
+  'Mobility & Travel': [
+    { category: 'Gas', budget: 120.00, spent: -42.00, balance: 157.00, percent: 35.0 },
+    { category: 'Rideshare', budget: 90.00, spent: -28.00, balance: 120.00, percent: 31.1 },
+    { category: 'Travel', budget: 350.00, spent: -420.00, balance: -20.00, percent: 120.0 }
+  ],
+  'Health & Debt': [
+    { category: 'Gym', budget: 60.00, spent: -60.00, balance: 0.00, percent: 100 },
+    { category: 'Interest & Fees', budget: 65.00, spent: -80.05, balance: 30.00, percent: 123 },
+    { category: 'Medical', budget: 100.00, spent: -75.00, balance: 75.00, percent: 75 },
+    { category: 'Pharmacy', budget: 40.00, spent: -22.00, balance: 40.00, percent: 55 },
+    { category: 'Student Loans', budget: 250.00, spent: -250.00, balance: 0.00, percent: 100 }
+  ],
+  'Investments & Savings': [
+    { category: 'Emergency Fund', budget: 2600.00, spent: -2600.00, balance: 2600.00, percent: 100 },
+    { category: 'Roth IRA', budget: 1750.00, spent: -1750.00, balance: 1750.00, percent: 100 },
+    { category: 'Brokerage', budget: 1000.00, spent: -1000.00, balance: 1000.00, percent: 100 }
+  ]
+};
+
 export default function Budgets({ setCurrentView }) {
   const { categories = [], transactions = [], isLoading, isMockData, referenceDate } = useAppContext();
   const [expandedGroups, setExpandedGroups] = useState({
@@ -136,42 +172,6 @@ export default function Budgets({ setCurrentView }) {
   const handleCategoryClick = (categoryName) => {
     sessionStorage.setItem('finflow_deep_category', categoryName);
     if (setCurrentView) setCurrentView('transactions');
-  };
-
-  // Mock data representing the exact values in the user's second screenshot
-  const mockBudgetGroups = {
-    'Home & Bills': [
-      { category: 'Internet', budget: 70.00, spent: -70.00, balance: 0.00, percent: 100 },
-      { category: 'Phone', budget: 85.05, spent: -85.05, balance: 0.00, percent: 100 }, // Matching exact totals
-      { category: 'Rent', budget: 1600.00, spent: -1400.00, balance: 900.00, percent: 87.5 }, // 700 rollover
-      { category: 'Utilities', budget: 140.00, spent: -96.00, balance: 36.00, percent: 68.6 }
-    ],
-    'Daily Life': [
-      { category: 'Coffee & Bars', budget: 150.00, spent: -142.00, balance: 228.00, percent: 94.7 },
-      { category: 'Dining Out', budget: 320.00, spent: -138.00, balance: 363.00, percent: 43.1 },
-      { category: 'Entertainment', budget: 180.00, spent: -142.00, balance: 242.00, percent: 78.9 },
-      { category: 'Groceries', budget: 750.00, spent: -205.00, balance: 1131.55, percent: 27.3 },
-      { category: 'Personal Care', budget: 120.00, spent: -64.00, balance: 128.00, percent: 53.3 },
-      { category: 'Shopping', budget: 350.00, spent: -154.00, balance: 415.00, percent: 44.0 },
-      { category: 'Subscriptions', budget: 60.00, spent: -46.00, balance: 62.01, percent: 76.7 }
-    ],
-    'Mobility & Travel': [
-      { category: 'Gas', budget: 120.00, spent: -42.00, balance: 157.00, percent: 35.0 },
-      { category: 'Rideshare', budget: 90.00, spent: -28.00, balance: 120.00, percent: 31.1 },
-      { category: 'Travel', budget: 350.00, spent: -420.00, balance: -20.00, percent: 120.0 }
-    ],
-    'Health & Debt': [
-      { category: 'Gym', budget: 60.00, spent: -60.00, balance: 0.00, percent: 100 },
-      { category: 'Interest & Fees', budget: 65.00, spent: -80.05, balance: 30.00, percent: 123 },
-      { category: 'Medical', budget: 100.00, spent: -75.00, balance: 75.00, percent: 75 },
-      { category: 'Pharmacy', budget: 40.00, spent: -22.00, balance: 40.00, percent: 55 },
-      { category: 'Student Loans', budget: 250.00, spent: -250.00, balance: 0.00, percent: 100 }
-    ],
-    'Investments & Savings': [
-      { category: 'Emergency Fund', budget: 2600.00, spent: -2600.00, balance: 2600.00, percent: 100 },
-      { category: 'Roth IRA', budget: 1750.00, spent: -1750.00, balance: 1750.00, percent: 100 },
-      { category: 'Brokerage', budget: 1000.00, spent: -1000.00, balance: 1000.00, percent: 100 }
-    ]
   };
 
   const getDotStyle = (percent, remaining) => {

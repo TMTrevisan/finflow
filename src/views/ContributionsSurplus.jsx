@@ -110,7 +110,7 @@ export default function ContributionsSurplus() {
       toddTotal: toddTotal > 0 ? toddTotal : defaultToddIncome * 6,
       kaitlynTotal: kaitlynTotal > 0 ? kaitlynTotal : defaultKaitlynIncome * 6,
     };
-  }, [transactions]);
+  }, [transactions, resolvedPartnerAName, resolvedPartnerBName, resolvedPartnerAEmployer, resolvedPartnerBEmployer]);
 
   // Sync slider defaults with the dynamically calculated averages from the database
   useEffect(() => {

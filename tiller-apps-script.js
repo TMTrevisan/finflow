@@ -26,6 +26,13 @@ function doPost(e) {
     return createJsonResponse({ success, transactionId, category });
   }
   
+  if (action === 'updateBalance') {
+    const postData = JSON.parse(e.postData.contents);
+    const { accountName, institution, balance, accountId, accountClass, accountType } = postData;
+    const success = addBalanceHistoryEntry(accountName, institution, balance, accountId, accountClass, accountType);
+    return createJsonResponse({ success, accountName, balance });
+  }
+  
   return createJsonResponse({ error: 'Invalid action' }, 400);
 }
 
@@ -265,5 +272,42 @@ function updateTransactionCategory(transactionId, newCategory) {
   
   // Update the cell
   sheet.getRange(rowIndex, categoryColumnIndex + 1).setValue(newCategory);
+  return true;
+}
+
+function addBalanceHistoryEntry(accountName, institution, balance, accountId, accountClass, accountType) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName('Balance History');
+  if (!sheet) {
+    const sheets = ss.getSheets();
+    sheet = sheets.find(s => s.getName().toLowerCase().trim() === 'balance history');
+  }
+  if (!sheet) return false;
+
+  const data = sheet.getDataRange().getValues();
+  const headerIndex = findHeaderRowIndex(data, 'Balance History');
+  if (headerIndex === -1) return false;
+
+  const headers = data[headerIndex];
+  const dateCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'date');
+  const institutionCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'institution');
+  const accountCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'account');
+  const balanceCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'balance');
+  const accountIdCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'account_id' || String(h || '').toLowerCase().trim() === 'account id');
+  const classCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'class');
+  const typeCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'type');
+
+  const newRow = new Array(headers.length).fill('');
+  const now = new Date();
+
+  if (dateCol !== -1) newRow[dateCol] = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+  if (institutionCol !== -1) newRow[institutionCol] = institution;
+  if (accountCol !== -1) newRow[accountCol] = accountName;
+  if (balanceCol !== -1) newRow[balanceCol] = balance;
+  if (accountIdCol !== -1) newRow[accountIdCol] = accountId;
+  if (classCol !== -1) newRow[classCol] = accountClass || 'Asset';
+  if (typeCol !== -1) newRow[typeCol] = accountType || 'Investment';
+
+  sheet.appendRow(newRow);
   return true;
 }

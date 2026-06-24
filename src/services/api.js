@@ -72,3 +72,22 @@ export const updateTransactionCategory = async (transactionId, newCategory) => {
   await delay(400);
   return { success: true, transactionId, newCategory };
 };
+
+export const updateAccountBalance = async ({ accountName, institution, balance, accountId, accountClass, accountType }) => {
+  const url = getApiUrl('updateBalance');
+  if (url) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ accountName, institution, balance, accountId, accountClass, accountType })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update balance (HTTP ${response.status})`);
+    }
+    return await response.json();
+  }
+
+  // Simulate network delay
+  await delay(400);
+  return { success: true, accountName, balance };
+};

@@ -151,7 +151,7 @@ export default function CashFlow() {
         percentage: total > 0 ? (value / total) * 100 : 0
       }))
       .sort((a, b) => b.value - a.value);
-  }, [dateFilteredTransactions, enableCustomSplits]);
+  }, [dateFilteredTransactions, resolvedPartnerAName, resolvedPartnerBName, resolvedPartnerAEmployer, resolvedPartnerBEmployer]);
 
   // Grouped Expense Sources
   const expenseSources = useMemo(() => {

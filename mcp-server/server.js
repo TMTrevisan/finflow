@@ -29,6 +29,11 @@ let snaptradeConsumerKey = process.env.SNAPTRADE_CONSUMER_KEY || '';
 // Config file for SnapTrade User
 const CONFIG_FILE_PATH = path.join(__dirname, 'snaptrade_config.json');
 
+function getUserCacheFilePath(userId) {
+  const safeUserId = String(userId || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(__dirname, `snaptrade_holdings_${safeUserId}_cache.json`);
+}
+
 function saveSnapTradeConfig(config) {
   try {
     const existing = loadSnapTradeConfig() || {};
@@ -109,12 +114,30 @@ function saveHoldingsCache(data) {
   }
 }
 
-async function getSnapTradeHoldings(forceRefresh = false) {
-  const config = await ensureSnapTradeUser();
-  if (!config || !config.userSecret) {
+async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = false) {
+  const userCacheFile = getUserCacheFilePath(config.userId);
+
+  function loadHoldingsCache() {
+    try {
+      if (fs.existsSync(userCacheFile)) {
+        return JSON.parse(fs.readFileSync(userCacheFile, 'utf8'));
+      }
+    } catch (err) {
+      console.error(`[SnapTrade Cache] Error loading holdings cache:`, err.message);
+    }
     return null;
   }
-  const client = getSnapTradeClient();
+
+  function saveHoldingsCache(data) {
+    try {
+      fs.writeFileSync(userCacheFile, JSON.stringify({
+        timestamp: Date.now(),
+        data
+      }, null, 2));
+    } catch (err) {
+      console.error(`[SnapTrade Cache] Error saving holdings cache:`, err.message);
+    }
+  }
 
   // Check cache first
   const cache = loadHoldingsCache();
@@ -123,7 +146,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
     return cache.data;
   }
 
-  if (!client || config.userSecret.includes('mock')) {
+  if (!client || !config.userSecret || config.userSecret.includes('mock')) {
     // Generate mock sandbox holdings
     console.log(`[SnapTrade] Generating mock sandbox holdings.`);
     const mockData = {
@@ -134,7 +157,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
           number: 'FID-401K-123',
           institution_name: 'Fidelity',
           brokerage: { name: 'Fidelity' },
-          balances: { current: 454604.00 }
+          balances: { current: 598605.50, cash: 43021.50 }
         },
         {
           id: 'acc_2',
@@ -142,7 +165,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
           number: 'RH-ROTH-456',
           institution_name: 'Robinhood',
           brokerage: { name: 'Robinhood' },
-          balances: { current: 220900.00 }
+          balances: { current: 225900.00, cash: 5000.00 }
         }
       ],
       positions: [
@@ -187,6 +210,53 @@ async function getSnapTradeHoldings(forceRefresh = false) {
         }
       ]
     };
+
+    // Inject CASH synthetic position for mock
+    mockData.positions.push({
+      account_id: 'acc_1',
+      symbol: { symbol: 'CASH', name: 'Cash Balance' },
+      units: 43021.50,
+      price: 1,
+      value: 43021.50,
+      average_buy_price: 1,
+      total_cost: 43021.50,
+      open_pnl: 0,
+      total_pnl_percent: 0,
+      day_pnl: 0,
+      day_pnl_percent: 0,
+      assetClass: 'Cash & Equivalents',
+      sector: 'Cash',
+      geography: 'United States',
+      is_cash: true
+    });
+    mockData.positions.push({
+      account_id: 'acc_2',
+      symbol: { symbol: 'CASH', name: 'Cash Balance' },
+      units: 5000.00,
+      price: 1,
+      value: 5000.00,
+      average_buy_price: 1,
+      total_cost: 5000.00,
+      open_pnl: 0,
+      total_pnl_percent: 0,
+      day_pnl: 0,
+      day_pnl_percent: 0,
+      assetClass: 'Cash & Equivalents',
+      sector: 'Cash',
+      geography: 'United States',
+      is_cash: true
+    });
+
+    // Populate classifications for standard mock assets
+    mockData.positions.forEach(pos => {
+      if (!pos.assetClass) {
+        const { assetClass, sector, geography } = categorizeSecurity(pos.symbol.name, 'Investment');
+        pos.assetClass = assetClass;
+        pos.sector = sector;
+        pos.geography = geography;
+      }
+    });
+
     saveHoldingsCache(mockData);
     return mockData;
   }
@@ -199,9 +269,23 @@ async function getSnapTradeHoldings(forceRefresh = false) {
       userSecret
     });
     
+    const holdingsResponse = await client.accountInformation.getAllUserHoldings({
+      userId,
+      userSecret
+    });
+
     const accounts = accountsResponse.data || [];
+    const holdings = holdingsResponse.data || [];
     const aggregatedBalances = [];
     const aggregatedPositions = [];
+
+    // Create holdings map by account ID for easy lookup
+    const holdingsMap = new Map();
+    for (const h of holdings) {
+      if (h.account && h.account.id) {
+        holdingsMap.set(h.account.id, h);
+      }
+    }
     
     for (const acc of accounts) {
       const balRes = await client.accountInformation.calculateUserAccountBalances({
@@ -214,34 +298,62 @@ async function getSnapTradeHoldings(forceRefresh = false) {
       });
       
       const balancesData = balRes.data || [];
-      const totalEquity = balancesData.find(b => b.currency?.code === 'USD')?.total?.amount || 0;
+      const usdBalance = balancesData.find(b => b.currency?.code === 'USD');
+      const primaryBalance = usdBalance || balancesData[0];
+      const cash = primaryBalance?.cash || 0;
+      const totalEquity = primaryBalance?.total?.amount || primaryBalance?.amount || cash || 0;
 
-      const posRes = await client.accountInformation.getUserAccountPositions({
-        userId,
-        userSecret,
-        accountId: acc.id
-      }).catch(e => {
-        console.error(`[SnapTrade] Positions call failed for ${acc.name}:`, e.message);
-        return { data: [] };
-      });
+      const hEntry = holdingsMap.get(acc.id);
+      const rawAccPositions = [];
+      if (hEntry) {
+        if (hEntry.positions) {
+          for (const pos of hEntry.positions) {
+            rawAccPositions.push({ ...pos, is_option: false });
+          }
+        }
+        if (hEntry.option_positions) {
+          for (const pos of hEntry.option_positions) {
+            rawAccPositions.push({ ...pos, is_option: true });
+          }
+        }
+      }
 
-      const positions = (posRes.data || []).map(pos => {
+      const positions = rawAccPositions.map(pos => {
         const units = pos.units || 0;
         const price = pos.price || 0;
         const value = pos.value || (units * price) || 0;
+        
+        // P&L calculation handles option vs stock Average Cost basis safely
         const average_buy_price = pos.average_buy_price || pos.average_purchase_price || pos.cost || price;
         const total_cost = average_buy_price * units;
         const open_pnl = pos.open_pnl !== undefined ? pos.open_pnl : (value - total_cost);
         const total_pnl_percent = total_cost > 0 ? (open_pnl / total_cost) * 100 : 0;
-        const day_pnl = pos.day_pnl !== undefined ? pos.day_pnl : (value * 0.005);
+        const day_pnl = pos.day_pnl || 0;
         const day_pnl_percent = value > 0 ? (day_pnl / value) * 100 : 0;
 
-        const ticker = (pos.symbol?.symbol && (typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.symbol : pos.symbol.symbol)) || pos.symbol || '';
-        const name = pos.symbol?.description || 
-                     (pos.symbol?.symbol && (typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.description : '')) || 
-                     ticker || 
-                     'Unknown Security';
-        const { assetClass, sector, geography } = categorizeSecurity(name, acc.name || '');
+        let ticker = '';
+        let name = '';
+        if (pos.symbol && typeof pos.symbol === 'object') {
+          if (pos.symbol.ticker) {
+            ticker = pos.symbol.ticker;
+            name = pos.symbol.description || `Option: ${ticker}`;
+          } else if (pos.symbol.symbol) {
+            ticker = typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.symbol : pos.symbol.symbol;
+            name = pos.symbol.description || (typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.description : '') || ticker;
+          }
+        }
+        if (!ticker) {
+          ticker = typeof pos.symbol === 'string' ? pos.symbol : 'Unknown';
+        }
+        if (!name) {
+          name = ticker || 'Unknown Security';
+        }
+
+        let { assetClass, sector, geography } = categorizeSecurity(name, acc.name || '');
+        if (pos.is_option) {
+          assetClass = 'Alternatives (Options)';
+          sector = 'Derivatives';
+        }
 
         return {
           account_id: acc.id,
@@ -264,14 +376,44 @@ async function getSnapTradeHoldings(forceRefresh = false) {
         };
       });
 
+      const totalPosValue = positions.reduce((sum, p) => sum + p.value, 0);
+      const finalAccountBalance = totalEquity || (cash + totalPosValue) || 0;
+
+      // Inject cash balance as a synthetic position so it is fully captured
+      if (cash > 0) {
+        positions.push({
+          account_id: acc.id,
+          symbol: {
+            symbol: 'CASH',
+            name: 'Cash Balance'
+          },
+          units: cash,
+          price: 1,
+          value: cash,
+          average_buy_price: 1,
+          total_cost: cash,
+          open_pnl: 0,
+          total_pnl_percent: 0,
+          day_pnl: 0,
+          day_pnl_percent: 0,
+          assetClass: 'Cash & Equivalents',
+          sector: 'Cash',
+          geography: 'United States',
+          is_cash: true
+        });
+      }
+
       aggregatedBalances.push({
         id: acc.id,
         name: acc.name,
         number: acc.number,
         institution_name: acc.brokerage?.name || 'Brokerage',
         brokerage: acc.brokerage || { name: 'Brokerage' },
+        sync_status: acc.sync_status || {},
+        last_synced: acc.sync_status?.last_successful_sync || null,
         balances: {
-          current: totalEquity || positions.reduce((sum, p) => sum + p.value, 0) || 0
+          current: finalAccountBalance,
+          cash: cash
         }
       });
       
@@ -290,6 +432,15 @@ async function getSnapTradeHoldings(forceRefresh = false) {
     console.error(`[SnapTrade] Error aggregating holdings:`, errMsg);
     throw new Error(errMsg, { cause: err });
   }
+}
+
+async function getSnapTradeHoldings(forceRefresh = false) {
+  const config = await ensureSnapTradeUser();
+  if (!config || !config.userSecret) {
+    return null;
+  }
+  const client = getSnapTradeClient();
+  return fetchNormalizedSnapTradeHoldings(client, config, forceRefresh);
 }
 
 app.use(cors());
@@ -1352,8 +1503,7 @@ async function handleSaveConfig(req, res) {
       success: true, 
       configured: true, 
       connected: config && !config.userSecret.includes('mock'),
-      userId: config.userId,
-      userSecret: config.userSecret
+      userId: config.userId
     });
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
@@ -1375,8 +1525,7 @@ async function handleCreatePortalUrl(req, res) {
     });
     res.json({ 
       redirectURI: response.data?.redirectURI || response.data,
-      userId: finalConfig.userId,
-      userSecret: finalConfig.userSecret
+      userId: finalConfig.userId
     });
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
@@ -1396,8 +1545,7 @@ async function handleSnapTradeStatus(req, res) {
         configured,
         connected: false,
         connections: [],
-        userId: finalConfig.userId,
-        userSecret: finalConfig.userSecret
+        userId: finalConfig.userId
       });
     }
 
@@ -1424,8 +1572,7 @@ async function handleSnapTradeStatus(req, res) {
       configured,
       connected: connectionsMap.size > 0,
       connections: Array.from(connectionsMap.values()),
-      userId: finalConfig.userId,
-      userSecret: finalConfig.userSecret
+      userId: finalConfig.userId
     });
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
@@ -1442,160 +1589,7 @@ async function handleGetSnapTradeHoldings(req, res) {
   try {
     const { client, config } = getSnapTradeClientAndConfig(req);
     const finalConfig = await ensureSnapTradeUserForClient(client, config);
-
-    // Dynamic cache file based on user
-    const userCacheFile = path.join(__dirname, `snaptrade_holdings_${finalConfig.userId}_cache.json`);
-
-    function loadHoldingsCache() {
-      try {
-        if (fs.existsSync(userCacheFile)) {
-          return JSON.parse(fs.readFileSync(userCacheFile, 'utf8'));
-        }
-      } catch (err) {
-        console.error(`[SnapTrade Cache] Error loading holdings cache:`, err.message);
-      }
-      return null;
-    }
-
-    function saveHoldingsCache(data) {
-      try {
-        fs.writeFileSync(userCacheFile, JSON.stringify({
-          timestamp: Date.now(),
-          data
-        }, null, 2));
-      } catch (err) {
-        console.error(`[SnapTrade Cache] Error saving holdings cache:`, err.message);
-      }
-    }
-
-    const cache = loadHoldingsCache();
-    if (cache && !forceRefresh && (Date.now() - cache.timestamp < CACHE_HOLDINGS_TTL_MS)) {
-      console.log(`[SnapTrade Cache] Returning cached holdings.`);
-      return res.json(cache.data);
-    }
-
-    if (!client || !finalConfig.userSecret || finalConfig.userSecret.includes('mock')) {
-      console.log(`[SnapTrade] Generating mock sandbox holdings.`);
-      const mockData = {
-        accounts: [
-          {
-            id: 'acc_1',
-            name: 'Fidelity 401k',
-            number: 'FID-401K-123',
-            institution_name: 'Fidelity',
-            brokerage: { name: 'Fidelity' },
-            balances: { current: 454604.00 }
-          },
-          {
-            id: 'acc_2',
-            name: 'Robinhood Roth',
-            number: 'RH-ROTH-456',
-            institution_name: 'Robinhood',
-            brokerage: { name: 'Robinhood' },
-            balances: { current: 220900.00 }
-          }
-        ],
-        positions: [
-          {
-            account_id: 'acc_1',
-            symbol: { symbol: 'FXAIX', name: 'Fidelity 500 Index Fund' },
-            units: 1000,
-            price: 454.604,
-            value: 454604.00,
-            average_buy_price: 380.00,
-            total_cost: 380000.00,
-            open_pnl: 74604.00,
-            total_pnl_percent: 19.63,
-            day_pnl: 2250.00,
-            day_pnl_percent: 0.50,
-            assetClass: 'US Equities',
-            sector: 'Technology',
-            geography: 'United States'
-          },
-          {
-            account_id: 'acc_1',
-            symbol: { symbol: 'VTI', name: 'Vanguard Total Stock Market ETF' },
-            units: 500,
-            price: 201.96,
-            value: 100980.00,
-            average_buy_price: 190.00,
-            total_cost: 95000.00,
-            open_pnl: 5980.00,
-            total_pnl_percent: 6.29,
-            day_pnl: -120.00,
-            day_pnl_percent: -0.12,
-            assetClass: 'US Equities',
-            sector: 'Financials',
-            geography: 'United States'
-          }
-        ]
-      };
-      return res.json(mockData);
-    }
-
-    const accResponse = await client.accountInformation.listUserAccounts({
-      userId: finalConfig.userId,
-      userSecret: finalConfig.userSecret
-    });
-
-    const posResponse = await client.accountInformation.getAllUserHoldings({
-      userId: finalConfig.userId,
-      userSecret: finalConfig.userSecret
-    });
-
-    const accounts = accResponse.data || [];
-    const holdings = posResponse.data || [];
-    const positionsRaw = [];
-    for (const h of holdings) {
-      if (h.positions) {
-        for (const pos of h.positions) {
-          positionsRaw.push({
-            ...pos,
-            account_id: pos.account_id || (h.account && h.account.id)
-          });
-        }
-      }
-    }
-
-    const positions = positionsRaw.map(pos => {
-      const uPrice = pos.price || 0;
-      const units = pos.units || 0;
-      const val = pos.value || (units * uPrice);
-      const avgPrice = pos.average_buy_price || pos.average_purchase_price || pos.cost || uPrice;
-      const totalCost = avgPrice * units;
-      const openPnl = val - totalCost;
-      const pnlPercent = totalCost > 0 ? (openPnl / totalCost) * 100 : 0;
-      
-      const ticker = (pos.symbol?.symbol && (typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.symbol : pos.symbol.symbol)) || pos.symbol || '';
-      const name = pos.symbol?.description || 
-                   (pos.symbol?.symbol && (typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.description : '')) || 
-                   ticker || 
-                   'Unknown Security';
-      const sector = categorizeSecurity(name, 'sector');
-      const assetClass = categorizeSecurity(name, 'assetClass');
-      const geography = categorizeSecurity(name, 'geography');
-
-      return {
-        ...pos,
-        symbol: {
-          symbol: ticker || 'Unknown',
-          name
-        },
-        average_buy_price: avgPrice,
-        value: val,
-        total_cost: totalCost,
-        open_pnl: openPnl,
-        total_pnl_percent: pnlPercent,
-        day_pnl: pos.day_pnl || 0,
-        day_pnl_percent: pos.day_pnl_percent || 0,
-        assetClass,
-        sector,
-        geography
-      };
-    });
-
-    const result = { accounts, positions };
-    saveHoldingsCache(result);
+    const result = await fetchNormalizedSnapTradeHoldings(client, finalConfig, forceRefresh);
     res.json(result);
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
@@ -1619,7 +1613,7 @@ async function handleSnapTradeDisconnect(req, res) {
           });
           console.log(`[SnapTrade] Connection ${authorizationId} removed.`);
           
-          const userCacheFile = path.join(__dirname, `snaptrade_holdings_${config.userId}_cache.json`);
+          const userCacheFile = getUserCacheFilePath(config.userId);
           if (fs.existsSync(userCacheFile)) {
             fs.unlinkSync(userCacheFile);
           }
@@ -1651,23 +1645,50 @@ async function handleSnapTradeDisconnect(req, res) {
   }
 }
 
+async function handleClearSnapTradeCache(req, res) {
+  try {
+    const { client, config } = getSnapTradeClientAndConfig(req);
+    let clearedCount = 0;
+    if (config && config.userId) {
+      const userCacheFile = getUserCacheFilePath(config.userId);
+      if (fs.existsSync(userCacheFile)) {
+        fs.unlinkSync(userCacheFile);
+        clearedCount++;
+      }
+      console.log(`[SnapTrade Cache] Cleared cache file for user ${config.userId}`);
+    }
+    if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
+      fs.unlinkSync(HOLDINGS_CACHE_FILE);
+      clearedCount++;
+    }
+    res.json({ success: true, clearedCount, message: 'SnapTrade holdings cache cleared successfully.' });
+  } catch (err) {
+    const errMsg = getSnapTradeErrorMessage(err);
+    console.error(`[SnapTrade] Error clearing holdings cache:`, errMsg);
+    res.status(500).json({ error: errMsg });
+  }
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // SnapTrade endpoints
-app.post('/api/snaptrade/config', handleSaveConfig);
-app.post('/:secretPrefix/api/snaptrade/config', handleSaveConfig);
+app.post('/api/snaptrade/config', authenticate, handleSaveConfig);
+app.post('/:secretPrefix/api/snaptrade/config', authenticate, handleSaveConfig);
 
-app.post('/api/snaptrade/create_portal_url', handleCreatePortalUrl);
-app.post('/:secretPrefix/api/snaptrade/create_portal_url', handleCreatePortalUrl);
+app.post('/api/snaptrade/create_portal_url', authenticate, handleCreatePortalUrl);
+app.post('/:secretPrefix/api/snaptrade/create_portal_url', authenticate, handleCreatePortalUrl);
 
-app.get('/api/snaptrade/status', handleSnapTradeStatus);
-app.get('/:secretPrefix/api/snaptrade/status', handleSnapTradeStatus);
+app.get('/api/snaptrade/status', authenticate, handleSnapTradeStatus);
+app.get('/:secretPrefix/api/snaptrade/status', authenticate, handleSnapTradeStatus);
 
-app.get('/api/snaptrade/holdings', handleGetSnapTradeHoldings);
-app.get('/:secretPrefix/api/snaptrade/holdings', handleGetSnapTradeHoldings);
+app.get('/api/snaptrade/holdings', authenticate, handleGetSnapTradeHoldings);
+app.get('/:secretPrefix/api/snaptrade/holdings', authenticate, handleGetSnapTradeHoldings);
 
-app.post('/api/snaptrade/disconnect', handleSnapTradeDisconnect);
-app.post('/:secretPrefix/api/snaptrade/disconnect', handleSnapTradeDisconnect);
+app.post('/api/snaptrade/disconnect', authenticate, handleSnapTradeDisconnect);
+app.post('/:secretPrefix/api/snaptrade/disconnect', authenticate, handleSnapTradeDisconnect);
+
+app.post('/api/snaptrade/clear_cache', authenticate, handleClearSnapTradeCache);
+app.post('/:secretPrefix/api/snaptrade/clear_cache', authenticate, handleClearSnapTradeCache);
 
 
 // Health check

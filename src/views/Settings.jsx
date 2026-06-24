@@ -28,6 +28,7 @@ export default function Settings() {
   const { 
     syncData, 
     clearCache, 
+    clearSnapTradeCache,
     loadData, 
     lastSync, 
     transactions = [], 
@@ -79,7 +80,6 @@ export default function Settings() {
   const [clientId, setClientId] = useState(() => safeStorage.getItem('finflow_snaptrade_client_id') || '');
   const [consumerKey, setConsumerKey] = useState(() => safeStorage.getItem('finflow_snaptrade_consumer_key') || '');
   const [userIdInput, setUserIdInput] = useState(() => safeStorage.getItem('finflow_snaptrade_user_id') || '');
-  const [userSecretInput, setUserSecretInput] = useState(() => safeStorage.getItem('finflow_snaptrade_user_secret') || '');
   const [showAdvancedSnapTrade, setShowAdvancedSnapTrade] = useState(false);
   const [isSavingKeys, setIsSavingKeys] = useState(false);
 
@@ -87,15 +87,14 @@ export default function Settings() {
     loadSnapTradeData().catch((err) => {
       setSnapTradeMessage({ type: 'error', text: `Failed to load SnapTrade: ${err.message}` });
     });
-  }, []);
+  }, [loadSnapTradeData]);
 
   const getSnapTradeHeaders = () => {
     return {
       'Content-Type': 'application/json',
       'x-snaptrade-client-id': safeStorage.getItem('finflow_snaptrade_client_id') || '',
       'x-snaptrade-consumer-key': safeStorage.getItem('finflow_snaptrade_consumer_key') || '',
-      'x-snaptrade-user-id': safeStorage.getItem('finflow_snaptrade_user_id') || '',
-      'x-snaptrade-user-secret': safeStorage.getItem('finflow_snaptrade_user_secret') || ''
+      'x-snaptrade-user-id': safeStorage.getItem('finflow_snaptrade_user_id') || ''
     };
   };
 
@@ -112,14 +111,13 @@ export default function Settings() {
       if (!response.ok) throw new Error('Failed to generate connection portal URL');
       const data = await response.json();
       
-      if (data.userId && data.userSecret) {
+      if (data.userId) {
         safeStorage.setItem('finflow_snaptrade_user_id', data.userId);
-        safeStorage.setItem('finflow_snaptrade_user_secret', data.userSecret);
       }
 
       if (data.redirectURI) {
         setSnapTradeMessage({ type: 'info', text: 'Opening SnapTrade Connection Portal. Please complete the login in the new tab.' });
-        logSync('Opening SnapTrade Connection Portal URI...', 'info', data.redirectURI);
+        logSync('Opening SnapTrade Connection Portal...', 'info', 'Portal URL generated');
         window.open(data.redirectURI, '_blank');
         
         // Wait a few seconds then check/poll status
@@ -176,19 +174,16 @@ export default function Settings() {
         body: JSON.stringify({ 
           clientId: clientId.trim(), 
           consumerKey: consumerKey.trim(),
-          userId: userIdInput.trim(),
-          userSecret: userSecretInput.trim()
+          userId: userIdInput.trim()
         })
       });
       const data = await response.json();
       if (response.ok && data.success) {
         safeStorage.setItem('finflow_snaptrade_client_id', clientId.trim());
         safeStorage.setItem('finflow_snaptrade_consumer_key', consumerKey.trim());
-        if (data.userId && data.userSecret) {
+        if (data.userId) {
           safeStorage.setItem('finflow_snaptrade_user_id', data.userId);
-          safeStorage.setItem('finflow_snaptrade_user_secret', data.userSecret);
           setUserIdInput(data.userId);
-          setUserSecretInput(data.userSecret);
         }
         logSync('SnapTrade keys registered and user initialized successfully', 'success', `userId: ${data.userId}`);
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade credentials saved and initialized successfully!' });
@@ -206,9 +201,7 @@ export default function Settings() {
 
   const handleResetUserSession = () => {
     safeStorage.removeItem('finflow_snaptrade_user_id');
-    safeStorage.removeItem('finflow_snaptrade_user_secret');
     setUserIdInput('');
-    setUserSecretInput('');
     setSnapTradeMessage({ type: 'success', text: 'User session reset. Click "Save & Initialize Keys" to register a new user ID.' });
     loadSnapTradeData().catch(() => {});
   };
@@ -228,7 +221,6 @@ export default function Settings() {
         safeStorage.removeItem('finflow_snaptrade_client_id');
         safeStorage.removeItem('finflow_snaptrade_consumer_key');
         safeStorage.removeItem('finflow_snaptrade_user_id');
-        safeStorage.removeItem('finflow_snaptrade_user_secret');
         setClientId('');
         setConsumerKey('');
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade connection removed successfully.' });
@@ -346,6 +338,7 @@ export default function Settings() {
   const [isMobile, setIsMobile] = useState(false);
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
   const [isConfirmingClearCache, setIsConfirmingClearCache] = useState(false);
+  const [isConfirmingClearSnapTradeCache, setIsConfirmingClearSnapTradeCache] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
@@ -358,13 +351,14 @@ export default function Settings() {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         setIsConfirmingClearCache(false);
+        setIsConfirmingClearSnapTradeCache(false);
       }
     };
-    if (isConfirmingClearCache) {
+    if (isConfirmingClearCache || isConfirmingClearSnapTradeCache) {
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isConfirmingClearCache]);
+  }, [isConfirmingClearCache, isConfirmingClearSnapTradeCache]);
 
 
   // Biometrics state
@@ -421,6 +415,7 @@ export default function Settings() {
     // Estimate bytes (utf-16 characters = 2 bytes)
     const kb = (charCount * 2) / 1024;
     return kb.toFixed(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactions, categories, balances]);
 
   const handleSaveUrl = async () => {
@@ -1376,7 +1371,7 @@ export default function Settings() {
                       onClick={() => setShowAdvancedSnapTrade(!showAdvancedSnapTrade)}
                       className="text-[9px] font-bold text-slate-500 hover:text-slate-350 transition-colors uppercase tracking-wider"
                     >
-                      {showAdvancedSnapTrade ? 'Hide Advanced' : 'Show Advanced (User ID / Secret)'}
+                      {showAdvancedSnapTrade ? 'Hide Advanced' : 'Show Advanced (User ID)'}
                     </button>
                   </div>
 
@@ -1389,16 +1384,6 @@ export default function Settings() {
                           value={userIdInput}
                           onChange={(e) => setUserIdInput(e.target.value)}
                           placeholder="Paste existing User ID to reuse connection"
-                          className="w-full bg-obsidian-950/80 border border-obsidian-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-neon-indigo/50 font-mono"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">SnapTrade User Secret (Optional)</label>
-                        <input
-                          type="password"
-                          value={userSecretInput}
-                          onChange={(e) => setUserSecretInput(e.target.value)}
-                          placeholder="Paste existing User Secret"
                           className="w-full bg-obsidian-950/80 border border-obsidian-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-neon-indigo/50 font-mono"
                         />
                       </div>
@@ -1560,51 +1545,95 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-            <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Transactions</span>
-              <span className="text-xl font-bold text-white">{transactionCount} rows</span>
+          {/* Stats Section */}
+          <div className="space-y-4">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Google Sheets Cache Database</span>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Transactions</span>
+                  <span className="text-xl font-bold text-white">{transactionCount} rows</span>
+                </div>
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Categories</span>
+                  <span className="text-xl font-bold text-white">{categoryCount} items</span>
+                </div>
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Merchants</span>
+                  <span className="text-xl font-bold text-white">{uniqueMerchantsCount} items</span>
+                </div>
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Inst. Accounts</span>
+                  <span className="text-xl font-bold text-white">{institutionAccountCount} accounts</span>
+                </div>
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cache Size</span>
+                  <span className="text-xl font-bold text-white">{cacheSizeEstimate} KB</span>
+                </div>
+              </div>
             </div>
-            <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Categories</span>
-              <span className="text-xl font-bold text-white">{categoryCount} items</span>
-            </div>
-            <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Merchants/Vendors</span>
-              <span className="text-xl font-bold text-white">{uniqueMerchantsCount} items</span>
-            </div>
-            <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Inst. Accounts</span>
-              <span className="text-xl font-bold text-white">{institutionAccountCount} accounts</span>
-            </div>
-            <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cache Size</span>
-              <span className="text-xl font-bold text-white">{cacheSizeEstimate} KB</span>
+
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-2">SnapTrade Brokerage Cache Database</span>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Brokerage Connections</span>
+                  <span className="text-xl font-bold text-white">{snapTradeStatus.connections?.length || 0} links</span>
+                </div>
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Sync Accounts</span>
+                  <span className="text-xl font-bold text-white">{snapTradeHoldings?.accounts?.length || 0} accounts</span>
+                </div>
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Equity Positions</span>
+                  <span className="text-xl font-bold text-white">
+                    {snapTradeHoldings?.positions?.filter(p => p.symbol?.symbol !== 'CASH' && p.assetClass !== 'Alternatives (Options)')?.length || 0} items
+                  </span>
+                </div>
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Option Positions</span>
+                  <span className="text-xl font-bold text-white">
+                    {snapTradeHoldings?.positions?.filter(p => p.assetClass === 'Alternatives (Options)')?.length || 0} items
+                  </span>
+                </div>
+                <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cash Entries</span>
+                  <span className="text-xl font-bold text-white">
+                    {snapTradeHoldings?.positions?.filter(p => p.symbol?.symbol === 'CASH')?.length || 0} items
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Last Sync */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-obsidian-800/40 border border-obsidian-850 rounded-2xl">
             <div>
-              <p className="text-xs font-semibold text-slate-400">Last Database Sync Time</p>
-              <p className="text-sm font-bold text-slate-100 mt-0.5">{formatLastSync(lastSync)}</p>
+              <p className="text-xs font-semibold text-slate-400">Database & Brokerage Sync</p>
+              <p className="text-sm font-bold text-slate-100 mt-0.5">Last Sheets Sync: {formatLastSync(lastSync)}</p>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setIsConfirmingClearCache(true)}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-neon-crimson/10 border border-neon-crimson/25 hover:bg-neon-crimson/25 text-neon-crimson rounded-xl text-xs font-bold transition-colors"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-neon-crimson/10 border border-neon-crimson/25 hover:bg-neon-crimson/25 text-neon-crimson rounded-xl text-xs font-bold transition-colors cursor-pointer"
               >
                 <Trash2 size={14} />
-                <span>Clear Cache</span>
+                <span>Clear Sheets Cache</span>
+              </button>
+              <button
+                onClick={() => setIsConfirmingClearSnapTradeCache(true)}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-neon-crimson/10 border border-neon-crimson/25 hover:bg-neon-crimson/25 text-neon-crimson rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                <Trash2 size={14} />
+                <span>Clear Brokerage Cache</span>
               </button>
               <button
                 onClick={() => loadData(true)}
                 disabled={isSyncing}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-600 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-600 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
               >
                 <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
-                <span>Force Refetch</span>
+                <span>Force Refetch Sheets</span>
               </button>
             </div>
           </div>
@@ -1690,12 +1719,12 @@ export default function Settings() {
               <div className="flex items-center space-x-3 mb-4 text-neon-crimson">
                 <AlertTriangle size={24} />
                 <h3 id="clear-cache-title" className="text-lg font-bold text-white font-display">
-                  Clear Cached Data?
+                  Clear Sheets Cached Data?
                 </h3>
               </div>
               
               <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-                You are about to clear the offline sync database cache. This is a safe action, but please review what will be deleted versus what remains intact.
+                You are about to clear the offline sync spreadsheet database cache. This is a safe action, but please review what will be deleted versus what remains intact.
               </p>
 
               <div className="space-y-3 mb-6">
@@ -1719,6 +1748,7 @@ export default function Settings() {
                   </span>
                   <ul className="text-slate-300 text-xs list-disc pl-4 space-y-1">
                     <li>Google Apps Script Connection URL</li>
+                    <li>SnapTrade Brokerage Keys &amp; Session Credentials</li>
                     <li>Gemini AI API Key</li>
                     <li>PIN Shield &amp; Biometric settings</li>
                   </ul>
@@ -1728,7 +1758,7 @@ export default function Settings() {
               <div className="flex space-x-3 justify-end">
                 <button
                   onClick={() => setIsConfirmingClearCache(false)}
-                  className="px-4 py-2 bg-obsidian-800 border border-obsidian-750 text-slate-350 hover:text-white rounded-xl text-xs font-bold transition-all"
+                  className="px-4 py-2 bg-obsidian-800 border border-obsidian-750 text-slate-350 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1737,9 +1767,89 @@ export default function Settings() {
                     clearCache();
                     setIsConfirmingClearCache(false);
                   }}
-                  className="px-4 py-2 bg-neon-crimson hover:bg-neon-crimson-hover text-white text-xs font-bold rounded-xl transition-all shadow-md"
+                  className="px-4 py-2 bg-neon-crimson hover:bg-neon-crimson-hover text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer"
                 >
-                  Clear Cache
+                  Clear Sheets Cache
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {isConfirmingClearSnapTradeCache && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsConfirmingClearSnapTradeCache(false)}
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            />
+            
+            {/* Modal Card */}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="clear-snaptrade-cache-title"
+              className="relative bg-obsidian-900 border border-obsidian-750 rounded-3xl p-6 shadow-2xl max-w-md w-full overflow-hidden z-10 text-left"
+            >
+              <div className="flex items-center space-x-3 mb-4 text-neon-crimson">
+                <AlertTriangle size={24} />
+                <h3 id="clear-snaptrade-cache-title" className="text-lg font-bold text-white font-display">
+                  Clear Brokerage Cache?
+                </h3>
+              </div>
+              
+              <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                You are about to clear the offline holdings and balances cache retrieved from SnapTrade. This is a safe action, but please review what will be deleted versus what remains intact.
+              </p>
+
+              <div className="space-y-3 mb-6">
+                {/* What is cleared */}
+                <div className="bg-neon-crimson/5 border border-neon-crimson/15 p-3 rounded-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neon-crimson block mb-1">
+                    Will Be Cleared
+                  </span>
+                  <ul className="text-slate-300 text-xs list-disc pl-4 space-y-1">
+                    <li>Cached brokerage holdings ({snapTradeHoldings?.positions?.filter(p => p.symbol?.symbol !== 'CASH' && p.assetClass !== 'Alternatives (Options)')?.length || 0} positions)</li>
+                    <li>Cached option positions ({snapTradeHoldings?.positions?.filter(p => p.assetClass === 'Alternatives (Options)')?.length || 0} contracts)</li>
+                    <li>Cached cash holdings and individual balances</li>
+                    <li>Offline holdings JSON cache files on the server</li>
+                  </ul>
+                </div>
+
+                {/* What remains */}
+                <div className="bg-neon-indigo/5 border border-neon-indigo/15 p-3 rounded-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neon-indigo block mb-1">
+                    Remains Safe &amp; Intact
+                  </span>
+                  <ul className="text-slate-300 text-xs list-disc pl-4 space-y-1">
+                    <li>SnapTrade Client ID &amp; Consumer Key credentials</li>
+                    <li>User ID &amp; User Secret tokens (Brokerage links remain active)</li>
+                    <li>Google Sheets synced transactions cache</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex space-x-3 justify-end">
+                <button
+                  onClick={() => setIsConfirmingClearSnapTradeCache(false)}
+                  className="px-4 py-2 bg-obsidian-800 border border-obsidian-750 text-slate-350 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    await clearSnapTradeCache();
+                    setIsConfirmingClearSnapTradeCache(false);
+                  }}
+                  className="px-4 py-2 bg-neon-crimson hover:bg-neon-crimson-hover text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer"
+                >
+                  Clear Brokerage Cache
                 </button>
               </div>
             </motion.div>

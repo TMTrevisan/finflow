@@ -190,7 +190,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       totalExpense,
       totalSavings
     };
-  }, [filteredTxns, enableCustomSplits, resolvedPartnerAName, resolvedPartnerBName, resolvedPartnerAEmployer, resolvedPartnerBEmployer]);
+  }, [filteredTxns, resolvedPartnerAName, resolvedPartnerBName, resolvedPartnerAEmployer, resolvedPartnerBEmployer]);
 
   const { incomeMap, groupMap, categoryMap, totalIncome, totalExpense, totalSavings } = flowData;
 
@@ -245,6 +245,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       currentY += Math.max(8, nodeHeight) + 12;
       return node;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomeMap, maxFlow, heightScale, col1X, chartHeight]);
 
   // Column 2: Total Income Pool
@@ -261,6 +262,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       type: 'pool',
       color: '#6366F1'
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalIncome, heightScale, col2X, chartHeight]);
 
   // Column 3: Groups
@@ -297,6 +299,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       currentY += Math.max(8, nodeHeight) + 12;
       return node;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupMap, totalSavings, maxFlow, heightScale, col3X, chartHeight]);
 
   // Column 4: Categories
@@ -361,6 +364,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
     });
 
     return nodes;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [col3Nodes, categoryNodesMap, maxFlow, heightScale, col4X, chartHeight]);
 
   // Compute Ribbons (Links)
@@ -443,6 +447,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
     });
 
     return results;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [col1Nodes, col2Node, col3Nodes, col4Nodes, categoryNodesMap, totalIncome]);
 
   const drawRibbon = (link) => {

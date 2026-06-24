@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { fetchFinData, updateTransactionCategory } from '../services/api';
+import { fetchFinData, updateTransactionCategory, updateAccountBalance } from '../services/api';
 import { MOCK_TRANSACTIONS, MOCK_CATEGORIES, MOCK_BALANCES } from '../services/mockData';
 import { safeStorage } from '../utils/storage';
 import {
@@ -169,7 +169,6 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
       const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
       const localUserId = safeStorage.getItem('finflow_snaptrade_user_id') || '';
-      const localUserSecret = safeStorage.getItem('finflow_snaptrade_user_secret') || '';
 
       if (!localClientId || !localConsumerKey) {
         setSnapTradeStatus({ connected: false, configured: false });
@@ -183,8 +182,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
         'Content-Type': 'application/json',
         'x-snaptrade-client-id': localClientId,
         'x-snaptrade-consumer-key': localConsumerKey,
-        'x-snaptrade-user-id': localUserId,
-        'x-snaptrade-user-secret': localUserSecret
+        'x-snaptrade-user-id': localUserId
       };
 
       const statusUrl = getSnapTradeUrl('api/snaptrade/status');
@@ -198,13 +196,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
       logSync('SnapTrade credentials validated on backend', 'success', `configured: ${statusData.configured}, connected: ${statusData.connected}`);
 
       // If backend registered/resolved new credentials, save them
-      if (statusData.userId && statusData.userSecret) {
-        if (statusData.userId !== localUserId || statusData.userSecret !== localUserSecret) {
-          logSync('Registered new SnapTrade user secret locally', 'info');
+      if (statusData.userId) {
+        if (statusData.userId !== localUserId) {
           safeStorage.setItem('finflow_snaptrade_user_id', statusData.userId);
-          safeStorage.setItem('finflow_snaptrade_user_secret', statusData.userSecret);
           headers['x-snaptrade-user-id'] = statusData.userId;
-          headers['x-snaptrade-user-secret'] = statusData.userSecret;
         }
       }
 
@@ -219,11 +214,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
         });
         if (configRes.ok) {
           const configData = await configRes.json();
-          if (configData.userId && configData.userSecret) {
+          if (configData.userId) {
             safeStorage.setItem('finflow_snaptrade_user_id', configData.userId);
-            safeStorage.setItem('finflow_snaptrade_user_secret', configData.userSecret);
             headers['x-snaptrade-user-id'] = configData.userId;
-            headers['x-snaptrade-user-secret'] = configData.userSecret;
           }
           statusRes = await fetch(statusUrl, { headers });
           if (statusRes.ok) {
@@ -516,6 +509,41 @@ export const AppProvider = ({ children, setCurrentView }) => {
     setBalances(MOCK_BALANCES);
   };
 
+  const clearSnapTradeCache = async () => {
+    try {
+      logSync('finflow snaptrade cache --clear', 'cmd');
+      const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
+      const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
+      const localUserId = safeStorage.getItem('finflow_snaptrade_user_id') || '';
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-snaptrade-client-id': localClientId,
+        'x-snaptrade-consumer-key': localConsumerKey,
+        'x-snaptrade-user-id': localUserId
+      };
+
+      const url = getSnapTradeUrl('api/snaptrade/clear_cache');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Clear cache failed (HTTP ${res.status})`);
+      }
+
+      logSync('SnapTrade holdings cache cleared successfully', 'success');
+      setSnapTradeHoldings(null);
+      await loadSnapTradeData().catch(() => {});
+      return true;
+    } catch (err) {
+      logSync('SnapTrade clear cache failed', 'error', err.message);
+      return false;
+    }
+  };
+
   const updateCategory = async (transactionId, newCategory) => {
     // Optimistic update
     setRawTransactions(prev => {
@@ -531,6 +559,44 @@ export const AppProvider = ({ children, setCurrentView }) => {
     } catch (err) {
       console.error("Failed to update category", err);
       loadData();
+    }
+  };
+
+  const updateBalance = async ({ accountName, institution, balance, accountId, accountClass, accountType }) => {
+    // Optimistic update
+    setBalances(prev => {
+      const nowStr = new Date().toISOString().split('T')[0];
+      const updated = [...prev];
+      const matchIndex = updated.findIndex(b => b.account === accountName && b.institution === institution);
+      const newEntry = {
+        id: `reconciled_${Date.now()}`,
+        date: nowStr,
+        institution,
+        account: accountName,
+        account_id: accountId || '',
+        balance: parseFloat(balance),
+        class: accountClass || 'Asset',
+        type: accountType || 'Investment'
+      };
+      
+      if (matchIndex !== -1) {
+        updated[matchIndex] = { ...updated[matchIndex], ...newEntry };
+      } else {
+        updated.push(newEntry);
+      }
+      safeSetItem('finflow_cache_balances', compressBalances(updated));
+      return updated;
+    });
+
+    try {
+      await updateAccountBalance({ accountName, institution, balance, accountId, accountClass, accountType });
+      logSync(`Reconciled balance for ${accountName} to $${balance.toLocaleString()}`, 'success');
+      return true;
+    } catch (err) {
+      console.error("Failed to update balance in Sheets", err);
+      logSync(`Reconcile failed for ${accountName}: ${err.message}`, 'error');
+      loadData();
+      return false;
     }
   };
 
@@ -766,6 +832,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -791,6 +858,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       clearCache,
       loadData,
       updateCategory,
+      updateBalance,
       useCalendarToday,
       setUseCalendarToday: handleSetUseCalendarToday,
       enableCustomSplits,
@@ -817,6 +885,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       snapTradeHoldings,
       loadSnapTradeData,
       getSnapTradeUrl,
+      clearSnapTradeCache,
       forceMock,
       setForceMock: handleSetForceMock
     }}>
