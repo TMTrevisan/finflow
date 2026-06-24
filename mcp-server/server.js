@@ -236,13 +236,17 @@ async function getSnapTradeHoldings(forceRefresh = false) {
         const day_pnl = pos.day_pnl !== undefined ? pos.day_pnl : (value * 0.005);
         const day_pnl_percent = value > 0 ? (day_pnl / value) * 100 : 0;
 
-        const name = pos.symbol?.description || pos.symbol?.symbol || 'Unknown Security';
+        const ticker = (pos.symbol?.symbol && (typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.symbol : pos.symbol.symbol)) || pos.symbol || '';
+        const name = pos.symbol?.description || 
+                     (pos.symbol?.symbol && (typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.description : '')) || 
+                     ticker || 
+                     'Unknown Security';
         const { assetClass, sector, geography } = categorizeSecurity(name, acc.name || '');
 
         return {
           account_id: acc.id,
           symbol: {
-            symbol: pos.symbol?.symbol || 'Unknown',
+            symbol: ticker || 'Unknown',
             name
           },
           units,
@@ -463,7 +467,7 @@ const TOOLS = [
 
 // Helper to determine asset class / sector / geography allocations based on account name or category
 function categorizeSecurity(securityName = '', accountType = '') {
-  const name = securityName.toLowerCase();
+  const name = String(securityName || '').toLowerCase();
   
   let assetClass = 'US Equities';
   let sector = 'Technology';
@@ -1562,13 +1566,21 @@ async function handleGetSnapTradeHoldings(req, res) {
       const openPnl = val - totalCost;
       const pnlPercent = totalCost > 0 ? (openPnl / totalCost) * 100 : 0;
       
-      const symbolText = pos.symbol?.symbol || '';
-      const sector = categorizeSecurity(symbolText, 'sector');
-      const assetClass = categorizeSecurity(symbolText, 'assetClass');
-      const geography = categorizeSecurity(symbolText, 'geography');
+      const ticker = (pos.symbol?.symbol && (typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.symbol : pos.symbol.symbol)) || pos.symbol || '';
+      const name = pos.symbol?.description || 
+                   (pos.symbol?.symbol && (typeof pos.symbol.symbol === 'object' ? pos.symbol.symbol.description : '')) || 
+                   ticker || 
+                   'Unknown Security';
+      const sector = categorizeSecurity(name, 'sector');
+      const assetClass = categorizeSecurity(name, 'assetClass');
+      const geography = categorizeSecurity(name, 'geography');
 
       return {
         ...pos,
+        symbol: {
+          symbol: ticker || 'Unknown',
+          name
+        },
         value: val,
         total_cost: totalCost,
         open_pnl: openPnl,
