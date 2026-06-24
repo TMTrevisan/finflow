@@ -1691,7 +1691,6 @@ export default function Settings() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleCopyLogs}
-                  type="button"
                   className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-obsidian-850 border border-obsidian-750 text-[10px] font-bold text-slate-300 hover:text-white hover:border-neon-indigo/50 transition-colors"
                 >
                   <Copy size={12} />
@@ -1702,7 +1701,6 @@ export default function Settings() {
                     safeStorage.setItem('finflow_sync_logs', JSON.stringify([]));
                     setSyncLogs([]);
                   }}
-                  type="button"
                   className="px-2.5 py-1.5 rounded-lg bg-obsidian-850 border border-obsidian-750 text-[10px] font-bold text-slate-500 hover:text-neon-crimson transition-colors"
                 >
                   Clear logs

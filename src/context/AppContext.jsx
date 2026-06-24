@@ -160,8 +160,6 @@ export const AppProvider = ({ children, setCurrentView }) => {
   const [snapTradeError, setSnapTradeError] = useState(null);
 
   const snapTradeLoadPromiseRef = useRef(null);
-  const lastSnapTradeLoadAtRef = useRef(0);
-  const lastSnapTradeLoadResultRef = useRef(null);
 
   const getSnapTradeUrl = useCallback((path) => {
     const rawUrl = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
@@ -176,14 +174,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     return `${cleanUrl}/${path}`;
   }, []);
 
-  const loadSnapTradeData = useCallback(async (options = {}) => {
-    const force = options?.force === true;
-    const now = Date.now();
-    if (!force && lastSnapTradeLoadResultRef.current && now - lastSnapTradeLoadAtRef.current < 15000) {
-      logSync('SnapTrade sync recently completed; reusing local holdings cache', 'info');
-      return lastSnapTradeLoadResultRef.current;
-    }
-
+  const loadSnapTradeData = useCallback(async () => {
     if (snapTradeLoadPromiseRef.current) {
       logSync('SnapTrade sync already in progress; joining existing request', 'info');
       return snapTradeLoadPromiseRef.current;
