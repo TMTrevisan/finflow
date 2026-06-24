@@ -3,19 +3,24 @@ import { motion } from 'framer-motion';
 import { 
   LayoutDashboard, ReceiptText, PieChart, Waves, ArrowDownRight, 
   ArrowUpRight, Settings, Table, Calendar, Sparkles, CalendarRange, 
-  Compass, Landmark 
+  Compass, Landmark, Briefcase
 } from 'lucide-react';
 import { haptics } from '../../utils/haptics';
 import { useAppContext } from '../../context/AppContext';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'wealth', label: 'Wealth & Portfolio', icon: Landmark },
+  { id: 'accounts', label: 'Accounts', icon: Landmark },
+  { id: 'wealth', label: 'Wealth & Portfolio', icon: Briefcase },
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
-  { id: 'cashflow', label: 'Cash Flow', icon: Waves },
-  { id: 'reports', label: 'Financial Reports', icon: Table },
+  { id: 'budgets', label: 'Budgets', icon: PieChart },
+  { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange },
+  { id: 'sankey', label: 'Sankey Flow', icon: Waves },
+  { id: 'spending', label: 'Spending', icon: ArrowDownRight },
+  { id: 'income', label: 'Income', icon: ArrowUpRight },
+  { id: 'plreport', label: 'P&L Report', icon: Table },
+  { id: 'yearly', label: 'Yearly Insights', icon: Calendar },
   { id: 'assistant', label: 'Copilot AI', icon: Sparkles },
-  { id: 'insights', label: 'Insights Compass', icon: Compass },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 

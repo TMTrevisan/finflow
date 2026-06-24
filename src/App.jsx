@@ -27,6 +27,16 @@ const Assistant = safeLazy(() => import('./views/Assistant'));
 const Insights = safeLazy(() => import('./views/Insights'));
 const Settings = safeLazy(() => import('./views/Settings'));
 
+// Standalone Google Sheets views restored
+const Accounts = safeLazy(() => import('./views/Accounts'));
+const Spending = safeLazy(() => import('./views/Spending'));
+const Income = safeLazy(() => import('./views/Income'));
+const Budgets = safeLazy(() => import('./views/Budgets'));
+const CashFlow = safeLazy(() => import('./views/CashFlow'));
+const PLReport = safeLazy(() => import('./views/PLReport'));
+const YearlyInsights = safeLazy(() => import('./views/YearlyInsights'));
+const Subscriptions = safeLazy(() => import('./views/Subscriptions'));
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-full w-full min-h-[300px]">
     <div className="flex flex-col items-center space-y-3">
@@ -41,7 +51,8 @@ function App() {
     const hash = window.location.hash.replace('#', '');
     const validViews = [
       'dashboard', 'wealth', 'transactions', 'cashflow', 'reports', 
-      'assistant', 'insights', 'settings'
+      'assistant', 'insights', 'settings', 'accounts', 'spending',
+      'income', 'budgets', 'subscriptions', 'sankey', 'plreport', 'yearly'
     ];
     return validViews.includes(hash) ? hash : 'dashboard';
   };
@@ -59,7 +70,8 @@ function App() {
       const hash = window.location.hash.replace('#', '');
       const validViews = [
         'dashboard', 'wealth', 'transactions', 'cashflow', 'reports', 
-        'assistant', 'insights', 'settings'
+        'assistant', 'insights', 'settings', 'accounts', 'spending',
+        'income', 'budgets', 'subscriptions', 'sankey', 'plreport', 'yearly'
       ];
       if (validViews.includes(hash) && hash !== currentView) {
         setCurrentView(hash);
@@ -80,6 +92,17 @@ function App() {
       case 'assistant': return <Assistant />;
       case 'insights': return <Insights />;
       case 'settings': return <Settings />;
+      
+      // Standalone views
+      case 'accounts': return <Accounts setCurrentView={setCurrentView} />;
+      case 'spending': return <Spending />;
+      case 'income': return <Income />;
+      case 'budgets': return <Budgets setCurrentView={setCurrentView} />;
+      case 'subscriptions': return <Subscriptions />;
+      case 'sankey': return <CashFlow />;
+      case 'plreport': return <PLReport />;
+      case 'yearly': return <YearlyInsights />;
+      
       default: return <Dashboard setCurrentView={setCurrentView} />;
     }
   };

@@ -872,7 +872,7 @@ export default function Wealth({ setCurrentView }) {
                     : 'text-slate-500 border-transparent hover:text-slate-350'
                 }`}
               >
-                {tab === 'assetClass' ? 'Asset Class' : tab === 'sector' ? 'US sectors' : 'Geography'}
+                {tab === 'assetClass' ? 'Asset Class' : tab === 'sector' ? 'US sectors' : 'Location'}
               </button>
             ))}
           </div>
@@ -1088,7 +1088,7 @@ export default function Wealth({ setCurrentView }) {
                 <Card className="bg-obsidian-900 border border-obsidian-750 p-6 flex flex-col items-center justify-center flex-1">
                   <h3 className="font-bold text-white text-base self-start mb-6 flex items-center space-x-2">
                     <Briefcase size={16} className="text-neon-indigo" />
-                    <span>Geography Allocation</span>
+                    <span>Location Allocation</span>
                   </h3>
                   
                   {(() => {

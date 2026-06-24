@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, ReceiptText, Sparkles, MoreHorizontal, X,
   PieChart, Waves, ArrowDownRight, ArrowUpRight, Settings, Table,
-  Calendar, CalendarRange, Compass, Landmark 
+  Calendar, CalendarRange, Compass, Landmark, Briefcase
 } from 'lucide-react';
 import { haptics } from '../../utils/haptics';
 
 const PRIMARY_NAV = [
   { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
-  { id: 'wealth', label: 'Wealth', icon: Landmark },
+  { id: 'wealth', label: 'Wealth', icon: Briefcase },
   { id: 'transactions', label: 'Txns', icon: ReceiptText },
   { id: 'assistant', label: 'Copilot', icon: Sparkles },
   { id: 'more', label: 'More', icon: MoreHorizontal },
@@ -17,16 +17,28 @@ const PRIMARY_NAV = [
 
 const MORE_SECTIONS = [
   {
-    label: 'Analytics',
+    label: 'Overview & Portfolio',
     items: [
-      { id: 'cashflow', label: 'Cash Flow', icon: Waves, desc: 'Budgets & subscription hubs' },
-      { id: 'reports', label: 'Reports', icon: Table, desc: 'Profit & Loss & yearly comparison' },
-      { id: 'insights', label: 'Insights', icon: Compass, desc: 'Trends & life optimization' },
+      { id: 'accounts', label: 'Accounts', icon: Landmark, desc: 'Google Sheets accounts ledger' },
+      { id: 'wealth', label: 'Wealth', icon: Briefcase, desc: 'Brokerage investment holdings' },
     ]
   },
   {
-    label: 'Tools',
+    label: 'Cash & Budgets',
     items: [
+      { id: 'budgets', label: 'Budgets', icon: PieChart, desc: 'Rollovers & limits' },
+      { id: 'sankey', label: 'Sankey Flow', icon: Waves, desc: 'Income vs expense flowchart' },
+      { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange, desc: 'Recurring costs tracker' },
+      { id: 'spending', label: 'Spending', icon: ArrowDownRight, desc: 'Outflow category breakdown' },
+      { id: 'income', label: 'Income', icon: ArrowUpRight, desc: 'Inflow category breakdown' },
+    ]
+  },
+  {
+    label: 'Reports & Analytics',
+    items: [
+      { id: 'plreport', label: 'P&L Report', icon: Table, desc: 'Monthly cashflow grid' },
+      { id: 'yearly', label: 'Yearly Insights', icon: Calendar, desc: 'Year-over-year sheets' },
+      { id: 'insights', label: 'Insights Compass', icon: Compass, desc: 'AI life optimizations' },
       { id: 'settings', label: 'Settings', icon: Settings, desc: 'App configuration' },
     ]
   }

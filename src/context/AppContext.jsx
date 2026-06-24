@@ -169,15 +169,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
       const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
       const localUserId = safeStorage.getItem('finflow_snaptrade_user_id') || '';
+      const isForcedMock = safeStorage.getItem('finflow_force_mock') === 'true';
 
-      if (!localClientId || !localConsumerKey) {
-        setSnapTradeStatus({ connected: false, configured: false });
-        setSnapTradeHoldings(null);
-        return null;
-      }
-
-      logSync('Connecting to SnapTrade backend...', 'info');
-      
       const headers = {
         'Content-Type': 'application/json',
         'x-snaptrade-client-id': localClientId,
@@ -186,49 +179,44 @@ export const AppProvider = ({ children, setCurrentView }) => {
       };
 
       const statusUrl = getSnapTradeUrl('api/snaptrade/status');
-      let statusRes = await fetch(statusUrl, { headers });
-      if (!statusRes.ok) {
-        const errData = await statusRes.json().catch(() => ({}));
-        throw new Error(errData.error || `Status failed (HTTP ${statusRes.status})`);
-      }
-      let statusData = await statusRes.json();
+      let statusData = { connected: false, configured: false };
 
-      logSync('SnapTrade credentials validated on backend', 'success', `configured: ${statusData.configured}, connected: ${statusData.connected}`);
-
-      // If backend registered/resolved new credentials, save them
-      if (statusData.userId) {
-        if (statusData.userId !== localUserId) {
-          safeStorage.setItem('finflow_snaptrade_user_id', statusData.userId);
-          headers['x-snaptrade-user-id'] = statusData.userId;
-        }
-      }
-
-      // Dynamic backend self-healing configuration check
-      if (!statusData.configured && localClientId && localConsumerKey) {
-        logSync('Backend client not configured. Re-initializing config...', 'info');
-        const configUrl = getSnapTradeUrl('api/snaptrade/config');
-        const configRes = await fetch(configUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ clientId: localClientId, consumerKey: localConsumerKey })
-        });
-        if (configRes.ok) {
-          const configData = await configRes.json();
-          if (configData.userId) {
-            safeStorage.setItem('finflow_snaptrade_user_id', configData.userId);
-            headers['x-snaptrade-user-id'] = configData.userId;
+      if (localClientId && localConsumerKey) {
+        logSync('Connecting to SnapTrade backend...', 'info');
+        const statusRes = await fetch(statusUrl, { headers });
+        if (statusRes.ok) {
+          statusData = await statusRes.json();
+          logSync('SnapTrade credentials validated on backend', 'success', `configured: ${statusData.configured}, connected: ${statusData.connected}`);
+          
+          if (statusData.userId) {
+            if (statusData.userId !== localUserId) {
+              safeStorage.setItem('finflow_snaptrade_user_id', statusData.userId);
+              headers['x-snaptrade-user-id'] = statusData.userId;
+            }
           }
-          statusRes = await fetch(statusUrl, { headers });
-          if (statusRes.ok) {
-            statusData = await statusRes.json();
-            logSync('Backend auto-configuration succeeded', 'success');
-          } else {
-            const errData = await statusRes.json().catch(() => ({}));
-            throw new Error(errData.error || `Status failed (HTTP ${statusRes.status})`);
+
+          // Dynamic backend self-healing configuration check
+          if (!statusData.configured) {
+            logSync('Backend client not configured. Re-initializing config...', 'info');
+            const configUrl = getSnapTradeUrl('api/snaptrade/config');
+            const configRes = await fetch(configUrl, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ clientId: localClientId, consumerKey: localConsumerKey })
+            });
+            if (configRes.ok) {
+              const configData = await configRes.json();
+              if (configData.userId) {
+                safeStorage.setItem('finflow_snaptrade_user_id', configData.userId);
+                headers['x-snaptrade-user-id'] = configData.userId;
+              }
+              const secondStatusRes = await fetch(statusUrl, { headers });
+              if (secondStatusRes.ok) {
+                statusData = await secondStatusRes.json();
+                logSync('Backend auto-configuration succeeded', 'success');
+              }
+            }
           }
-        } else {
-          const errData = await configRes.json().catch(() => ({}));
-          throw new Error(errData.error || `Configuration failed (HTTP ${configRes.status})`);
         }
       }
 
@@ -237,7 +225,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
         configured: statusData.configured !== undefined ? statusData.configured : !!localClientId
       });
 
-      if (statusData.connected) {
+      // Fetch holdings if connected OR if mock data is requested/active
+      const shouldFetchMock = isForcedMock || (!localClientId || !localConsumerKey);
+
+      if (statusData.connected || shouldFetchMock) {
         logSync('Fetching brokerage investment holdings from SnapTrade...', 'info');
         const holdingsUrl = getSnapTradeUrl('api/snaptrade/holdings');
         const holdingsRes = await fetch(holdingsUrl, { headers });
@@ -250,7 +241,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
         const positionsCount = holdingsData.positions ? holdingsData.positions.length : 0;
         logSync('Brokerage holdings sync complete', 'success', `accounts: ${accountsCount}, positions: ${positionsCount}`);
         
-        if (accountsCount === 0) {
+        if (accountsCount === 0 && !shouldFetchMock) {
           logSync('No connected brokerage accounts found. Go to Settings > SnapTrade to link your brokerage account.', 'info');
         }
         
