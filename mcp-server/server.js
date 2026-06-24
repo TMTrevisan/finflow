@@ -77,14 +77,21 @@ function getSnapTradeClient() {
 // Automatically register a user on startup if not present
 async function ensureSnapTradeUser() {
   let config = loadSnapTradeConfig();
+  const client = getSnapTradeClient();
+  
   if (config && config.userId && config.userSecret) {
-    return config;
+    // If client is initialized, but the saved userSecret is a mock, we must discard it and do a real registration
+    const isMockSecret = config.userSecret.includes('mock');
+    if (isMockSecret && client) {
+      console.log(`[SnapTrade] Discarding mock user credentials to register with real client keys...`);
+    } else {
+      return config;
+    }
   }
   
   const userId = 'finflow_user';
   console.log(`[SnapTrade] Registering default user "${userId}"...`);
   
-  const client = getSnapTradeClient();
   if (!client) {
     config = { userId, userSecret: 'mock-user-secret-12345' };
     saveSnapTradeConfig(config);
