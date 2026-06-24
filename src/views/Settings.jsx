@@ -194,6 +194,15 @@ export default function Settings() {
     }
   };
 
+  const handleResetUserSession = () => {
+    safeStorage.removeItem('finflow_snaptrade_user_id');
+    safeStorage.removeItem('finflow_snaptrade_user_secret');
+    setUserIdInput('');
+    setUserSecretInput('');
+    setSnapTradeMessage({ type: 'success', text: 'User session reset. Click "Save & Initialize Keys" to register a new user ID.' });
+    loadSnapTradeData().catch(() => {});
+  };
+
   const handleSnapTradeDisconnect = async () => {
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Disconnecting SnapTrade connection...' });
@@ -1383,6 +1392,13 @@ export default function Settings() {
                           className="w-full bg-obsidian-950/80 border border-obsidian-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-neon-indigo/50 font-mono"
                         />
                       </div>
+                      <button
+                        type="button"
+                        onClick={handleResetUserSession}
+                        className="w-full mt-1 py-1 bg-neon-crimson/10 hover:bg-neon-crimson/20 border border-neon-crimson/25 text-neon-crimson text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
+                      >
+                        Reset / Clear Local User Session
+                      </button>
                     </div>
                   )}
                   <button
