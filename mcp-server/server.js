@@ -1528,13 +1528,24 @@ async function handleGetSnapTradeHoldings(req, res) {
       userSecret: finalConfig.userSecret
     });
 
-    const posResponse = await client.accountInformation.getUserHoldings({
+    const posResponse = await client.accountInformation.getAllUserHoldings({
       userId: finalConfig.userId,
       userSecret: finalConfig.userSecret
     });
 
     const accounts = accResponse.data || [];
-    const positionsRaw = posResponse.data || [];
+    const holdings = posResponse.data || [];
+    const positionsRaw = [];
+    for (const h of holdings) {
+      if (h.positions) {
+        for (const pos of h.positions) {
+          positionsRaw.push({
+            ...pos,
+            account_id: pos.account_id || (h.account && h.account.id)
+          });
+        }
+      }
+    }
 
     const positions = positionsRaw.map(pos => {
       const uPrice = pos.price || 0;
