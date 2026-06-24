@@ -274,7 +274,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
         return holdingsData;
       } else {
         logSync('SnapTrade is configured, but no brokerages are linked. Generating connection portal is required.', 'info');
-        setSnapTradeHoldings(null);
+        if (!safeStorage.getItem('finflow_cache_snaptrade_holdings')) {
+          setSnapTradeHoldings(null);
+        }
       }
     } catch (err) {
       logSync('SnapTrade sync failed', 'error', err.message);

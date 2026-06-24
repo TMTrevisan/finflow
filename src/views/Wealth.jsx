@@ -673,7 +673,23 @@ export default function Wealth({ setCurrentView }) {
           {/* Full content when holdings exist */}
           {snapTradeHoldings && (
           <div className="space-y-4">
-          {/* Summary Cards */}
+            {snapTradeError && (
+              <div className="p-3 bg-neon-crimson/10 border border-neon-crimson/20 text-neon-crimson text-xs rounded-xl flex items-center justify-between space-x-2 animate-pulse">
+                <div className="flex items-center space-x-2">
+                  <span className="font-bold">⚠️ Warning:</span>
+                  <span>Sync failed ({snapTradeError}). Displaying cached holdings.</span>
+                </div>
+                <button
+                  onClick={handleSyncHoldings}
+                  disabled={snapTradeSyncing}
+                  className="px-2 py-1 bg-neon-crimson/20 hover:bg-neon-crimson/30 border border-neon-crimson/30 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-5">
               <CardContent className="p-0">
