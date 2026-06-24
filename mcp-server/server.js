@@ -1218,10 +1218,11 @@ async function handleSnapTradeStatus(req, res) {
     const connectionsMap = new Map();
     accounts.forEach(acc => {
       const instName = acc.brokerage?.name || 'Brokerage';
+      const authId = acc.brokerageAuthorization?.id || acc.brokerageAuthorization || acc.id;
       if (!connectionsMap.has(instName)) {
         connectionsMap.set(instName, {
           institution_name: instName,
-          item_id: acc.id,
+          item_id: authId,
           last_sync: new Date().toISOString()
         });
       }
@@ -1254,25 +1255,45 @@ async function handleGetSnapTradeHoldings(req, res) {
 
 async function handleSnapTradeDisconnect(req, res) {
   try {
+    const { authorizationId } = req.body;
     const config = loadSnapTradeConfig();
     const client = getSnapTradeClient();
+    
     if (config && config.userId) {
-      if (client && !config.userSecret.includes('mock')) {
-        await client.authentication.deleteSnapTradeUser({
-          userId: config.userId
-        }).catch(e => console.warn('[SnapTrade] Delete user API warning:', e.message));
+      if (authorizationId) {
+        // Delete a SPECIFIC connection
+        if (client && !config.userSecret.includes('mock')) {
+          await client.connections.removeBrokerageAuthorization({
+            authorizationId,
+            userId: config.userId,
+            userSecret: config.userSecret
+          });
+          console.log(`[SnapTrade] Connection ${authorizationId} removed.`);
+          
+          // Clear holdings cache to force refresh
+          if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
+            fs.unlinkSync(HOLDINGS_CACHE_FILE);
+          }
+        }
+      } else {
+        // Delete the ENTIRE user
+        if (client && !config.userSecret.includes('mock')) {
+          await client.authentication.deleteSnapTradeUser({
+            userId: config.userId
+          }).catch(e => console.warn('[SnapTrade] Delete user API warning:', e.message));
+        }
+        if (fs.existsSync(CONFIG_FILE_PATH)) {
+          fs.unlinkSync(CONFIG_FILE_PATH);
+        }
+        if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
+          fs.unlinkSync(HOLDINGS_CACHE_FILE);
+        }
+        // Reset global credentials
+        snaptradeClientId = '';
+        snaptradeConsumerKey = '';
+        snaptradeClient = null;
+        console.log(`[SnapTrade] User configuration reset.`);
       }
-      if (fs.existsSync(CONFIG_FILE_PATH)) {
-        fs.unlinkSync(CONFIG_FILE_PATH);
-      }
-      if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
-        fs.unlinkSync(HOLDINGS_CACHE_FILE);
-      }
-      // Reset global credentials
-      snaptradeClientId = '';
-      snaptradeConsumerKey = '';
-      snaptradeClient = null;
-      console.log(`[SnapTrade] User configuration reset.`);
     }
     res.json({ success: true });
   } catch (err) {

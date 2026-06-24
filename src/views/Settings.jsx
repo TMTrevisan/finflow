@@ -163,6 +163,31 @@ export default function Settings() {
     }
   };
 
+  const handleRemoveConnection = async (authorizationId) => {
+    setSnapTradeSyncing(true);
+    setSnapTradeMessage({ type: 'info', text: 'Removing brokerage connection...' });
+    try {
+      const url = getSnapTradeUrl('api/snaptrade/disconnect');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authorizationId })
+      });
+      if (!response.ok) throw new Error('Failed to remove connection');
+      const result = await response.json();
+      if (result.success) {
+        setSnapTradeMessage({ type: 'success', text: 'Brokerage connection removed successfully.' });
+        await loadSnapTradeData();
+      } else {
+        throw new Error(result.error || 'Failed to remove connection');
+      }
+    } catch (err) {
+      setSnapTradeMessage({ type: 'error', text: `Remove connection failed: ${err.message}` });
+    } finally {
+      setSnapTradeSyncing(false);
+    }
+  };
+
   // URL state
   const [apiUrlInput, setApiUrlInput] = useState(() => {
     return safeStorage.getItem('finflow_api_url') || '';
@@ -1296,6 +1321,14 @@ export default function Settings() {
                           </span>
                         )}
                       </div>
+                      <button
+                        onClick={() => handleRemoveConnection(conn.item_id)}
+                        disabled={snapTradeSyncing}
+                        className="p-1.5 bg-neon-crimson/10 hover:bg-neon-crimson/20 border border-neon-crimson/25 rounded-lg text-neon-crimson transition-colors cursor-pointer"
+                        title="Disconnect Connection"
+                      >
+                        <Trash2 size={12} />
+                      </button>
                     </div>
                   ))}
                   <button
@@ -1304,7 +1337,7 @@ export default function Settings() {
                     className="w-full mt-2 py-2 bg-neon-crimson/10 hover:bg-neon-crimson/20 border border-neon-crimson/25 rounded-xl text-neon-crimson text-xs font-bold transition-colors cursor-pointer flex items-center justify-center space-x-2"
                   >
                     <Trash2 size={12} />
-                    <span>Disconnect All Brokerages</span>
+                    <span>Disconnect All & Reset Keys</span>
                   </button>
                 </div>
               )}
