@@ -659,6 +659,31 @@ const TOOLS = [
         account: { type: 'string', description: 'Filter holdings to a specific investment account name or ID (optional)' }
       }
     }
+  },
+  {
+    name: 'get_brokerage_activities',
+    description: 'Provides a detailed list of historical brokerage transactions/activities (buys, sells, dividends, cash transfers, deposits, interest, fees) from connected SnapTrade accounts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        account: { type: 'string', description: 'Filter activities to a specific account name or ID (optional)' },
+        since_date: { type: 'string', description: 'ISO date string (YYYY-MM-DD) — return activities on or after this date (optional)' },
+        until_date: { type: 'string', description: 'ISO date string (YYYY-MM-DD) — return activities on or before this date (optional)' },
+        limit: { type: 'number', description: 'Max number of results to return (default: 50, max: 200)' }
+      }
+    }
+  },
+  {
+    name: 'get_brokerage_orders',
+    description: 'Provides a list of open, pending, and executed brokerage orders across connected SnapTrade accounts.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        account: { type: 'string', description: 'Filter orders to a specific account name or ID (optional)' },
+        state: { type: 'string', enum: ['all', 'open', 'executed'], description: 'Filter orders by state (default: "all")' },
+        days: { type: 'number', description: 'Number of past days to query orders for (default: 30)' }
+      }
+    }
   }
 ];
 
@@ -878,6 +903,133 @@ async function runTool(toolName, args) {
         count: holdings.length,
         holdings
       };
+    }
+
+    case 'get_brokerage_activities': {
+      const { account, since_date, until_date, limit = 50 } = args || {};
+      const config = await ensureSnapTradeUser().catch(() => null);
+      if (!config || !config.userSecret) {
+        return { count: 0, activities: [], message: 'No brokerage integration configured.' };
+      }
+      const client = getSnapTradeClient();
+      if (!client) {
+        return { count: 0, activities: [], message: 'SnapTrade client not initialized.' };
+      }
+
+      try {
+        const accountsResponse = await client.accountInformation.listUserAccounts({
+          userId: config.userId,
+          userSecret: config.userSecret
+        });
+        const accounts = accountsResponse.data || [];
+        
+        let targetAccounts = accounts;
+        if (account) {
+          targetAccounts = accounts.filter(a => 
+            a.id === account || 
+            (a.name || '').toLowerCase().includes(account.toLowerCase()) ||
+            (a.institution_name || '').toLowerCase().includes(account.toLowerCase())
+          );
+        }
+
+        const allActivities = [];
+        for (const acc of targetAccounts) {
+          const params = {
+            userId: config.userId,
+            userSecret: config.userSecret,
+            accountId: acc.id
+          };
+          if (since_date) params.startDate = since_date;
+          if (until_date) params.endDate = until_date;
+          
+          const actRes = await client.accountInformation.getAccountActivities(params).catch(err => {
+            console.warn(`[SnapTrade MCP] Failed to get activities for account ${acc.id}:`, err.message);
+            return { data: [] };
+          });
+
+          const list = Array.isArray(actRes.data) ? actRes.data : (actRes.data?.activities || []);
+          list.forEach(act => {
+            allActivities.push({
+              ...act,
+              account_id: acc.id,
+              account_name: acc.name,
+              institution_name: acc.institution_name || 'Brokerage'
+            });
+          });
+        }
+
+        // Sort by date descending (trade_date or date)
+        allActivities.sort((a, b) => new Date(b.date || b.trade_date || 0) - new Date(a.date || a.trade_date || 0));
+        
+        const sliced = allActivities.slice(0, limit);
+        return {
+          count: sliced.length,
+          total_available: allActivities.length,
+          activities: sliced
+        };
+      } catch (err) {
+        return { error: `Failed to fetch brokerage activities: ${err.message}` };
+      }
+    }
+
+    case 'get_brokerage_orders': {
+      const { account, state = 'all', days = 30 } = args || {};
+      const config = await ensureSnapTradeUser().catch(() => null);
+      if (!config || !config.userSecret) {
+        return { count: 0, orders: [], message: 'No brokerage integration configured.' };
+      }
+      const client = getSnapTradeClient();
+      if (!client) {
+        return { count: 0, orders: [], message: 'SnapTrade client not initialized.' };
+      }
+
+      try {
+        const accountsResponse = await client.accountInformation.listUserAccounts({
+          userId: config.userId,
+          userSecret: config.userSecret
+        });
+        const accounts = accountsResponse.data || [];
+        
+        let targetAccounts = accounts;
+        if (account) {
+          targetAccounts = accounts.filter(a => 
+            a.id === account || 
+            (a.name || '').toLowerCase().includes(account.toLowerCase()) ||
+            (a.institution_name || '').toLowerCase().includes(account.toLowerCase())
+          );
+        }
+
+        const allOrders = [];
+        for (const acc of targetAccounts) {
+          const orderRes = await client.accountInformation.getUserAccountOrders({
+            userId: config.userId,
+            userSecret: config.userSecret,
+            accountId: acc.id,
+            state: state,
+            days: days
+          }).catch(err => {
+            console.warn(`[SnapTrade MCP] Failed to get orders for account ${acc.id}:`, err.message);
+            return { data: [] };
+          });
+
+          const list = Array.isArray(orderRes.data) ? orderRes.data : [];
+          list.forEach(ord => {
+            allOrders.push({
+              ...ord,
+              account_id: acc.id,
+              account_name: acc.name,
+              institution_name: acc.institution_name || 'Brokerage'
+            });
+          });
+        }
+
+        return {
+          count: allOrders.length,
+          orders: allOrders
+        };
+      } catch (err) {
+        return { error: `Failed to fetch brokerage orders: ${err.message}` };
+      }
     }
 
     case 'get_accounts': {
