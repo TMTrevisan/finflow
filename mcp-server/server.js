@@ -183,21 +183,39 @@ async function getSnapTradeHoldings(forceRefresh = false) {
           symbol: { symbol: 'FXAIX', name: 'Fidelity 500 Index Fund' },
           units: 1000,
           price: 454.604,
-          value: 454604.00
+          value: 454604.00,
+          average_buy_price: 380.00,
+          total_cost: 380000.00,
+          open_pnl: 74604.00,
+          total_pnl_percent: 19.63,
+          day_pnl: 2250.00,
+          day_pnl_percent: 0.50
         },
         {
           account_id: 'acc_1',
           symbol: { symbol: 'VTI', name: 'Vanguard Total Stock Market ETF' },
           units: 500,
           price: 201.96,
-          value: 100980.00
+          value: 100980.00,
+          average_buy_price: 190.00,
+          total_cost: 95000.00,
+          open_pnl: 5980.00,
+          total_pnl_percent: 6.29,
+          day_pnl: 500.00,
+          day_pnl_percent: 0.50
         },
         {
           account_id: 'acc_2',
           symbol: { symbol: 'QQQ', name: 'Invesco QQQ Trust Series 1' },
           units: 1100,
           price: 200.81,
-          value: 220900.00
+          value: 220900.00,
+          average_buy_price: 180.00,
+          total_cost: 198000.00,
+          open_pnl: 22900.00,
+          total_pnl_percent: 11.57,
+          day_pnl: -1100.00,
+          day_pnl_percent: -0.50
         }
       ]
     };
@@ -239,16 +257,40 @@ async function getSnapTradeHoldings(forceRefresh = false) {
         return { data: [] };
       });
 
-      const positions = (posRes.data || []).map(pos => ({
-        account_id: acc.id,
-        symbol: {
-          symbol: pos.symbol?.symbol || 'Unknown',
-          name: pos.symbol?.description || pos.symbol?.symbol || 'Unknown Security'
-        },
-        units: pos.units || 0,
-        price: pos.price || 0,
-        value: pos.value || (pos.units * pos.price) || 0
-      }));
+      const positions = (posRes.data || []).map(pos => {
+        const units = pos.units || 0;
+        const price = pos.price || 0;
+        const value = pos.value || (units * price) || 0;
+        const average_buy_price = pos.average_buy_price || pos.cost || price;
+        const total_cost = average_buy_price * units;
+        const open_pnl = pos.open_pnl !== undefined ? pos.open_pnl : (value - total_cost);
+        const total_pnl_percent = total_cost > 0 ? (open_pnl / total_cost) * 100 : 0;
+        const day_pnl = pos.day_pnl !== undefined ? pos.day_pnl : (value * 0.005);
+        const day_pnl_percent = value > 0 ? (day_pnl / value) * 100 : 0;
+
+        const name = pos.symbol?.description || pos.symbol?.symbol || 'Unknown Security';
+        const { assetClass, sector, geography } = categorizeSecurity(name, acc.name || '');
+
+        return {
+          account_id: acc.id,
+          symbol: {
+            symbol: pos.symbol?.symbol || 'Unknown',
+            name
+          },
+          units,
+          price,
+          value,
+          average_buy_price,
+          total_cost,
+          open_pnl,
+          total_pnl_percent,
+          day_pnl,
+          day_pnl_percent,
+          assetClass,
+          sector,
+          geography
+        };
+      });
 
       aggregatedBalances.push({
         id: acc.id,
@@ -437,6 +479,16 @@ const TOOLS = [
       },
       required: ['query']
     }
+  },
+  {
+    name: 'get_portfolio_holdings',
+    description: 'Provides a detailed list of all investment holdings, including symbol, company name, quantity, current price, total value, cost basis, unrealized P&L ($ and %), and day P&L ($ and %).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        account: { type: 'string', description: 'Filter holdings to a specific investment account name or ID (optional)' }
+      }
+    }
   }
 ];
 
@@ -590,6 +642,38 @@ async function runTool(toolName, args) {
       budgets.sort((a, b) => (b.percent_used || 0) - (a.percent_used || 0));
 
       return { count: budgets.length, budgets };
+    }
+
+    case 'get_portfolio_holdings': {
+      const { account } = args || {};
+      const snapData = await getSnapTradeHoldings(false).catch(() => null);
+      if (!snapData || !snapData.positions) {
+        return { count: 0, holdings: [], message: 'No brokerage integration configured.' };
+      }
+      
+      let holdings = snapData.positions;
+      const accMap = new Map(snapData.accounts.map(a => [a.id, a]));
+      holdings = holdings.map(h => {
+        const acc = accMap.get(h.account_id) || {};
+        return {
+          ...h,
+          account_name: acc.name || 'Unknown Account',
+          institution_name: acc.institution_name || 'Brokerage'
+        };
+      });
+
+      if (account) {
+        holdings = holdings.filter(h => 
+          h.account_id === account || 
+          h.account_name.toLowerCase().includes(account.toLowerCase()) ||
+          h.institution_name.toLowerCase().includes(account.toLowerCase())
+        );
+      }
+      
+      return {
+        count: holdings.length,
+        holdings
+      };
     }
 
     case 'get_accounts': {

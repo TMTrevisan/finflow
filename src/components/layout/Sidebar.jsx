@@ -10,17 +10,12 @@ import { useAppContext } from '../../context/AppContext';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'accounts', label: 'Accounts', icon: Landmark },
-  { id: 'assistant', label: 'Copilot AI', icon: Sparkles },
+  { id: 'wealth', label: 'Wealth & Portfolio', icon: Landmark },
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
-  { id: 'insights', label: 'Insights', icon: Compass },
-  { id: 'budgets', label: 'Budgets', icon: PieChart },
-  { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange },
-  { id: 'cashflow', label: 'Cash Flow', icon: Waves },
-  { id: 'spending', label: 'Spending', icon: ArrowDownRight },
-  { id: 'income', label: 'Income', icon: ArrowUpRight },
-  { id: 'plreport', label: 'P&L Report', icon: Table },
-  { id: 'yearly', label: 'Yearly Insights', icon: Calendar },
+  { id: 'cashflow', label: 'Cash Flow & Budgets', icon: Waves },
+  { id: 'reports', label: 'Financial Reports', icon: Table },
+  { id: 'assistant', label: 'Copilot AI', icon: Sparkles },
+  { id: 'insights', label: 'Insights Compass', icon: Compass },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 

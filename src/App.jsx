@@ -19,18 +19,13 @@ const safeLazy = (importFn) => {
 
 // Lazy-load all views safely for code-splitting performance
 const Dashboard = safeLazy(() => import('./views/Dashboard'));
-const Spending = safeLazy(() => import('./views/Spending'));
-const Income = safeLazy(() => import('./views/Income'));
+const Wealth = safeLazy(() => import('./views/Wealth'));
 const Transactions = safeLazy(() => import('./views/Transactions'));
-const Budgets = safeLazy(() => import('./views/Budgets'));
-const CashFlow = safeLazy(() => import('./views/CashFlow'));
-const Settings = safeLazy(() => import('./views/Settings'));
-const PLReport = safeLazy(() => import('./views/PLReport'));
-const YearlyInsights = safeLazy(() => import('./views/YearlyInsights'));
-const Insights = safeLazy(() => import('./views/Insights'));
+const CashFlowHub = safeLazy(() => import('./views/CashFlowHub'));
+const ReportsHub = safeLazy(() => import('./views/ReportsHub'));
 const Assistant = safeLazy(() => import('./views/Assistant'));
-const Subscriptions = safeLazy(() => import('./views/Subscriptions'));
-const Accounts = safeLazy(() => import('./views/Accounts'));
+const Insights = safeLazy(() => import('./views/Insights'));
+const Settings = safeLazy(() => import('./views/Settings'));
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-full w-full min-h-[300px]">
@@ -45,9 +40,8 @@ function App() {
   const getInitialView = () => {
     const hash = window.location.hash.replace('#', '');
     const validViews = [
-      'dashboard', 'assistant', 'spending', 'income', 'transactions', 
-      'budgets', 'subscriptions', 'cashflow', 'settings', 'plreport', 
-      'yearly', 'insights', 'accounts'
+      'dashboard', 'wealth', 'transactions', 'cashflow', 'reports', 
+      'assistant', 'insights', 'settings'
     ];
     return validViews.includes(hash) ? hash : 'dashboard';
   };
@@ -64,9 +58,8 @@ function App() {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
       const validViews = [
-        'dashboard', 'assistant', 'spending', 'income', 'transactions', 
-        'budgets', 'subscriptions', 'cashflow', 'settings', 'plreport', 
-        'yearly', 'insights', 'accounts'
+        'dashboard', 'wealth', 'transactions', 'cashflow', 'reports', 
+        'assistant', 'insights', 'settings'
       ];
       if (validViews.includes(hash) && hash !== currentView) {
         setCurrentView(hash);
@@ -80,18 +73,13 @@ function App() {
   const renderView = () => {
     switch (currentView) {
       case 'dashboard': return <Dashboard setCurrentView={setCurrentView} />;
-      case 'assistant': return <Assistant />;
-      case 'spending': return <Spending />;
-      case 'income': return <Income />;
+      case 'wealth': return <Wealth setCurrentView={setCurrentView} />;
       case 'transactions': return <Transactions />;
-      case 'budgets': return <Budgets setCurrentView={setCurrentView} />;
-      case 'subscriptions': return <Subscriptions />;
-      case 'cashflow': return <CashFlow />;
-      case 'settings': return <Settings />;
-      case 'plreport': return <PLReport />;
-      case 'yearly': return <YearlyInsights />;
+      case 'cashflow': return <CashFlowHub setCurrentView={setCurrentView} />;
+      case 'reports': return <ReportsHub />;
+      case 'assistant': return <Assistant />;
       case 'insights': return <Insights />;
-      case 'accounts': return <Accounts setCurrentView={setCurrentView} />;
+      case 'settings': return <Settings />;
       default: return <Dashboard setCurrentView={setCurrentView} />;
     }
   };

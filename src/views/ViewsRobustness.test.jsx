@@ -85,37 +85,25 @@ vi.mock('../components/ui/AnomalyDetector', () => ({
 
 
 // Import views to test
-import Accounts from './Accounts';
 import Assistant from './Assistant';
-import Budgets from './Budgets';
-import CashFlow from './CashFlow';
-import ContributionsSurplus from './ContributionsSurplus';
 import Dashboard from './Dashboard';
-import Income from './Income';
-import PLReport from './PLReport';
 import Settings from './Settings';
-import Spending from './Spending';
-import SpendingTrends from './SpendingTrends';
-import Subscriptions from './Subscriptions';
 import Transactions from './Transactions';
-import YearlyInsights from './YearlyInsights';
+import Insights from './Insights';
+import Wealth from './Wealth';
+import CashFlowHub from './CashFlowHub';
+import ReportsHub from './ReportsHub';
 
 describe('Views Robustness Tests', () => {
   const views = [
-    { name: 'Accounts', component: Accounts },
     { name: 'Assistant', component: Assistant },
-    { name: 'Budgets', component: Budgets },
-    { name: 'CashFlow', component: CashFlow },
-    { name: 'ContributionsSurplus', component: ContributionsSurplus },
     { name: 'Dashboard', component: Dashboard },
-    { name: 'Income', component: Income },
-    { name: 'PLReport', component: PLReport },
     { name: 'Settings', component: Settings },
-    { name: 'Spending', component: Spending },
-    { name: 'SpendingTrends', component: SpendingTrends },
-    { name: 'Subscriptions', component: Subscriptions },
     { name: 'Transactions', component: Transactions },
-    { name: 'YearlyInsights', component: YearlyInsights }
+    { name: 'Insights', component: Insights },
+    { name: 'Wealth', component: Wealth },
+    { name: 'CashFlowHub', component: CashFlowHub },
+    { name: 'ReportsHub', component: ReportsHub }
   ];
 
   it('renders all views without throwing exceptions when database context is empty/uninitialized', () => {

@@ -9,6 +9,7 @@ import { haptics } from '../../utils/haptics';
 
 const PRIMARY_NAV = [
   { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+  { id: 'wealth', label: 'Wealth', icon: Landmark },
   { id: 'transactions', label: 'Txns', icon: ReceiptText },
   { id: 'assistant', label: 'Copilot', icon: Sparkles },
   { id: 'more', label: 'More', icon: MoreHorizontal },
@@ -18,20 +19,14 @@ const MORE_SECTIONS = [
   {
     label: 'Analytics',
     items: [
-      { id: 'insights', label: 'Insights', icon: Compass, desc: 'Spending Trends & Surplus' },
-      { id: 'budgets', label: 'Budgets', icon: PieChart, desc: 'Monthly spending limits' },
-      { id: 'spending', label: 'Spending', icon: ArrowDownRight, desc: 'Category breakdown' },
-      { id: 'income', label: 'Income', icon: ArrowUpRight, desc: 'Earnings & sources' },
-      { id: 'cashflow', label: 'Cash Flow', icon: Waves, desc: 'Income vs. expenses' },
-      { id: 'plreport', label: 'P&L Report', icon: Table, desc: 'Profit & Loss' },
-      { id: 'yearly', label: 'Yearly', icon: Calendar, desc: 'Year-over-year view' },
+      { id: 'cashflow', label: 'Cash Flow', icon: Waves, desc: 'Budgets & subscription hubs' },
+      { id: 'reports', label: 'Reports', icon: Table, desc: 'Profit & Loss & yearly comparison' },
+      { id: 'insights', label: 'Insights', icon: Compass, desc: 'Trends & life optimization' },
     ]
   },
   {
     label: 'Tools',
     items: [
-      { id: 'accounts', label: 'Accounts', icon: Landmark, desc: 'All connected accounts' },
-      { id: 'subscriptions', label: 'Subscriptions', icon: CalendarRange, desc: 'Recurring charges' },
       { id: 'settings', label: 'Settings', icon: Settings, desc: 'App configuration' },
     ]
   }
