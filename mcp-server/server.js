@@ -112,7 +112,7 @@ async function ensureSnapTradeUser() {
     console.log(`[SnapTrade] Default user registered successfully: ${userId}`);
     return config;
   } catch (err) {
-    console.error(`[SnapTrade] Error registering user:`, err.message);
+    console.error(`[SnapTrade] Error registering user:`, getSnapTradeErrorMessage(err));
     return { userId, userSecret: 'mock-user-secret-fallback' };
   }
 }
@@ -316,8 +316,9 @@ async function getSnapTradeHoldings(forceRefresh = false) {
     saveHoldingsCache(result);
     return result;
   } catch (err) {
-    console.error(`[SnapTrade] Error aggregating holdings:`, err.message);
-    throw err;
+    const errMsg = getSnapTradeErrorMessage(err);
+    console.error(`[SnapTrade] Error aggregating holdings:`, errMsg);
+    throw new Error(errMsg);
   }
 }
 
@@ -1235,6 +1236,16 @@ async function handleJsonRpc(payload) {
   }
 }
 
+function getSnapTradeErrorMessage(err) {
+  if (err.response?.data) {
+    if (typeof err.response.data === 'object') {
+      return err.response.data.detail || err.response.data.error || JSON.stringify(err.response.data);
+    }
+    return err.response.data;
+  }
+  return err.message;
+}
+
 // ─── SnapTrade Stateless Credential Resolvers ───────────────────────────────
 function getSnapTradeClientAndConfig(req) {
   let cId = (req?.headers?.['x-snaptrade-client-id'] || '').trim();
@@ -1307,8 +1318,9 @@ async function ensureSnapTradeUserForClient(client, config) {
     saveSnapTradeConfig(newConfig);
     return newConfig;
   } catch (err) {
-    console.error(`[SnapTrade] Error registering user:`, err.message);
-    throw err;
+    const errMsg = getSnapTradeErrorMessage(err);
+    console.error(`[SnapTrade] Error registering user:`, errMsg);
+    throw new Error(errMsg);
   }
 }
 
@@ -1345,8 +1357,9 @@ async function handleSaveConfig(req, res) {
       userSecret: config.userSecret
     });
   } catch (err) {
-    console.error(`[SnapTrade] Error saving config:`, err.message);
-    res.status(500).json({ error: err.message });
+    const errMsg = getSnapTradeErrorMessage(err);
+    console.error(`[SnapTrade] Error saving config:`, errMsg);
+    res.status(500).json({ error: errMsg });
   }
 }
 
@@ -1367,8 +1380,9 @@ async function handleCreatePortalUrl(req, res) {
       userSecret: finalConfig.userSecret
     });
   } catch (err) {
-    console.error(`[SnapTrade] Error creating portal url:`, err.message);
-    res.status(500).json({ error: err.message });
+    const errMsg = getSnapTradeErrorMessage(err);
+    console.error(`[SnapTrade] Error creating portal url:`, errMsg);
+    res.status(500).json({ error: errMsg });
   }
 }
 
@@ -1415,9 +1429,10 @@ async function handleSnapTradeStatus(req, res) {
       userSecret: finalConfig.userSecret
     });
   } catch (err) {
-    console.error(`[SnapTrade] Error getting status:`, err.message);
+    const errMsg = getSnapTradeErrorMessage(err);
+    console.error(`[SnapTrade] Error getting status:`, errMsg);
     res.status(500).json({ 
-      error: err.message, 
+      error: errMsg, 
       configured: !!getSnapTradeClientAndConfig(req).client 
     });
   }
@@ -1564,8 +1579,9 @@ async function handleGetSnapTradeHoldings(req, res) {
     saveHoldingsCache(result);
     res.json(result);
   } catch (err) {
-    console.error(`[SnapTrade] Error getting holdings:`, err.message);
-    res.status(500).json({ error: err.message });
+    const errMsg = getSnapTradeErrorMessage(err);
+    console.error(`[SnapTrade] Error getting holdings:`, errMsg);
+    res.status(500).json({ error: errMsg });
   }
 }
 
@@ -1610,8 +1626,9 @@ async function handleSnapTradeDisconnect(req, res) {
     }
     res.json({ success: true });
   } catch (err) {
-    console.error(`[SnapTrade] Error resetting connection:`, err.message);
-    res.status(500).json({ error: err.message });
+    const errMsg = getSnapTradeErrorMessage(err);
+    console.error(`[SnapTrade] Error resetting connection:`, errMsg);
+    res.status(500).json({ error: errMsg });
   }
 }
 
