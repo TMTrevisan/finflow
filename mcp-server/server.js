@@ -318,7 +318,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
     console.error(`[SnapTrade] Error aggregating holdings:`, errMsg);
-    throw new Error(errMsg);
+    throw new Error(errMsg, { cause: err });
   }
 }
 
@@ -1320,7 +1320,7 @@ async function ensureSnapTradeUserForClient(client, config) {
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
     console.error(`[SnapTrade] Error registering user:`, errMsg);
-    throw new Error(errMsg);
+    throw new Error(errMsg, { cause: err });
   }
 }
 
