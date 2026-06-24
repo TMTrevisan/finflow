@@ -1583,7 +1583,8 @@ async function handleSaveConfig(req, res) {
       success: true, 
       configured: true, 
       connected: config && !config.userSecret.includes('mock'),
-      userId: config.userId
+      userId: config.userId,
+      userSecret: config.userSecret
     });
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
@@ -1605,7 +1606,8 @@ async function handleCreatePortalUrl(req, res) {
     });
     res.json({ 
       redirectURI: response.data?.redirectURI || response.data,
-      userId: finalConfig.userId
+      userId: finalConfig.userId,
+      userSecret: finalConfig.userSecret
     });
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
@@ -1625,7 +1627,8 @@ async function handleSnapTradeStatus(req, res) {
         configured,
         connected: false,
         connections: [],
-        userId: finalConfig.userId
+        userId: finalConfig.userId,
+        userSecret: finalConfig.userSecret
       });
     }
 
@@ -1659,7 +1662,8 @@ async function handleSnapTradeStatus(req, res) {
       configured,
       connected: connectionsMap.size > 0,
       connections: Array.from(connectionsMap.values()),
-      userId: finalConfig.userId
+      userId: finalConfig.userId,
+      userSecret: finalConfig.userSecret
     });
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);

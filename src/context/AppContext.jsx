@@ -187,13 +187,15 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
       const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
       const localUserId = safeStorage.getItem('finflow_snaptrade_user_id') || '';
+      const localUserSecret = safeStorage.getItem('finflow_snaptrade_user_secret') || '';
       const isForcedMock = safeStorage.getItem('finflow_force_mock') === 'true';
 
       const headers = {
         'Content-Type': 'application/json',
         'x-snaptrade-client-id': localClientId,
         'x-snaptrade-consumer-key': localConsumerKey,
-        'x-snaptrade-user-id': localUserId
+        'x-snaptrade-user-id': localUserId,
+        'x-snaptrade-user-secret': localUserSecret
       };
 
       const statusUrl = getSnapTradeUrl('api/snaptrade/status');
@@ -212,6 +214,12 @@ export const AppProvider = ({ children, setCurrentView }) => {
               headers['x-snaptrade-user-id'] = statusData.userId;
             }
           }
+          if (statusData.userSecret) {
+            if (statusData.userSecret !== localUserSecret) {
+              safeStorage.setItem('finflow_snaptrade_user_secret', statusData.userSecret);
+              headers['x-snaptrade-user-secret'] = statusData.userSecret;
+            }
+          }
 
           // Dynamic backend self-healing configuration check
           if (!statusData.configured) {
@@ -227,6 +235,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
               if (configData.userId) {
                 safeStorage.setItem('finflow_snaptrade_user_id', configData.userId);
                 headers['x-snaptrade-user-id'] = configData.userId;
+              }
+              if (configData.userSecret) {
+                safeStorage.setItem('finflow_snaptrade_user_secret', configData.userSecret);
+                headers['x-snaptrade-user-secret'] = configData.userSecret;
               }
               const secondStatusRes = await fetch(statusUrl, { headers });
               if (secondStatusRes.ok) {
@@ -543,12 +555,14 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
       const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
       const localUserId = safeStorage.getItem('finflow_snaptrade_user_id') || '';
+      const localUserSecret = safeStorage.getItem('finflow_snaptrade_user_secret') || '';
 
       const headers = {
         'Content-Type': 'application/json',
         'x-snaptrade-client-id': localClientId,
         'x-snaptrade-consumer-key': localConsumerKey,
-        'x-snaptrade-user-id': localUserId
+        'x-snaptrade-user-id': localUserId,
+        'x-snaptrade-user-secret': localUserSecret
       };
 
       const url = getSnapTradeUrl('api/snaptrade/clear_cache');
@@ -566,6 +580,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setSnapTradeHoldings(null);
       setSnapTradeError(null);
       safeStorage.removeItem('finflow_cache_snaptrade_holdings');
+      safeStorage.removeItem('finflow_snaptrade_user_secret');
       await loadSnapTradeData().catch(() => {});
       return true;
     } catch (err) {

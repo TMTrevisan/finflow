@@ -120,7 +120,8 @@ export default function Settings() {
       'Content-Type': 'application/json',
       'x-snaptrade-client-id': safeStorage.getItem('finflow_snaptrade_client_id') || '',
       'x-snaptrade-consumer-key': safeStorage.getItem('finflow_snaptrade_consumer_key') || '',
-      'x-snaptrade-user-id': safeStorage.getItem('finflow_snaptrade_user_id') || ''
+      'x-snaptrade-user-id': safeStorage.getItem('finflow_snaptrade_user_id') || '',
+      'x-snaptrade-user-secret': safeStorage.getItem('finflow_snaptrade_user_secret') || ''
     };
   };
 
@@ -139,6 +140,9 @@ export default function Settings() {
       
       if (data.userId) {
         safeStorage.setItem('finflow_snaptrade_user_id', data.userId);
+      }
+      if (data.userSecret) {
+        safeStorage.setItem('finflow_snaptrade_user_secret', data.userSecret);
       }
 
       if (data.redirectURI) {
@@ -206,6 +210,9 @@ export default function Settings() {
           safeStorage.setItem('finflow_snaptrade_user_id', data.userId);
           setUserIdInput(data.userId);
         }
+        if (data.userSecret) {
+          safeStorage.setItem('finflow_snaptrade_user_secret', data.userSecret);
+        }
         logSync('SnapTrade keys registered and user initialized successfully', 'success', `userId: ${data.userId}`);
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade credentials saved and initialized successfully!' });
         await loadSnapTradeData();
@@ -222,6 +229,7 @@ export default function Settings() {
 
   const handleResetUserSession = () => {
     safeStorage.removeItem('finflow_snaptrade_user_id');
+    safeStorage.removeItem('finflow_snaptrade_user_secret');
     setUserIdInput('');
     setSnapTradeMessage({ type: 'success', text: 'User session reset. Click "Save & Initialize Keys" to register a new user ID.' });
     loadSnapTradeData().catch(() => {});
@@ -242,6 +250,7 @@ export default function Settings() {
         safeStorage.removeItem('finflow_snaptrade_client_id');
         safeStorage.removeItem('finflow_snaptrade_consumer_key');
         safeStorage.removeItem('finflow_snaptrade_user_id');
+        safeStorage.removeItem('finflow_snaptrade_user_secret');
         setClientId('');
         setConsumerKey('');
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade connection removed successfully.' });
