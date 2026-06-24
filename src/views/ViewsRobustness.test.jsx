@@ -143,7 +143,7 @@ describe('Views Robustness Tests', () => {
           v.component({ setCurrentView: vi.fn() });
         } catch (e) {
           // Wrap error in a descriptive error message to identify the failing view
-          throw new Error(`Failed to render view [${v.name}] with empty context: ${e.message}\n${e.stack}`);
+          throw new Error(`Failed to render view [${v.name}] with empty context: ${e.message}\n${e.stack}`, { cause: e });
         }
       }).not.toThrow();
     });
@@ -195,7 +195,7 @@ describe('Views Robustness Tests', () => {
         try {
           v.component({ setCurrentView: vi.fn() });
         } catch (e) {
-          throw new Error(`Failed to render view [${v.name}] with populated context: ${e.message}\n${e.stack}`);
+          throw new Error(`Failed to render view [${v.name}] with populated context: ${e.message}\n${e.stack}`, { cause: e });
         }
       }).not.toThrow();
     });
@@ -269,7 +269,7 @@ describe('Views Robustness Tests', () => {
       expect(rendered).not.toBe('Child');
     });
 
-    it('7. Transactions \"This Month\" uses referenceDate from context', () => {
+    it('7. Transactions "This Month" uses referenceDate from context', () => {
       const context = {
         referenceDate: new Date('2026-05-15'),
         transactions: []

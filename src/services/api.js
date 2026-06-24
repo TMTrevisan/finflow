@@ -38,7 +38,7 @@ export const fetchFinData = async () => {
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        throw new Error('Sync timed out after 35s. Google Apps Script may be cold-starting — try again in a moment.');
+        throw new Error('Sync timed out after 35s. Google Apps Script may be cold-starting — try again in a moment.', { cause: err });
       }
       throw err;
     }

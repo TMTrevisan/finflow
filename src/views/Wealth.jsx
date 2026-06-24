@@ -4,6 +4,7 @@ import { Card, CardContent } from '../components/ui/Card';
 import Accounts from './Accounts';
 import DonutChart from '../components/ui/DonutChart';
 import { formatCurrency } from '../utils/formatting';
+import { safeStorage } from '../utils/storage';
 import { 
   TrendingUp, TrendingDown, Download, Search, Briefcase, 
   PieChart as ChartIcon, DollarSign, ArrowUpDown, Landmark
@@ -24,8 +25,8 @@ export default function Wealth({ setCurrentView }) {
   const { snapTradeHoldings, snapTradeStatus } = useAppContext();
   const [activeTab, setActiveTab] = useState('balances');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortField, setSortField] = useState('value');
-  const [sortDirection, setSortDirection] = useState('desc');
+  const [sortField, setSortField] = useState(() => safeStorage.getItem('finflow_holdings_sort_field') || 'value');
+  const [sortDirection, setSortDirection] = useState(() => safeStorage.getItem('finflow_holdings_sort_direction') || 'desc');
 
   const positions = useMemo(() => {
     return snapTradeHoldings?.positions || [];
@@ -109,12 +110,16 @@ export default function Wealth({ setCurrentView }) {
   }, [positions, searchQuery, sortField, sortDirection, accMap]);
 
   const handleSort = (field) => {
+    let nextDir = 'desc';
     if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      nextDir = sortDirection === 'asc' ? 'desc' : 'asc';
     } else {
-      setSortField(field);
-      setSortDirection('desc');
+      nextDir = 'desc';
     }
+    setSortField(field);
+    setSortDirection(nextDir);
+    safeStorage.setItem('finflow_holdings_sort_field', field);
+    safeStorage.setItem('finflow_holdings_sort_direction', nextDir);
   };
 
   const handleExportCSV = () => {

@@ -53,7 +53,9 @@ function loadSnapTradeConfig() {
       if (data.snaptradeConsumerKey) snaptradeConsumerKey = data.snaptradeConsumerKey;
       return data;
     }
-  } catch (err) {}
+  } catch (err) {
+    console.warn(`[SnapTrade] Failed to load config from ${CONFIG_FILE_PATH}:`, err.message);
+  }
   return null;
 }
 
@@ -699,7 +701,7 @@ async function runTool(toolName, args) {
     case 'get_portfolio_allocation': {
       const { account } = args || {};
       
-      const ACTUAL_HOLDINGS = [
+      const DEMO_HOLDINGS = [
         { ticker: 'FXAIX', name: 'Fidelity 500 Index Fund', value: 345267.45, assetClass: 'US Equities', sector: 'Large Blend / Diversified', geography: 'United States' },
         { ticker: 'VTI', name: 'Vanguard Total Stock Market Index Fund ETF', value: 267083.82, assetClass: 'US Equities', sector: 'Broad Market / Diversified', geography: 'United States' },
         { ticker: 'Cash', name: 'Cash', value: 63259.14, assetClass: 'Cash & Equivalents', sector: 'Cash', geography: 'United States' },
@@ -808,7 +810,7 @@ async function runTool(toolName, args) {
         { ticker: 'CLSK', name: 'CleanSpark Inc', value: 115.32, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin Mining', geography: 'United States' }
       ];
 
-      let holdingsList = ACTUAL_HOLDINGS;
+      let holdingsList = DEMO_HOLDINGS;
       const snapData = await getSnapTradeHoldings(false).catch(() => null);
       if (snapData && snapData.positions && snapData.accounts) {
         const accMap = new Map(snapData.accounts.map(a => [a.id, a]));
@@ -1294,7 +1296,7 @@ async function ensureSnapTradeUserForClient(client, config) {
     return newConfig;
   } catch (err) {
     console.error(`[SnapTrade] Error registering user:`, err.message);
-    return { userId: uniqueId, userSecret: 'mock-user-secret-fallback' };
+    throw err;
   }
 }
 

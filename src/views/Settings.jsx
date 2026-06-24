@@ -50,8 +50,27 @@ export default function Settings() {
     snapTradeStatus,
     snapTradeHoldings,
     loadSnapTradeData,
-    getSnapTradeUrl
+    getSnapTradeUrl,
+    forceMock,
+    setForceMock
   } = useAppContext();
+
+  // Sync Diagnostics state
+  const [syncLogs, setSyncLogs] = useState([]);
+
+  useEffect(() => {
+    const loadLogs = () => {
+      try {
+        const stored = JSON.parse(safeStorage.getItem('finflow_sync_logs') || '[]');
+        setSyncLogs(stored);
+      } catch (e) {
+        setSyncLogs([]);
+      }
+    };
+    loadLogs();
+    const interval = setInterval(loadLogs, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   // SnapTrade Integration state
   const [snapTradeSyncing, setSnapTradeSyncing] = useState(false);
@@ -429,6 +448,8 @@ export default function Settings() {
     const openaiKey = openaiKeyInput.trim();
     const claudeKey = claudeKeyInput.trim();
     const deepseekKey = deepseekKeyInput.trim();
+    const mcpUrl = mcpUrlInput.trim().replace(/\/+$/, '');
+    const mcpSecret = mcpSecretInput.trim();
     
     let keyToTest = '';
     if (provider === 'gemini') keyToTest = geminiKey;
@@ -1511,6 +1532,59 @@ export default function Settings() {
                 <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
                 <span>Force Refetch</span>
               </button>
+            </div>
+          </div>
+
+          {/* Forced Sandbox / Mock Mode */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-obsidian-800/40 border border-obsidian-850 rounded-2xl">
+            <div>
+              <p className="text-xs font-semibold text-slate-400">Sandbox / Mock Mode</p>
+              <p className="text-[10px] text-slate-500 mt-1">Bypasses spreadsheet APIs and forces simulated mock data.</p>
+            </div>
+            <div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={forceMock}
+                  onChange={(e) => setForceMock(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-obsidian-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-neon-indigo"></div>
+              </label>
+            </div>
+          </div>
+
+          {/* Sync Diagnostics Terminal */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-450 uppercase tracking-wider">Sync logs & Diagnostics</span>
+              <button
+                onClick={() => {
+                  safeStorage.setItem('finflow_sync_logs', JSON.stringify([]));
+                  setSyncLogs([]);
+                }}
+                className="text-[10px] font-bold text-slate-500 hover:text-neon-crimson transition-colors"
+              >
+                Clear logs
+              </button>
+            </div>
+            <div className="h-48 overflow-y-auto bg-black/80 border border-obsidian-800 rounded-2xl p-4 font-mono text-xs space-y-1 text-slate-350 scrollbar-thin scrollbar-thumb-obsidian-750">
+              {syncLogs.length === 0 ? (
+                <div className="text-slate-600 italic">No diagnostic events logged yet. Trigger a refetch or sync to generate logs.</div>
+              ) : (
+                syncLogs.map((log, idx) => {
+                  let colorClass = 'text-slate-350';
+                  if (log.includes('$') || log.includes('finflow db')) colorClass = 'text-neon-indigo font-bold';
+                  else if (log.includes('[ERROR]')) colorClass = 'text-neon-crimson font-semibold';
+                  else if (log.includes('[SUCCESS]')) colorClass = 'text-neon-emerald font-semibold';
+                  else if (log.includes('[INFO]')) colorClass = 'text-slate-450';
+                  return (
+                    <div key={idx} className={`${colorClass} whitespace-pre-wrap break-all`}>
+                      {log}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </Card>

@@ -314,12 +314,25 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
   const [isMockData, setIsMockData] = useState(() => {
     try {
+      if (safeStorage.getItem('finflow_force_mock') === 'true') return true;
       const cached = safeStorage.getItem('finflow_cache_transactions');
       return cached ? false : true;
     } catch {
       return true;
     }
   });
+
+  const [forceMock, setForceMock] = useState(() => {
+    return safeStorage.getItem('finflow_force_mock') === 'true';
+  });
+
+  const handleSetForceMock = (val) => {
+    setForceMock(val);
+    safeStorage.setItem('finflow_force_mock', val ? 'true' : 'false');
+    setTimeout(() => {
+      loadData(true);
+    }, 50);
+  };
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState(null);
@@ -334,6 +347,19 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setIsLoading(true);
     }
     setError(null);
+
+    if (safeStorage.getItem('finflow_force_mock') === 'true') {
+      logSync('Forced Sandbox/Mock Mode active.', 'info');
+      setRawTransactions(MOCK_TRANSACTIONS);
+      setRawCategories(MOCK_CATEGORIES);
+      setBalances(MOCK_BALANCES);
+      setLifeOptimization([]);
+      setIsMockData(true);
+      setIsLoading(false);
+      await loadSnapTradeData().catch(e => console.warn('SnapTrade background load failed:', e));
+      return;
+    }
+
     try {
       logSync('Checking network connectivity...', 'info');
       logSync('Fetching latest sheets financial database...', 'info');
@@ -384,6 +410,11 @@ export const AppProvider = ({ children, setCurrentView }) => {
   };
 
   const syncData = async () => {
+    if (safeStorage.getItem('finflow_force_mock') === 'true') {
+      logSync('Cannot sync data while forced Sandbox/Mock Mode is active', 'error');
+      setError('Cannot sync while Sandbox/Mock Mode is enabled.');
+      return false;
+    }
     logSync('finflow db sync --force', 'cmd');
     setIsSyncing(true);
     setError(null);
@@ -742,7 +773,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
       snapTradeStatus,
       snapTradeHoldings,
       loadSnapTradeData,
-      getSnapTradeUrl
+      getSnapTradeUrl,
+      forceMock,
+      setForceMock: handleSetForceMock
     }}>
       {children}
     </AppContext.Provider>
