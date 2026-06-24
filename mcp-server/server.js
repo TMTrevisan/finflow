@@ -1262,6 +1262,12 @@ function getSnapTradeClientAndConfig(req) {
   if (!cKey) {
     cKey = process.env.SNAPTRADE_CONSUMER_KEY || '';
   }
+  if (!uId) {
+    uId = process.env.SNAPTRADE_USER_ID || '';
+  }
+  if (!uSec) {
+    uSec = process.env.SNAPTRADE_USER_SECRET || '';
+  }
 
   if (!cId || !cKey) {
     return {
@@ -1309,7 +1315,7 @@ async function ensureSnapTradeUserForClient(client, config) {
 // ─── SnapTrade HTTP Route Handlers ────────────────────────────────────────────
 async function handleSaveConfig(req, res) {
   try {
-    const { clientId, consumerKey } = req.body;
+    const { clientId, consumerKey, userId, userSecret } = req.body;
     if (!clientId || !consumerKey) {
       return res.status(400).json({ error: 'Missing clientId or consumerKey' });
     }
@@ -1317,8 +1323,12 @@ async function handleSaveConfig(req, res) {
     snaptradeConsumerKey = consumerKey;
     snaptradeClient = null; // force reinitialization
     
-    // Save keys first
-    saveSnapTradeConfig({});
+    // Save credentials first
+    if (userId && userSecret) {
+      saveSnapTradeConfig({ userId, userSecret });
+    } else {
+      saveSnapTradeConfig({});
+    }
 
     const client = getSnapTradeClient();
     if (!client) {

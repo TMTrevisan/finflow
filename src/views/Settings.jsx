@@ -77,6 +77,9 @@ export default function Settings() {
   const [snapTradeMessage, setSnapTradeMessage] = useState(null);
   const [clientId, setClientId] = useState(() => safeStorage.getItem('finflow_snaptrade_client_id') || '');
   const [consumerKey, setConsumerKey] = useState(() => safeStorage.getItem('finflow_snaptrade_consumer_key') || '');
+  const [userIdInput, setUserIdInput] = useState(() => safeStorage.getItem('finflow_snaptrade_user_id') || '');
+  const [userSecretInput, setUserSecretInput] = useState(() => safeStorage.getItem('finflow_snaptrade_user_secret') || '');
+  const [showAdvancedSnapTrade, setShowAdvancedSnapTrade] = useState(false);
   const [isSavingKeys, setIsSavingKeys] = useState(false);
 
   useEffect(() => {
@@ -162,7 +165,12 @@ export default function Settings() {
       const response = await fetch(configUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId: clientId.trim(), consumerKey: consumerKey.trim() })
+        body: JSON.stringify({ 
+          clientId: clientId.trim(), 
+          consumerKey: consumerKey.trim(),
+          userId: userIdInput.trim(),
+          userSecret: userSecretInput.trim()
+        })
       });
       const data = await response.json();
       if (response.ok && data.success) {
@@ -171,6 +179,8 @@ export default function Settings() {
         if (data.userId && data.userSecret) {
           safeStorage.setItem('finflow_snaptrade_user_id', data.userId);
           safeStorage.setItem('finflow_snaptrade_user_secret', data.userSecret);
+          setUserIdInput(data.userId);
+          setUserSecretInput(data.userSecret);
         }
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade credentials saved and initialized successfully!' });
         await loadSnapTradeData();
@@ -1339,6 +1349,42 @@ export default function Settings() {
                       className="w-full bg-obsidian-950/80 border border-obsidian-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-neon-indigo/50 font-mono"
                     />
                   </div>
+
+                  {/* Advanced settings toggle */}
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedSnapTrade(!showAdvancedSnapTrade)}
+                      className="text-[9px] font-bold text-slate-500 hover:text-slate-350 transition-colors uppercase tracking-wider"
+                    >
+                      {showAdvancedSnapTrade ? 'Hide Advanced' : 'Show Advanced (User ID / Secret)'}
+                    </button>
+                  </div>
+
+                  {showAdvancedSnapTrade && (
+                    <div className="space-y-2 pt-2 border-t border-obsidian-800/40">
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">SnapTrade User ID (Optional)</label>
+                        <input
+                          type="text"
+                          value={userIdInput}
+                          onChange={(e) => setUserIdInput(e.target.value)}
+                          placeholder="Paste existing User ID to reuse connection"
+                          className="w-full bg-obsidian-950/80 border border-obsidian-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-neon-indigo/50 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">SnapTrade User Secret (Optional)</label>
+                        <input
+                          type="password"
+                          value={userSecretInput}
+                          onChange={(e) => setUserSecretInput(e.target.value)}
+                          placeholder="Paste existing User Secret"
+                          className="w-full bg-obsidian-950/80 border border-obsidian-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-neon-indigo/50 font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={handleSaveKeys}
                     disabled={isSavingKeys || snapTradeSyncing}
