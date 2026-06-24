@@ -80,7 +80,9 @@ export default function Settings() {
   const [isSavingKeys, setIsSavingKeys] = useState(false);
 
   useEffect(() => {
-    loadSnapTradeData().catch(() => {});
+    loadSnapTradeData().catch((err) => {
+      setSnapTradeMessage({ type: 'error', text: `Failed to load SnapTrade: ${err.message}` });
+    });
   }, []);
 
   const getSnapTradeHeaders = () => {

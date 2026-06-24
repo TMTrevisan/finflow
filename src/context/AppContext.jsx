@@ -181,7 +181,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
       const statusUrl = getSnapTradeUrl('api/snaptrade/status');
       let statusRes = await fetch(statusUrl, { headers });
-      if (!statusRes.ok) throw new Error('Status failed');
+      if (!statusRes.ok) {
+        const errData = await statusRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Status failed (HTTP ${statusRes.status})`);
+      }
       let statusData = await statusRes.json();
 
       // If backend registered/resolved new credentials, save them
@@ -213,16 +216,28 @@ export const AppProvider = ({ children, setCurrentView }) => {
           statusRes = await fetch(statusUrl, { headers });
           if (statusRes.ok) {
             statusData = await statusRes.json();
+          } else {
+            const errData = await statusRes.json().catch(() => ({}));
+            throw new Error(errData.error || `Status failed (HTTP ${statusRes.status})`);
           }
+        } else {
+          const errData = await configRes.json().catch(() => ({}));
+          throw new Error(errData.error || `Configuration failed (HTTP ${configRes.status})`);
         }
       }
 
-      setSnapTradeStatus(statusData);
+      setSnapTradeStatus({
+        ...statusData,
+        configured: statusData.configured !== undefined ? statusData.configured : !!localClientId
+      });
 
       if (statusData.connected) {
         const holdingsUrl = getSnapTradeUrl('api/snaptrade/holdings');
         const holdingsRes = await fetch(holdingsUrl, { headers });
-        if (!holdingsRes.ok) throw new Error('Holdings failed');
+        if (!holdingsRes.ok) {
+          const errData = await holdingsRes.json().catch(() => ({}));
+          throw new Error(errData.error || `Holdings load failed (HTTP ${holdingsRes.status})`);
+        }
         const holdingsData = await holdingsRes.json();
         setSnapTradeHoldings(holdingsData);
         return holdingsData;
@@ -231,8 +246,13 @@ export const AppProvider = ({ children, setCurrentView }) => {
       }
     } catch (err) {
       console.warn('[SnapTrade Context] Failed to fetch SnapTrade data:', err.message);
-      setSnapTradeStatus({ connected: false });
+      setSnapTradeStatus({ 
+        connected: false, 
+        configured: !!safeStorage.getItem('finflow_snaptrade_client_id'),
+        error: err.message 
+      });
       setSnapTradeHoldings(null);
+      throw err;
     }
     return null;
   };
