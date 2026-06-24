@@ -171,6 +171,14 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const localUserId = safeStorage.getItem('finflow_snaptrade_user_id') || '';
       const localUserSecret = safeStorage.getItem('finflow_snaptrade_user_secret') || '';
 
+      if (!localClientId || !localConsumerKey) {
+        setSnapTradeStatus({ connected: false, configured: false });
+        setSnapTradeHoldings(null);
+        return null;
+      }
+
+      logSync('Connecting to SnapTrade backend...', 'info');
+      
       const headers = {
         'Content-Type': 'application/json',
         'x-snaptrade-client-id': localClientId,
@@ -187,9 +195,12 @@ export const AppProvider = ({ children, setCurrentView }) => {
       }
       let statusData = await statusRes.json();
 
+      logSync('SnapTrade credentials validated on backend', 'success', `configured: ${statusData.configured}, connected: ${statusData.connected}`);
+
       // If backend registered/resolved new credentials, save them
       if (statusData.userId && statusData.userSecret) {
         if (statusData.userId !== localUserId || statusData.userSecret !== localUserSecret) {
+          logSync('Registered new SnapTrade user secret locally', 'info');
           safeStorage.setItem('finflow_snaptrade_user_id', statusData.userId);
           safeStorage.setItem('finflow_snaptrade_user_secret', statusData.userSecret);
           headers['x-snaptrade-user-id'] = statusData.userId;
@@ -199,6 +210,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
       // Dynamic backend self-healing configuration check
       if (!statusData.configured && localClientId && localConsumerKey) {
+        logSync('Backend client not configured. Re-initializing config...', 'info');
         const configUrl = getSnapTradeUrl('api/snaptrade/config');
         const configRes = await fetch(configUrl, {
           method: 'POST',
@@ -216,6 +228,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
           statusRes = await fetch(statusUrl, { headers });
           if (statusRes.ok) {
             statusData = await statusRes.json();
+            logSync('Backend auto-configuration succeeded', 'success');
           } else {
             const errData = await statusRes.json().catch(() => ({}));
             throw new Error(errData.error || `Status failed (HTTP ${statusRes.status})`);
@@ -232,6 +245,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       });
 
       if (statusData.connected) {
+        logSync('Fetching brokerage investment holdings from SnapTrade...', 'info');
         const holdingsUrl = getSnapTradeUrl('api/snaptrade/holdings');
         const holdingsRes = await fetch(holdingsUrl, { headers });
         if (!holdingsRes.ok) {
@@ -239,13 +253,22 @@ export const AppProvider = ({ children, setCurrentView }) => {
           throw new Error(errData.error || `Holdings load failed (HTTP ${holdingsRes.status})`);
         }
         const holdingsData = await holdingsRes.json();
+        const accountsCount = holdingsData.accounts ? holdingsData.accounts.length : 0;
+        const positionsCount = holdingsData.positions ? holdingsData.positions.length : 0;
+        logSync('Brokerage holdings sync complete', 'success', `accounts: ${accountsCount}, positions: ${positionsCount}`);
+        
+        if (accountsCount === 0) {
+          logSync('No connected brokerage accounts found. Go to Settings > SnapTrade to link your brokerage account.', 'info');
+        }
+        
         setSnapTradeHoldings(holdingsData);
         return holdingsData;
       } else {
+        logSync('SnapTrade is configured, but no brokerages are linked. Generating connection portal is required.', 'info');
         setSnapTradeHoldings(null);
       }
     } catch (err) {
-      console.warn('[SnapTrade Context] Failed to fetch SnapTrade data:', err.message);
+      logSync('SnapTrade sync failed', 'error', err.message);
       setSnapTradeStatus({ 
         connected: false, 
         configured: !!safeStorage.getItem('finflow_snaptrade_client_id'),

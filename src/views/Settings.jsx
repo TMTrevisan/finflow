@@ -52,7 +52,8 @@ export default function Settings() {
     loadSnapTradeData,
     getSnapTradeUrl,
     forceMock,
-    setForceMock
+    setForceMock,
+    logSync
   } = useAppContext();
 
   // Sync Diagnostics state
@@ -99,6 +100,7 @@ export default function Settings() {
   };
 
   const handleLinkAccount = async () => {
+    logSync('finflow snaptrade login --portal', 'cmd');
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Generating connection portal link...' });
     try {
@@ -117,6 +119,7 @@ export default function Settings() {
 
       if (data.redirectURI) {
         setSnapTradeMessage({ type: 'info', text: 'Opening SnapTrade Connection Portal. Please complete the login in the new tab.' });
+        logSync('Opening SnapTrade Connection Portal URI...', 'info', data.redirectURI);
         window.open(data.redirectURI, '_blank');
         
         // Wait a few seconds then check/poll status
@@ -128,6 +131,7 @@ export default function Settings() {
         throw new Error(data.error || 'Failed to get portal link');
       }
     } catch (err) {
+      logSync('Generating connection portal link failed', 'error', err.message);
       setSnapTradeMessage({ type: 'error', text: `Failed to open connection portal: ${err.message}` });
     } finally {
       setSnapTradeSyncing(false);
@@ -135,6 +139,7 @@ export default function Settings() {
   };
 
   const handleSnapTradeSync = async () => {
+    logSync('finflow snaptrade sync --force', 'cmd');
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Refreshing investments holdings (cache TTL 24h)...' });
     try {
@@ -146,6 +151,7 @@ export default function Settings() {
       await loadSnapTradeData();
       setSnapTradeMessage({ type: 'success', text: 'SnapTrade investments synced successfully!' });
     } catch (err) {
+      logSync('Holdings sync refresh failed', 'error', err.message);
       setSnapTradeMessage({ type: 'error', text: `Sync failed: ${err.message}` });
     } finally {
       setSnapTradeSyncing(false);
@@ -154,7 +160,9 @@ export default function Settings() {
 
   const handleSaveKeys = async (e) => {
     e.preventDefault();
+    logSync('finflow snaptrade setup --init', 'cmd');
     if (!clientId.trim() || !consumerKey.trim()) {
+      logSync('Validation failed: client_id and consumer_key are required', 'error');
       setSnapTradeMessage({ type: 'error', text: 'Both Client ID and Consumer Key are required' });
       return;
     }
@@ -182,12 +190,14 @@ export default function Settings() {
           setUserIdInput(data.userId);
           setUserSecretInput(data.userSecret);
         }
+        logSync('SnapTrade keys registered and user initialized successfully', 'success', `userId: ${data.userId}`);
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade credentials saved and initialized successfully!' });
         await loadSnapTradeData();
       } else {
         throw new Error(data.error || 'Failed to save configuration');
       }
     } catch (err) {
+      logSync('Setup failed', 'error', err.message);
       setSnapTradeMessage({ type: 'error', text: `Failed to save credentials: ${err.message}` });
     } finally {
       setIsSavingKeys(false);
