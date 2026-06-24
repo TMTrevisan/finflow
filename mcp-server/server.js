@@ -1237,11 +1237,17 @@ async function handleJsonRpc(payload) {
 }
 
 function getSnapTradeErrorMessage(err) {
-  if (err.response?.data) {
-    if (typeof err.response.data === 'object') {
-      return err.response.data.detail || err.response.data.error || JSON.stringify(err.response.data);
+  const body = err.responseBody || err.response?.data;
+  if (body) {
+    if (typeof body === 'object') {
+      return body.detail || body.error || body.message || JSON.stringify(body);
     }
-    return err.response.data;
+    try {
+      const parsed = JSON.parse(body);
+      return parsed.detail || parsed.error || parsed.message || body;
+    } catch {
+      return body;
+    }
   }
   return err.message;
 }
