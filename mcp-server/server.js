@@ -78,43 +78,9 @@ function getSnapTradeClient() {
 
 // Automatically register a user on startup if not present
 async function ensureSnapTradeUser() {
-  let config = loadSnapTradeConfig();
+  const config = loadSnapTradeConfig();
   const client = getSnapTradeClient();
-  
-  if (config && config.userId && config.userSecret) {
-    // If client is initialized, but the saved userSecret is a mock, we must discard it and do a real registration
-    const isMockSecret = config.userSecret.includes('mock');
-    if (isMockSecret && client) {
-      console.log(`[SnapTrade] Discarding mock user credentials to register with real client keys...`);
-    } else {
-      return config;
-    }
-  }
-  
-  const userId = `finflow_user_${Math.random().toString(36).substring(2, 10)}`;
-  console.log(`[SnapTrade] Registering default user "${userId}"...`);
-  
-  if (!client) {
-    config = { userId, userSecret: 'mock-user-secret-12345' };
-    saveSnapTradeConfig(config);
-    return config;
-  }
-
-  try {
-    const registerResponse = await client.authentication.registerSnapTradeUser({
-      userId,
-    });
-    config = {
-      userId,
-      userSecret: registerResponse.data.userSecret
-    };
-    saveSnapTradeConfig(config);
-    console.log(`[SnapTrade] Default user registered successfully: ${userId}`);
-    return config;
-  } catch (err) {
-    console.error(`[SnapTrade] Error registering user:`, getSnapTradeErrorMessage(err));
-    return { userId, userSecret: 'mock-user-secret-fallback' };
-  }
+  return ensureSnapTradeUserForClient(client, config);
 }
 
 // Holdings Caching to prevent extra Investments charges
@@ -1311,21 +1277,38 @@ async function ensureSnapTradeUserForClient(client, config) {
   if (!client) {
     return { userId: config?.userId || 'finflow_user', userSecret: 'mock-user-secret-fallback' };
   }
-  const uniqueId = `finflow_user_${Math.random().toString(36).substring(2, 10)}`;
+
   try {
-    console.log(`[SnapTrade] Registering unique user: ${uniqueId}`);
-    const registerResponse = await client.authentication.registerSnapTradeUser({
-      userId: uniqueId,
+    console.log(`[SnapTrade] Querying existing users for Personal/Commercial fallback...`);
+    const usersResponse = await client.authentication.listSnapTradeUsers().catch(e => {
+      console.warn(`[SnapTrade] Could not list users (likely Commercial sandbox with no users yet):`, e.message);
+      return { data: [] };
     });
+
+    const users = usersResponse.data || [];
+    let targetUserId = '';
+
+    if (users.length > 0) {
+      targetUserId = users[0].id || users[0].userId || users[0];
+      console.log(`[SnapTrade] Found pre-provisioned user: ${targetUserId}. Resolving credentials via idempotency hack...`);
+    } else {
+      targetUserId = `finflow_user_${Math.random().toString(36).substring(2, 10)}`;
+      console.log(`[SnapTrade] No existing users. Registering new unique user: ${targetUserId}`);
+    }
+
+    const registerResponse = await client.authentication.registerSnapTradeUser({
+      userId: targetUserId,
+    });
+
     const newConfig = {
-      userId: uniqueId,
+      userId: targetUserId,
       userSecret: registerResponse.data.userSecret
     };
     saveSnapTradeConfig(newConfig);
     return newConfig;
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
-    console.error(`[SnapTrade] Error registering user:`, errMsg);
+    console.error(`[SnapTrade] Error ensuring user:`, errMsg);
     throw new Error(errMsg, { cause: err });
   }
 }
