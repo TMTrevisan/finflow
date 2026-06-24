@@ -229,7 +229,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
         const units = pos.units || 0;
         const price = pos.price || 0;
         const value = pos.value || (units * price) || 0;
-        const average_buy_price = pos.average_buy_price || pos.cost || price;
+        const average_buy_price = pos.average_buy_price || pos.average_purchase_price || pos.cost || price;
         const total_cost = average_buy_price * units;
         const open_pnl = pos.open_pnl !== undefined ? pos.open_pnl : (value - total_cost);
         const total_pnl_percent = total_cost > 0 ? (open_pnl / total_cost) * 100 : 0;
@@ -1561,7 +1561,7 @@ async function handleGetSnapTradeHoldings(req, res) {
       const uPrice = pos.price || 0;
       const units = pos.units || 0;
       const val = pos.value || (units * uPrice);
-      const avgPrice = pos.average_buy_price || uPrice;
+      const avgPrice = pos.average_buy_price || pos.average_purchase_price || pos.cost || uPrice;
       const totalCost = avgPrice * units;
       const openPnl = val - totalCost;
       const pnlPercent = totalCost > 0 ? (openPnl / totalCost) * 100 : 0;
@@ -1581,6 +1581,7 @@ async function handleGetSnapTradeHoldings(req, res) {
           symbol: ticker || 'Unknown',
           name
         },
+        average_buy_price: avgPrice,
         value: val,
         total_cost: totalCost,
         open_pnl: openPnl,
