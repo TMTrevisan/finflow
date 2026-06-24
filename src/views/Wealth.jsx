@@ -8,7 +8,7 @@ import { safeStorage } from '../utils/storage';
 import { 
   TrendingUp, TrendingDown, Download, Search, Briefcase, 
   PieChart as ChartIcon, DollarSign, ArrowUpDown, Landmark,
-  LineChart as LineChartIcon, LayoutGrid, BarChart3, PlusCircle
+  LineChart as LineChartIcon, LayoutGrid, BarChart3, PlusCircle, RefreshCw, Wifi, WifiOff
 } from 'lucide-react';
 
 const COLORS = [
@@ -30,7 +30,19 @@ const escapeCsvCell = (val) => {
 };
 
 export default function Wealth({ setCurrentView }) {
-  const { snapTradeHoldings, snapTradeStatus, balances = [] } = useAppContext();
+  const { snapTradeHoldings, snapTradeStatus, balances = [], loadSnapTradeData, isSyncing } = useAppContext();
+  const [snapTradeSyncing, setSnapTradeSyncing] = useState(false);
+
+  const handleSyncHoldings = async () => {
+    setSnapTradeSyncing(true);
+    try {
+      await loadSnapTradeData();
+    } catch (e) {
+      console.warn('Holdings sync failed:', e);
+    } finally {
+      setSnapTradeSyncing(false);
+    }
+  };
   const [activeTab, setActiveTab] = useState('balances');
   const [allocTab, setAllocTab] = useState('assetClass');
   const [searchQuery, setSearchQuery] = useState('');
@@ -415,21 +427,47 @@ export default function Wealth({ setCurrentView }) {
 
   return (
     <div className="space-y-6">
-      {/* Tab Navigation */}
-      <div className="flex border-b border-obsidian-800 space-x-6 pb-2">
-        {['balances', 'holdings', 'performance', 'allocations'].map(tab => (
+      {/* Tab Navigation + Status Bar */}
+      <div className="flex items-center justify-between border-b border-obsidian-800 pb-2">
+        <div className="flex space-x-6">
+          {['balances', 'holdings', 'performance', 'allocations'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-2 font-bold text-sm transition-all border-b-2 cursor-pointer capitalize ${
+                activeTab === tab 
+                  ? 'text-white border-neon-indigo' 
+                  : 'text-slate-500 border-transparent hover:text-slate-350'
+              }`}
+            >
+              {tab === 'allocations' ? 'Allocation' : tab}
+            </button>
+          ))}
+        </div>
+
+        {/* SnapTrade connection status + sync button */}
+        <div className="flex items-center space-x-2 pb-1">
+          {snapTradeStatus.connected ? (
+            <span className="flex items-center space-x-1 text-[10px] font-bold text-neon-emerald">
+              <Wifi size={11} />
+              <span>Brokerage live</span>
+            </span>
+          ) : (
+            <span className="flex items-center space-x-1 text-[10px] font-bold text-slate-500">
+              <WifiOff size={11} />
+              <span>{snapTradeStatus.configured ? 'No accounts linked' : 'Not configured'}</span>
+            </span>
+          )}
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`pb-2 font-bold text-sm transition-all border-b-2 cursor-pointer capitalize ${
-              activeTab === tab 
-                ? 'text-white border-neon-indigo' 
-                : 'text-slate-500 border-transparent hover:text-slate-350'
-            }`}
+            onClick={handleSyncHoldings}
+            disabled={snapTradeSyncing}
+            className="flex items-center space-x-1 px-2.5 py-1.5 bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-700 text-slate-300 hover:text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Refresh holdings from brokerage"
           >
-            {tab === 'allocations' ? 'Allocation' : tab}
+            <RefreshCw size={10} className={snapTradeSyncing ? 'animate-spin' : ''} />
+            <span>{snapTradeSyncing ? 'Syncing…' : 'Refresh'}</span>
           </button>
-        ))}
+        </div>
       </div>
 
       {/* BALANCES TAB (Screenshot 3 layout) */}
@@ -585,6 +623,42 @@ export default function Wealth({ setCurrentView }) {
       {/* HOLDINGS TAB */}
       {activeTab === 'holdings' && (
         <div className="space-y-6 animate-fade-in">
+          {/* Empty state when no holdings loaded */}
+          {!snapTradeHoldings && (
+            <Card className="bg-obsidian-900 border border-obsidian-750 p-10 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-neon-indigo/10 border border-neon-indigo/20 flex items-center justify-center">
+                <Briefcase size={26} className="text-neon-indigo" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">No Brokerage Holdings Loaded</h3>
+                <p className="text-slate-500 text-xs mt-1 max-w-sm mx-auto">
+                  {snapTradeStatus.configured 
+                    ? 'Click Refresh to sync your latest holdings from your connected brokerages.'
+                    : 'Configure your SnapTrade API credentials in Settings, then link your brokerage account.'}
+                </p>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleSyncHoldings}
+                  disabled={snapTradeSyncing}
+                  className="px-4 py-2 bg-neon-indigo hover:bg-neon-indigo/80 text-white text-xs font-bold rounded-xl transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw size={13} className={snapTradeSyncing ? 'animate-spin' : ''} />
+                  <span>{snapTradeSyncing ? 'Syncing…' : 'Sync Holdings'}</span>
+                </button>
+                <button
+                  onClick={() => setCurrentView('settings')}
+                  className="px-4 py-2 bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-700 text-slate-300 text-xs font-bold rounded-xl transition-colors flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <span>Open Settings</span>
+                </button>
+              </div>
+            </Card>
+          )}
+
+          {/* Full content when holdings exist */}
+          {snapTradeHoldings && (
+          <div className="space-y-4">
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-5">
@@ -749,6 +823,8 @@ export default function Wealth({ setCurrentView }) {
               </table>
             </div>
           </Card>
+          </div>
+          )}
         </div>
       )}
 
