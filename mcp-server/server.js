@@ -1237,23 +1237,29 @@ async function handleJsonRpc(payload) {
 
 // ─── SnapTrade Stateless Credential Resolvers ───────────────────────────────
 function getSnapTradeClientAndConfig(req) {
-  let cId = req?.headers?.['x-snaptrade-client-id'] !== undefined ? req?.headers?.['x-snaptrade-client-id'] : (req?.body?.clientId !== undefined ? req?.body?.clientId : snaptradeClientId);
-  let cKey = req?.headers?.['x-snaptrade-consumer-key'] !== undefined ? req?.headers?.['x-snaptrade-consumer-key'] : (req?.body?.consumerKey !== undefined ? req?.body?.consumerKey : snaptradeConsumerKey);
-  let uId = req?.headers?.['x-snaptrade-user-id'] !== undefined ? req?.headers?.['x-snaptrade-user-id'] : (req?.body?.userId !== undefined ? req?.body?.userId : null);
-  let uSec = req?.headers?.['x-snaptrade-user-secret'] !== undefined ? req?.headers?.['x-snaptrade-user-secret'] : (req?.body?.userSecret !== undefined ? req?.body?.userSecret : null);
+  let cId = (req?.headers?.['x-snaptrade-client-id'] || '').trim();
+  let cKey = (req?.headers?.['x-snaptrade-consumer-key'] || '').trim();
+  let uId = (req?.headers?.['x-snaptrade-user-id'] || '').trim();
+  let uSec = (req?.headers?.['x-snaptrade-user-secret'] || '').trim();
 
-  // Fallback to loaded config if not in headers/body
-  if (!uId || !uSec) {
+  // If not in headers, check body or memory
+  if (!cId) cId = (req?.body?.clientId || snaptradeClientId || '').trim();
+  if (!cKey) cKey = (req?.body?.consumerKey || snaptradeConsumerKey || '').trim();
+  if (!uId) uId = (req?.body?.userId || '').trim();
+  if (!uSec) uSec = (req?.body?.userSecret || '').trim();
+
+  // Fallback to loaded config if not in headers/body/memory
+  if (!uId || !uSec || uSec.includes('mock')) {
     const fileConfig = loadSnapTradeConfig() || {};
     uId = uId || fileConfig.userId;
     uSec = uSec || fileConfig.userSecret;
   }
 
-  // Fallback to env if not explicitly configured in headers/body
-  if (!cId && req?.headers?.['x-snaptrade-client-id'] === undefined) {
+  // Fallback to env if still missing
+  if (!cId) {
     cId = process.env.SNAPTRADE_CLIENT_ID || '';
   }
-  if (!cKey && req?.headers?.['x-snaptrade-consumer-key'] === undefined) {
+  if (!cKey) {
     cKey = process.env.SNAPTRADE_CONSUMER_KEY || '';
   }
 
