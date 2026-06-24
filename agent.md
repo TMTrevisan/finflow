@@ -76,3 +76,13 @@ The project utilizes `vitest` for unit and component testing.
 *   **Production Host**: Vercel (Auto-deploys from the `main` branch of GitHub repository `TMTrevisan/finflow`).
 *   **Google Sheets Sync**: Updates in the Google Sheet are pulled by clicking "Sync Data" or "Force Refetch" in FinFlow's settings, which calls `syncData()` via the Google Apps Script Web App URL and updates the browser cache.
 
+---
+
+## 6. Dual MCP Server Integration (Sheets + SnapTrade)
+
+FinFlow is designed to run in parallel with SnapTrade's native MCP server (`https://mcp.snaptrade.com/mcp`).
+*   **FinFlow Custom Tools**: Exposes Google Sheets query tools (`get_portfolio_allocation`, `list_bank_accounts`, `query_transactions`) and pacing trackers.
+*   **SnapTrade Tools**: Exposes direct trading APIs, trade validations, account information retrieval, and real-time execution endpoints.
+*   **AI Integration**: Rather than proxying all APIs through a single server, AI clients (Claude Desktop, Cursor, Grok, etc.) configure both servers to run in parallel. This keeps the architectures separate, robust, and clean. Instruct the client to utilize both endpoints to handle both Google Sheets tracking and live brokerage actions.
+
+
