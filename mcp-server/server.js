@@ -1193,12 +1193,52 @@ async function handleJsonRpc(payload) {
 
       case 'tools/call': {
         const { name, arguments: args } = params || {};
+        const toolDef = TOOLS.find(t => t.name === name);
+        if (!toolDef) {
+          return {
+            jsonrpc: '2.0',
+            id,
+            error: { code: -32601, message: `Tool "${name}" not found.` }
+          };
+        }
+        
+        const result = await runTool(name, args);
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }
+            ]
+          }
+        };
+      }
+
+      default:
+        return {
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32601, message: `Method not found: ${method}` }
+        };
+    }
+  } catch (err) {
+    return {
+      jsonrpc: '2.0',
+      id,
+      error: { code: -32000, message: err.message }
+    };
+  }
+}
+
 // ─── SnapTrade Stateless Credential Resolvers ───────────────────────────────
 function getSnapTradeClientAndConfig(req) {
-  let cId = req?.headers?.['x-snaptrade-client-id'] || req?.body?.clientId || snaptradeClientId;
-  let cKey = req?.headers?.['x-snaptrade-consumer-key'] || req?.body?.consumerKey || snaptradeConsumerKey;
-  let uId = req?.headers?.['x-snaptrade-user-id'] || req?.body?.userId;
-  let uSec = req?.headers?.['x-snaptrade-user-secret'] || req?.body?.userSecret;
+  let cId = req?.headers?.['x-snaptrade-client-id'] !== undefined ? req?.headers?.['x-snaptrade-client-id'] : (req?.body?.clientId !== undefined ? req?.body?.clientId : snaptradeClientId);
+  let cKey = req?.headers?.['x-snaptrade-consumer-key'] !== undefined ? req?.headers?.['x-snaptrade-consumer-key'] : (req?.body?.consumerKey !== undefined ? req?.body?.consumerKey : snaptradeConsumerKey);
+  let uId = req?.headers?.['x-snaptrade-user-id'] !== undefined ? req?.headers?.['x-snaptrade-user-id'] : (req?.body?.userId !== undefined ? req?.body?.userId : null);
+  let uSec = req?.headers?.['x-snaptrade-user-secret'] !== undefined ? req?.headers?.['x-snaptrade-user-secret'] : (req?.body?.userSecret !== undefined ? req?.body?.userSecret : null);
 
   // Fallback to loaded config if not in headers/body
   if (!uId || !uSec) {
@@ -1207,9 +1247,13 @@ function getSnapTradeClientAndConfig(req) {
     uSec = uSec || fileConfig.userSecret;
   }
 
-  // Fallback to env
-  if (!cId) cId = process.env.SNAPTRADE_CLIENT_ID || '';
-  if (!cKey) cKey = process.env.SNAPTRADE_CONSUMER_KEY || '';
+  // Fallback to env if not explicitly configured in headers/body
+  if (!cId && req?.headers?.['x-snaptrade-client-id'] === undefined) {
+    cId = process.env.SNAPTRADE_CLIENT_ID || '';
+  }
+  if (!cKey && req?.headers?.['x-snaptrade-consumer-key'] === undefined) {
+    cKey = process.env.SNAPTRADE_CONSUMER_KEY || '';
+  }
 
   if (!cId || !cKey) {
     return {
