@@ -13,7 +13,7 @@ import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
+import { Snaptrade } from 'snaptrade-typescript-sdk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,62 +23,77 @@ const PORT = process.env.PORT || 3001;
 const MCP_SECRET = process.env.MCP_SECRET || '';
 const SHEETS_API_URL = process.env.SHEETS_API_URL || ''; // Your Google Apps Script URL
 
-const PLAID_CLIENT_ID = process.env.PLAID_CLIENT_ID || '';
-const PLAID_SECRET = process.env.PLAID_SECRET || '';
-const PLAID_ENV = process.env.PLAID_ENV || 'sandbox';
+const SNAPTRADE_CLIENT_ID = process.env.SNAPTRADE_CLIENT_ID || '';
+const SNAPTRADE_CONSUMER_KEY = process.env.SNAPTRADE_CONSUMER_KEY || '';
 
-// Initialize Plaid Client
-let plaidClient = null;
-if (PLAID_CLIENT_ID && PLAID_SECRET) {
-  const configuration = new Configuration({
-    basePath: PlaidEnvironments[PLAID_ENV],
-    baseOptions: {
-      headers: {
-        'PLAID-CLIENT-ID': PLAID_CLIENT_ID,
-        'PLAID-SECRET': PLAID_SECRET,
-      },
-    },
+// Initialize SnapTrade Client
+let snaptradeClient = null;
+if (SNAPTRADE_CLIENT_ID && SNAPTRADE_CONSUMER_KEY) {
+  snaptradeClient = new Snaptrade({
+    clientId: SNAPTRADE_CLIENT_ID,
+    consumerKey: SNAPTRADE_CONSUMER_KEY,
   });
-  plaidClient = new PlaidApi(configuration);
-  console.log(`[Plaid] Client initialized in ${PLAID_ENV} mode.`);
+  console.log(`[SnapTrade] Client initialized.`);
 } else {
-  console.warn(`[Plaid] Missing PLAID_CLIENT_ID or PLAID_SECRET. Running in Mock/Dry-run mode.`);
+  console.warn(`[SnapTrade] Missing SNAPTRADE_CLIENT_ID or SNAPTRADE_CONSUMER_KEY. Running in Mock/Dry-run mode.`);
 }
 
-// Token Storage Setup (simple local JSON file supporting multiple connection items)
-const TOKEN_FILE_PATH = path.join(__dirname, 'plaid_tokens.json');
+// Config file for SnapTrade User
+const CONFIG_FILE_PATH = path.join(__dirname, 'snaptrade_config.json');
 
-function saveAccessToken(tokenData) {
+function saveSnapTradeConfig(config) {
   try {
-    const tokens = loadAccessTokens();
-    const existingIdx = tokens.findIndex(t => t.item_id === tokenData.item_id);
-    if (existingIdx !== -1) {
-      tokens[existingIdx] = { ...tokens[existingIdx], ...tokenData };
-    } else {
-      tokens.push(tokenData);
-    }
-    fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2));
-    console.log(`[Plaid] Successfully saved access token.`);
+    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(config, null, 2));
+    console.log(`[SnapTrade] Config saved.`);
   } catch (err) {
-    console.error(`[Plaid] Error saving access token:`, err.message);
+    console.error(`[SnapTrade] Error saving config:`, err.message);
   }
 }
 
-function loadAccessTokens() {
+function loadSnapTradeConfig() {
   try {
-    if (fs.existsSync(TOKEN_FILE_PATH)) {
-      const data = fs.readFileSync(TOKEN_FILE_PATH, 'utf8');
-      const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+    if (fs.existsSync(CONFIG_FILE_PATH)) {
+      return JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, 'utf8'));
     }
-  } catch (err) {
-    console.error(`[Plaid] Error loading access tokens:`, err.message);
+  } catch (err) {}
+  return null;
+}
+
+// Automatically register a user on startup if not present
+async function ensureSnapTradeUser() {
+  let config = loadSnapTradeConfig();
+  if (config && config.userId && config.userSecret) {
+    return config;
   }
-  return [];
+  
+  const userId = 'finflow_user';
+  console.log(`[SnapTrade] Registering default user "${userId}"...`);
+  
+  if (!snaptradeClient) {
+    config = { userId, userSecret: 'mock-user-secret-12345' };
+    saveSnapTradeConfig(config);
+    return config;
+  }
+
+  try {
+    const registerResponse = await snaptradeClient.authentication.registerSnapTradeUser({
+      userId,
+    });
+    config = {
+      userId,
+      userSecret: registerResponse.data.userSecret
+    };
+    saveSnapTradeConfig(config);
+    console.log(`[SnapTrade] Default user registered successfully.`);
+    return config;
+  } catch (err) {
+    console.error(`[SnapTrade] Error registering user:`, err.message);
+    return { userId, userSecret: 'mock-user-secret-fallback' };
+  }
 }
 
 // Holdings Caching to prevent extra Investments charges
-const HOLDINGS_CACHE_FILE = path.join(__dirname, 'plaid_holdings_cache.json');
+const HOLDINGS_CACHE_FILE = path.join(__dirname, 'snaptrade_holdings_cache.json');
 const CACHE_HOLDINGS_TTL_MS = 24 * 60 * 60 * 1000; // 24 Hours
 
 function loadHoldingsCache() {
@@ -87,7 +102,7 @@ function loadHoldingsCache() {
       return JSON.parse(fs.readFileSync(HOLDINGS_CACHE_FILE, 'utf8'));
     }
   } catch (err) {
-    console.error(`[Plaid Cache] Error loading holdings cache:`, err.message);
+    console.error(`[SnapTrade Cache] Error loading holdings cache:`, err.message);
   }
   return null;
 }
@@ -99,101 +114,143 @@ function saveHoldingsCache(data) {
       data
     }, null, 2));
   } catch (err) {
-    console.error(`[Plaid Cache] Error saving holdings cache:`, err.message);
+    console.error(`[SnapTrade Cache] Error saving holdings cache:`, err.message);
   }
 }
 
-async function getPlaidHoldings(forceRefresh = false) {
-  const tokens = loadAccessTokens();
-  if (tokens.length === 0) {
+async function getSnapTradeHoldings(forceRefresh = false) {
+  const config = await ensureSnapTradeUser();
+  if (!config || !config.userSecret) {
     return null;
   }
 
   // Check cache first
   const cache = loadHoldingsCache();
   if (cache && !forceRefresh && (Date.now() - cache.timestamp < CACHE_HOLDINGS_TTL_MS)) {
-    console.log(`[Plaid Cache] Returning cached holdings data for multiple accounts.`);
+    console.log(`[SnapTrade Cache] Returning cached holdings.`);
     return cache.data;
   }
 
-  const aggregatedHoldings = {
-    holdings: [],
-    securities: [],
-    accounts: []
-  };
-
-  const updatedTokens = [];
-
-  for (const tokenData of tokens) {
-    try {
-      let data;
-      if (!plaidClient || tokenData.access_token.includes('mock')) {
-        // Generate mock sandbox holdings
-        console.log(`[Plaid] Generating mock sandbox holdings for item ${tokenData.item_id}`);
-        const isSecond = tokenData.item_id.includes('2') || tokens.indexOf(tokenData) > 0;
-        data = {
-          holdings: isSecond ? [
-            { security_id: 'sec_3', institution_value: 220900.00, quantity: 1100, institution_price: 200.81 }
-          ] : [
-            { security_id: 'sec_1', institution_value: 353623.00, quantity: 1000, institution_price: 353.62 },
-            { security_id: 'sec_2', institution_value: 100981.00, quantity: 500, institution_price: 201.96 }
-          ],
-          securities: isSecond ? [
-            { security_id: 'sec_3', ticker_symbol: 'QQQ', name: 'Invesco QQQ Trust Series 1', type: 'etf' }
-          ] : [
-            { security_id: 'sec_1', ticker_symbol: 'FXAIX', name: 'Fidelity 500 Index Fund', type: 'mutual fund' },
-            { security_id: 'sec_2', ticker_symbol: 'VTI', name: 'Vanguard Total Stock Market ETF', type: 'etf' }
-          ],
-          accounts: isSecond ? [
-            { account_id: 'acc_2', name: 'Robinhood Roth', official_name: 'Robinhood Individual', balances: { current: 220900.00 } }
-          ] : [
-            { account_id: 'acc_1', name: 'Fidelity 401k', official_name: 'Fidelity Growth Account', balances: { current: 454604.00 } }
-          ]
-        };
-      } else {
-        console.log(`[Plaid] Fetching holdings from Plaid API for ${tokenData.institution_name}...`);
-        const response = await plaidClient.investmentsHoldingsGet({
-          access_token: tokenData.access_token
-        });
-        data = response.data;
-      }
-
-      if (data) {
-        // Map account IDs to include item ID prefix to prevent collisions between institutions
-        const accountsWithItem = (data.accounts || []).map(a => ({
-          ...a,
-          institution_name: tokenData.institution_name,
-          account_id: `${tokenData.item_id}_${a.account_id}`
-        }));
-        
-        const holdingsWithItem = (data.holdings || []).map(h => ({
-          ...h,
-          account_id: `${tokenData.item_id}_${h.account_id}`
-        }));
-
-        aggregatedHoldings.accounts.push(...accountsWithItem);
-        aggregatedHoldings.holdings.push(...holdingsWithItem);
-        
-        (data.securities || []).forEach(sec => {
-          if (!aggregatedHoldings.securities.some(s => s.security_id === sec.security_id)) {
-            aggregatedHoldings.securities.push(sec);
-          }
-        });
-      }
-
-      tokenData.last_sync = new Date().toISOString();
-      updatedTokens.push(tokenData);
-    } catch (err) {
-      console.error(`[Plaid] Error fetching holdings for ${tokenData.institution_name}:`, err.message);
-      updatedTokens.push(tokenData);
-    }
+  if (!snaptradeClient || config.userSecret.includes('mock')) {
+    // Generate mock sandbox holdings
+    console.log(`[SnapTrade] Generating mock sandbox holdings.`);
+    const mockData = {
+      accounts: [
+        {
+          id: 'acc_1',
+          name: 'Fidelity 401k',
+          number: 'FID-401K-123',
+          institution_name: 'Fidelity',
+          brokerage: { name: 'Fidelity' },
+          balances: { current: 454604.00 }
+        },
+        {
+          id: 'acc_2',
+          name: 'Robinhood Roth',
+          number: 'RH-ROTH-456',
+          institution_name: 'Robinhood',
+          brokerage: { name: 'Robinhood' },
+          balances: { current: 220900.00 }
+        }
+      ],
+      positions: [
+        {
+          account_id: 'acc_1',
+          symbol: { symbol: 'FXAIX', name: 'Fidelity 500 Index Fund' },
+          units: 1000,
+          price: 353.62,
+          value: 353620.00
+        },
+        {
+          account_id: 'acc_1',
+          symbol: { symbol: 'VTI', name: 'Vanguard Total Stock Market ETF' },
+          units: 500,
+          price: 201.96,
+          value: 100980.00
+        },
+        {
+          account_id: 'acc_2',
+          symbol: { symbol: 'QQQ', name: 'Invesco QQQ Trust Series 1' },
+          units: 1100,
+          price: 200.81,
+          value: 220900.00
+        }
+      ]
+    };
+    saveHoldingsCache(mockData);
+    return mockData;
   }
 
-  // Update token file with sync timestamps
-  fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(updatedTokens, null, 2));
+  console.log(`[SnapTrade] Fetching holdings from SnapTrade API...`);
+  try {
+    const { userId, userSecret } = config;
+    const accountsResponse = await snaptradeClient.accountInformationUser.listUserAccounts({
+      userId,
+      userSecret
+    });
+    
+    const accounts = accountsResponse.data || [];
+    const aggregatedBalances = [];
+    const aggregatedPositions = [];
+    
+    for (const acc of accounts) {
+      const balRes = await snaptradeClient.accountInformationUser.calculateUserAccountBalances({
+        userId,
+        userSecret,
+        accountId: acc.id
+      }).catch(e => {
+        console.error(`[SnapTrade] Balances call failed for ${acc.name}:`, e.message);
+        return { data: [] };
+      });
+      
+      const balancesData = balRes.data || [];
+      const totalEquity = balancesData.find(b => b.currency?.code === 'USD')?.total?.amount || 0;
 
-  saveHoldingsCache(aggregatedHoldings);
-  return aggregatedHoldings;
+      const posRes = await snaptradeClient.accountInformationUser.getUserAccountPositions({
+        userId,
+        userSecret,
+        accountId: acc.id
+      }).catch(e => {
+        console.error(`[SnapTrade] Positions call failed for ${acc.name}:`, e.message);
+        return { data: [] };
+      });
+
+      const positions = (posRes.data || []).map(pos => ({
+        account_id: acc.id,
+        symbol: {
+          symbol: pos.symbol?.symbol || 'Unknown',
+          name: pos.symbol?.description || pos.symbol?.symbol || 'Unknown Security'
+        },
+        units: pos.units || 0,
+        price: pos.price || 0,
+        value: pos.value || (pos.units * pos.price) || 0
+      }));
+
+      aggregatedBalances.push({
+        id: acc.id,
+        name: acc.name,
+        number: acc.number,
+        institution_name: acc.brokerage?.name || 'Brokerage',
+        brokerage: acc.brokerage || { name: 'Brokerage' },
+        balances: {
+          current: totalEquity || positions.reduce((sum, p) => sum + p.value, 0) || 0
+        }
+      });
+      
+      aggregatedPositions.push(...positions);
+    }
+    
+    const result = {
+      accounts: aggregatedBalances,
+      positions: aggregatedPositions
+    };
+    
+    saveHoldingsCache(result);
+    return result;
+  } catch (err) {
+    console.error(`[SnapTrade] Error aggregating holdings:`, err.message);
+    throw err;
+  }
 }
 
 app.use(cors());
@@ -644,17 +701,15 @@ async function runTool(toolName, args) {
       ];
 
       let holdingsList = ACTUAL_HOLDINGS;
-      const plaidData = await getPlaidHoldings(false).catch(() => null);
-      if (plaidData && plaidData.holdings && plaidData.securities) {
-        const secMap = new Map(plaidData.securities.map(s => [s.security_id, s]));
-        const accMap = new Map(plaidData.accounts.map(a => [a.account_id, a]));
+      const snapData = await getSnapTradeHoldings(false).catch(() => null);
+      if (snapData && snapData.positions && snapData.accounts) {
+        const accMap = new Map(snapData.accounts.map(a => [a.id, a]));
         
-        holdingsList = plaidData.holdings.map(h => {
-          const sec = secMap.get(h.security_id) || {};
-          const acc = accMap.get(h.account_id) || {};
-          const ticker = sec.ticker_symbol || 'Unknown';
-          const name = sec.name || 'Unknown Security';
-          const value = h.institution_value || (h.quantity * h.institution_price) || 0;
+        holdingsList = snapData.positions.map(pos => {
+          const acc = accMap.get(pos.account_id) || {};
+          const ticker = pos.symbol?.symbol || 'Unknown';
+          const name = pos.symbol?.name || 'Unknown Security';
+          const value = pos.value || (pos.units * pos.price) || 0;
           const { assetClass, sector, geography } = categorizeSecurity(name, acc.name || '');
           
           return {
@@ -664,7 +719,7 @@ async function runTool(toolName, args) {
             assetClass,
             sector,
             geography,
-            accountName: acc.name || 'Plaid Account'
+            accountName: acc.name || 'Brokerage Account'
           };
         });
       }
@@ -1070,135 +1125,117 @@ async function handleJsonRpc(payload) {
   }
 }
 
-// ─── Plaid HTTP Route Handlers ────────────────────────────────────────────────
-async function handleCreateLinkToken(req, res) {
+// ─── SnapTrade HTTP Route Handlers ────────────────────────────────────────────
+async function handleCreatePortalUrl(req, res) {
   try {
-    if (!plaidClient) {
-      return res.json({ link_token: 'mock_link_token_sandbox' });
+    const config = await ensureSnapTradeUser();
+    if (!snaptradeClient || config.userSecret.includes('mock')) {
+      return res.json({ redirectURI: 'https://web.snaptrade.com/session/mock-portal-url' });
     }
-    const clientUserId = 'finflow_user';
-    const request = {
-      user: { client_user_id: clientUserId },
-      client_name: 'FinFlow Dashboard',
-      products: ['investments'],
-      language: 'en',
-      country_codes: ['US'],
-    };
-    const response = await plaidClient.linkTokenCreate(request);
-    res.json(response.data);
+    const response = await snaptradeClient.authentication.login({
+      userId: config.userId,
+      userSecret: config.userSecret
+    });
+    res.json({ redirectURI: response.data?.redirectURI || response.data });
   } catch (err) {
-    console.error(`[Plaid] Error creating link token:`, err.response?.data || err.message);
-    res.status(500).json({ error: err.response?.data?.error_message || err.message });
+    console.error(`[SnapTrade] Error creating portal url:`, err.message);
+    res.status(500).json({ error: err.message });
   }
 }
 
-async function handleExchangePublicToken(req, res) {
-  const { public_token, institution } = req.body;
-  if (!public_token) {
-    return res.status(400).json({ error: 'Missing public_token' });
-  }
-
+async function handleSnapTradeStatus(req, res) {
   try {
-    if (!plaidClient || public_token === 'mock_link_token_sandbox') {
-      const existingCount = loadAccessTokens().length;
-      const itemId = `item-sandbox-mock-${existingCount + 1}`;
-      const mockData = {
-        access_token: `access-sandbox-mock-${existingCount + 1}`,
-        item_id: itemId,
-        institution_name: institution?.name || `Sandbox Bank ${existingCount + 1}`,
-        last_sync: new Date().toISOString()
-      };
-      saveAccessToken(mockData);
-      return res.json({ success: true, mock: true });
+    const config = await ensureSnapTradeUser();
+    if (!snaptradeClient || config.userSecret.includes('mock')) {
+      return res.json({
+        connected: true,
+        connections: [
+          { institution_name: 'Fidelity Sandbox', item_id: 'acc_1', last_sync: new Date().toISOString() },
+          { institution_name: 'Robinhood Sandbox', item_id: 'acc_2', last_sync: new Date().toISOString() }
+        ]
+      });
     }
 
-    const response = await plaidClient.itemPublicTokenExchange({ public_token });
-    const { access_token, item_id } = response.data;
-    
-    saveAccessToken({
-      access_token,
-      item_id,
-      institution_name: institution?.name || 'Connected Bank',
-      last_sync: new Date().toISOString()
+    const response = await snaptradeClient.accountInformationUser.listUserAccounts({
+      userId: config.userId,
+      userSecret: config.userSecret
     });
 
-    res.json({ success: true });
+    const accounts = response.data || [];
+    const connectionsMap = new Map();
+    accounts.forEach(acc => {
+      const instName = acc.brokerage?.name || 'Brokerage';
+      if (!connectionsMap.has(instName)) {
+        connectionsMap.set(instName, {
+          institution_name: instName,
+          item_id: acc.id,
+          last_sync: new Date().toISOString()
+        });
+      }
+    });
+
+    res.json({
+      connected: connectionsMap.size > 0,
+      connections: Array.from(connectionsMap.values())
+    });
   } catch (err) {
-    console.error(`[Plaid] Error exchanging public token:`, err.response?.data || err.message);
-    res.status(500).json({ error: err.response?.data?.error_message || err.message });
+    console.error(`[SnapTrade] Error getting status:`, err.message);
+    res.status(500).json({ error: err.message });
   }
 }
 
-function handlePlaidStatus(req, res) {
-  const tokens = loadAccessTokens();
-  res.json({
-    connected: tokens.length > 0,
-    connections: tokens.map(t => ({
-      institution_name: t.institution_name,
-      item_id: t.item_id,
-      last_sync: t.last_sync
-    }))
-  });
-}
-
-async function handleGetHoldings(req, res) {
+async function handleGetSnapTradeHoldings(req, res) {
   const forceRefresh = req.query.force === 'true';
   try {
-    const data = await getPlaidHoldings(forceRefresh);
+    const data = await getSnapTradeHoldings(forceRefresh);
     if (!data) {
-      return res.status(404).json({ error: 'No Plaid integration configured.' });
+      return res.status(404).json({ error: 'No SnapTrade integration configured.' });
     }
     res.json(data);
   } catch (err) {
-    console.error(`[Plaid] Error getting holdings:`, err.response?.data || err.message);
-    res.status(500).json({ error: err.response?.data?.error_message || err.message });
+    console.error(`[SnapTrade] Error getting holdings:`, err.message);
+    res.status(500).json({ error: err.message });
   }
 }
 
-function handlePlaidDisconnect(req, res) {
-  const { item_id } = req.body;
-  if (!item_id) {
-    return res.status(400).json({ error: 'Missing item_id' });
-  }
-
+async function handleSnapTradeDisconnect(req, res) {
   try {
-    let tokens = loadAccessTokens();
-    const beforeLength = tokens.length;
-    tokens = tokens.filter(t => t.item_id !== item_id);
-    
-    if (tokens.length < beforeLength) {
-      fs.writeFileSync(TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2));
-      // Invalidate holdings cache to ensure fresh sync
+    const config = loadSnapTradeConfig();
+    if (config && config.userId) {
+      if (snaptradeClient && !config.userSecret.includes('mock')) {
+        await snaptradeClient.authentication.deleteSnapTradeUser({
+          userId: config.userId
+        }).catch(e => console.warn('[SnapTrade] Delete user API warning:', e.message));
+      }
+      if (fs.existsSync(CONFIG_FILE_PATH)) {
+        fs.unlinkSync(CONFIG_FILE_PATH);
+      }
       if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
         fs.unlinkSync(HOLDINGS_CACHE_FILE);
       }
-      return res.json({ success: true });
+      console.log(`[SnapTrade] User configuration reset.`);
     }
-    
-    res.status(404).json({ error: 'Connection not found.' });
+    res.json({ success: true });
   } catch (err) {
-    console.error(`[Plaid] Error disconnecting item:`, err.message);
+    console.error(`[SnapTrade] Error resetting connection:`, err.message);
     res.status(500).json({ error: err.message });
   }
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-// Plaid endpoints
-app.post('/api/plaid/create_link_token', handleCreateLinkToken);
-app.post('/:secretPrefix/api/plaid/create_link_token', handleCreateLinkToken);
+// SnapTrade endpoints
+app.post('/api/snaptrade/create_portal_url', handleCreatePortalUrl);
+app.post('/:secretPrefix/api/snaptrade/create_portal_url', handleCreatePortalUrl);
 
-app.post('/api/plaid/exchange_public_token', handleExchangePublicToken);
-app.post('/:secretPrefix/api/plaid/exchange_public_token', handleExchangePublicToken);
+app.get('/api/snaptrade/status', handleSnapTradeStatus);
+app.get('/:secretPrefix/api/snaptrade/status', handleSnapTradeStatus);
 
-app.get('/api/plaid/status', handlePlaidStatus);
-app.get('/:secretPrefix/api/plaid/status', handlePlaidStatus);
+app.get('/api/snaptrade/holdings', handleGetSnapTradeHoldings);
+app.get('/:secretPrefix/api/snaptrade/holdings', handleGetSnapTradeHoldings);
 
-app.get('/api/plaid/holdings', handleGetHoldings);
-app.get('/:secretPrefix/api/plaid/holdings', handleGetHoldings);
-
-app.post('/api/plaid/disconnect', handlePlaidDisconnect);
-app.post('/:secretPrefix/api/plaid/disconnect', handlePlaidDisconnect);
+app.post('/api/snaptrade/disconnect', handleSnapTradeDisconnect);
+app.post('/:secretPrefix/api/snaptrade/disconnect', handleSnapTradeDisconnect);
 
 
 // Health check

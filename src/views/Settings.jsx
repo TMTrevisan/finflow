@@ -3,7 +3,6 @@ import { useAppContext } from '../context/AppContext';
 import { safeStorage } from '../utils/storage';
 import { Card, CardContent } from '../components/ui/Card';
 import { cleanMerchantName } from '../utils/formatting';
-import { usePlaidLink } from 'react-plaid-link';
 import { 
   Link, 
   Lock, 
@@ -48,108 +47,81 @@ export default function Settings() {
     setPartnerAEmployer,
     partnerBEmployer,
     setPartnerBEmployer,
-    plaidStatus,
-    plaidHoldings,
-    loadPlaidData,
-    getPlaidUrl
+    snapTradeStatus,
+    snapTradeHoldings,
+    loadSnapTradeData,
+    getSnapTradeUrl
   } = useAppContext();
 
-  // Plaid Integration state
-  const [linkToken, setLinkToken] = useState(null);
-  const [plaidSyncing, setPlaidSyncing] = useState(false);
-  const [plaidMessage, setPlaidMessage] = useState(null);
-
-  // Generate Plaid link token
-  const getLinkToken = async () => {
-    try {
-      const url = getPlaidUrl('api/plaid/create_link_token');
-      const response = await fetch(url, { method: 'POST' });
-      const data = await response.json();
-      if (data.link_token) {
-        setLinkToken(data.link_token);
-      } else {
-        throw new Error(data.error || 'Failed to generate link token');
-      }
-    } catch (err) {
-      console.warn('Error generating Plaid link token:', err);
-      // Soft fail in settings if server is not fully configured yet
-    }
-  };
+  // SnapTrade Integration state
+  const [snapTradeSyncing, setSnapTradeSyncing] = useState(false);
+  const [snapTradeMessage, setSnapTradeMessage] = useState(null);
 
   useEffect(() => {
-    getLinkToken();
-    loadPlaidData().catch(() => {});
+    loadSnapTradeData().catch(() => {});
   }, []);
 
-  const onPlaidSuccess = async (public_token, metadata) => {
-    setPlaidSyncing(true);
-    setPlaidMessage({ type: 'info', text: 'Exchanging tokens and establishing connection...' });
+  const handleLinkAccount = async () => {
+    setSnapTradeSyncing(true);
+    setSnapTradeMessage({ type: 'info', text: 'Generating connection portal link...' });
     try {
-      const url = getPlaidUrl('api/plaid/exchange_public_token');
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          public_token,
-          institution: metadata.institution
-        })
-      });
-      const result = await response.json();
-      if (result.success) {
-        setPlaidMessage({ type: 'success', text: `Successfully linked ${metadata.institution?.name || 'Bank'}!` });
-        await loadPlaidData();
+      const url = getSnapTradeUrl('api/snaptrade/create_portal_url');
+      const response = await fetch(url, { method: 'POST' });
+      if (!response.ok) throw new Error('Failed to generate connection portal URL');
+      const data = await response.json();
+      if (data.redirectURI) {
+        setSnapTradeMessage({ type: 'info', text: 'Opening SnapTrade Connection Portal. Please complete the login in the new tab.' });
+        window.open(data.redirectURI, '_blank');
+        
+        // Wait a few seconds then check/poll status
+        setTimeout(async () => {
+          await loadSnapTradeData();
+          setSnapTradeMessage({ type: 'success', text: 'Brokerage authentication portal opened. Click "Sync Now" if your account does not sync automatically.' });
+        }, 3000);
       } else {
-        throw new Error(result.error || 'Token exchange failed');
+        throw new Error(data.error || 'Failed to get portal link');
       }
     } catch (err) {
-      setPlaidMessage({ type: 'error', text: `Link exchange failed: ${err.message}` });
+      setSnapTradeMessage({ type: 'error', text: `Failed to open connection portal: ${err.message}` });
     } finally {
-      setPlaidSyncing(false);
+      setSnapTradeSyncing(false);
     }
   };
 
-  const { open: openPlaidLink, ready: plaidLinkReady } = usePlaidLink({
-    token: linkToken,
-    onSuccess: onPlaidSuccess,
-  });
-
-  const handlePlaidSync = async () => {
-    setPlaidSyncing(true);
-    setPlaidMessage({ type: 'info', text: 'Refreshing investments holdings (cache TTL 24h)...' });
+  const handleSnapTradeSync = async () => {
+    setSnapTradeSyncing(true);
+    setSnapTradeMessage({ type: 'info', text: 'Refreshing investments holdings (cache TTL 24h)...' });
     try {
-      const url = `${getPlaidUrl('api/plaid/holdings')}?force=true`;
+      const url = `${getSnapTradeUrl('api/snaptrade/holdings')}?force=true`;
       const response = await fetch(url);
       if (!response.ok) throw new Error('Refresh failed');
-      await loadPlaidData();
-      setPlaidMessage({ type: 'success', text: 'Plaid investments synced successfully!' });
+      await loadSnapTradeData();
+      setSnapTradeMessage({ type: 'success', text: 'SnapTrade investments synced successfully!' });
     } catch (err) {
-      setPlaidMessage({ type: 'error', text: `Sync failed: ${err.message}` });
+      setSnapTradeMessage({ type: 'error', text: `Sync failed: ${err.message}` });
     } finally {
-      setPlaidSyncing(false);
+      setSnapTradeSyncing(false);
     }
   };
 
-  const handlePlaidDisconnect = async (item_id) => {
-    setPlaidSyncing(true);
-    setPlaidMessage({ type: 'info', text: 'Disconnecting bank connection...' });
+  const handleSnapTradeDisconnect = async () => {
+    setSnapTradeSyncing(true);
+    setSnapTradeMessage({ type: 'info', text: 'Disconnecting SnapTrade connection...' });
     try {
-      const url = getPlaidUrl('api/plaid/disconnect');
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id })
-      });
+      const url = getSnapTradeUrl('api/snaptrade/disconnect');
+      const response = await fetch(url, { method: 'POST' });
+      if (!response.ok) throw new Error('Failed to disconnect');
       const result = await response.json();
       if (result.success) {
-        setPlaidMessage({ type: 'success', text: 'Bank connection removed successfully.' });
-        await loadPlaidData();
+        setSnapTradeMessage({ type: 'success', text: 'SnapTrade connection removed successfully.' });
+        await loadSnapTradeData();
       } else {
         throw new Error(result.error || 'Failed to disconnect');
       }
     } catch (err) {
-      setPlaidMessage({ type: 'error', text: `Disconnect failed: ${err.message}` });
+      setSnapTradeMessage({ type: 'error', text: `Disconnect failed: ${err.message}` });
     } finally {
-      setPlaidSyncing(false);
+      setSnapTradeSyncing(false);
     }
   };
 
@@ -1214,7 +1186,7 @@ export default function Settings() {
           </div>
         </Card>
 
-        {/* Plaid Integration Card */}
+        {/* SnapTrade Integration Card */}
         <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-6 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center space-x-3 mb-2">
@@ -1222,7 +1194,7 @@ export default function Settings() {
                 <CreditCard size={20} />
               </div>
               <div>
-                <h3 className="font-bold text-white text-base">Bank Connections (Plaid)</h3>
+                <h3 className="font-bold text-white text-base">Brokerage Connections (SnapTrade)</h3>
                 <p className="text-xs text-slate-500">Automate your investments and holdings synchronization.</p>
               </div>
             </div>
@@ -1231,18 +1203,18 @@ export default function Settings() {
               <div className="flex items-center justify-between bg-obsidian-800/40 p-3 rounded-xl border border-obsidian-850">
                 <span className="text-xs font-semibold text-slate-300">Connection Status</span>
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                  plaidStatus.connected 
+                  snapTradeStatus.connected 
                     ? 'bg-neon-emerald/15 text-neon-emerald border-neon-emerald/25' 
                     : 'bg-slate-500/10 text-slate-400 border-slate-700/25'
                 }`}>
-                  {plaidStatus.connected ? `${plaidStatus.connections?.length || 0} Linked` : 'Disconnected'}
+                  {snapTradeStatus.connected ? `${snapTradeStatus.connections?.length || 0} Linked` : 'Disconnected'}
                 </span>
               </div>
 
-              {plaidStatus.connected && plaidStatus.connections && plaidStatus.connections.length > 0 && (
+              {snapTradeStatus.connected && snapTradeStatus.connections && snapTradeStatus.connections.length > 0 && (
                 <div className="space-y-2">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Linked Institutions</span>
-                  {plaidStatus.connections.map((conn) => (
+                  {snapTradeStatus.connections.map((conn) => (
                     <div key={conn.item_id} className="bg-obsidian-900/45 p-3 rounded-xl border border-obsidian-850 text-xs flex items-center justify-between">
                       <div className="space-y-1">
                         <span className="text-white font-medium block">{conn.institution_name}</span>
@@ -1252,58 +1224,58 @@ export default function Settings() {
                           </span>
                         )}
                       </div>
-                      <button
-                        onClick={() => handlePlaidDisconnect(conn.item_id)}
-                        disabled={plaidSyncing}
-                        className="p-1.5 bg-neon-crimson/10 hover:bg-neon-crimson/20 border border-neon-crimson/25 rounded-lg text-neon-crimson transition-colors cursor-pointer"
-                        title="Disconnect"
-                      >
-                        <Trash2 size={12} />
-                      </button>
                     </div>
                   ))}
+                  <button
+                    onClick={handleSnapTradeDisconnect}
+                    disabled={snapTradeSyncing}
+                    className="w-full mt-2 py-2 bg-neon-crimson/10 hover:bg-neon-crimson/20 border border-neon-crimson/25 rounded-xl text-neon-crimson text-xs font-bold transition-colors cursor-pointer flex items-center justify-center space-x-2"
+                  >
+                    <Trash2 size={12} />
+                    <span>Disconnect All Brokerages</span>
+                  </button>
                 </div>
               )}
 
-              {plaidMessage && (
+              {snapTradeMessage && (
                 <div className={`p-3 rounded-xl border text-xs flex items-start space-x-2 ${
-                  plaidMessage.type === 'success' 
+                  snapTradeMessage.type === 'success' 
                     ? 'bg-neon-emerald/10 border-neon-emerald/20 text-neon-emerald'
-                    : plaidMessage.type === 'error'
+                    : snapTradeMessage.type === 'error'
                       ? 'bg-neon-crimson/10 border-neon-crimson/20 text-neon-crimson'
                       : 'bg-obsidian-850 border-obsidian-750 text-slate-300'
                 }`}>
-                  {plaidMessage.type === 'success' ? (
+                  {snapTradeMessage.type === 'success' ? (
                     <CheckCircle2 size={16} className="shrink-0 text-neon-emerald" />
-                  ) : plaidMessage.type === 'error' ? (
+                  ) : snapTradeMessage.type === 'error' ? (
                     <AlertTriangle size={16} className="shrink-0 text-neon-crimson" />
                   ) : (
                     <RefreshCw size={16} className="animate-spin shrink-0 text-neon-indigo" />
                   )}
-                  <span>{plaidMessage.text}</span>
+                  <span>{snapTradeMessage.text}</span>
                 </div>
               )}
             </div>
           </div>
 
           <div className="pt-6 border-t border-obsidian-800/40 flex justify-between space-x-3 items-center">
-            {plaidStatus.connected && (
+            {snapTradeStatus.connected && (
               <button
-                onClick={handlePlaidSync}
-                disabled={plaidSyncing}
+                onClick={handleSnapTradeSync}
+                disabled={snapTradeSyncing}
                 className="px-3.5 py-2 bg-obsidian-800 hover:bg-obsidian-750 border border-obsidian-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center space-x-2 cursor-pointer"
               >
-                <RefreshCw size={14} className={plaidSyncing ? 'animate-spin' : ''} />
-                <span>Sync All</span>
+                <RefreshCw size={14} className={snapTradeSyncing ? 'animate-spin' : ''} />
+                <span>Sync Now</span>
               </button>
             )}
             <button
-              onClick={() => openPlaidLink()}
-              disabled={!plaidLinkReady || plaidSyncing}
+              onClick={handleLinkAccount}
+              disabled={snapTradeSyncing}
               className="px-3.5 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-2 ml-auto cursor-pointer"
             >
               <Link size={14} />
-              <span>Link Account</span>
+              <span>Link Brokerage</span>
             </button>
           </div>
         </Card>

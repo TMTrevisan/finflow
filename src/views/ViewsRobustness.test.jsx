@@ -56,10 +56,10 @@ vi.mock('framer-motion', () => {
 
 // Mock local React context hooks & utilities
 let mockContextValue = {
-  plaidStatus: { connected: false },
-  plaidHoldings: null,
-  loadPlaidData: vi.fn().mockResolvedValue(null),
-  getPlaidUrl: (path) => `http://localhost:3001/${path}`
+  snapTradeStatus: { connected: false },
+  snapTradeHoldings: null,
+  loadSnapTradeData: vi.fn().mockResolvedValue(null),
+  getSnapTradeUrl: (path) => `http://localhost:3001/${path}`
 };
 vi.mock('../context/AppContext', () => {
   return {
@@ -82,13 +82,7 @@ vi.mock('../components/ui/AnomalyDetector', () => ({
   default: () => 'AnomalyDetector'
 }));
 
-// Mock Plaid Link hook to avoid React dispatcher constraints in shallow test rendering
-vi.mock('react-plaid-link', () => ({
-  usePlaidLink: () => ({
-    open: vi.fn(),
-    ready: true
-  })
-}));
+
 
 // Import views to test
 import Accounts from './Accounts';
@@ -127,10 +121,10 @@ describe('Views Robustness Tests', () => {
   it('renders all views without throwing exceptions when database context is empty/uninitialized', () => {
     // 1. Set the mock context to represent uninitialized/loading state (everything undefined)
     mockContextValue = {
-      plaidStatus: { connected: false },
-      plaidHoldings: null,
-      loadPlaidData: vi.fn().mockResolvedValue(null),
-      getPlaidUrl: (path) => `http://localhost:3001/${path}`,
+      snapTradeStatus: { connected: false },
+      snapTradeHoldings: null,
+      loadSnapTradeData: vi.fn().mockResolvedValue(null),
+      getSnapTradeUrl: (path) => `http://localhost:3001/${path}`,
       isLoading: true,
       isSyncing: false,
       isMockData: false,
@@ -170,10 +164,10 @@ describe('Views Robustness Tests', () => {
   it('renders all views without throwing when data has loaded', () => {
     // 2. Set mock context to represent fully loaded database state
     mockContextValue = {
-      plaidStatus: { connected: false },
-      plaidHoldings: null,
-      loadPlaidData: vi.fn().mockResolvedValue(null),
-      getPlaidUrl: (path) => `http://localhost:3001/${path}`,
+      snapTradeStatus: { connected: false },
+      snapTradeHoldings: null,
+      loadSnapTradeData: vi.fn().mockResolvedValue(null),
+      getSnapTradeUrl: (path) => `http://localhost:3001/${path}`,
       isLoading: false,
       isSyncing: false,
       isMockData: true,

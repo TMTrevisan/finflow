@@ -148,10 +148,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
     }
   });
 
-  const [plaidStatus, setPlaidStatus] = useState({ connected: false });
-  const [plaidHoldings, setPlaidHoldings] = useState(null);
+  const [snapTradeStatus, setSnapTradeStatus] = useState({ connected: false });
+  const [snapTradeHoldings, setSnapTradeHoldings] = useState(null);
 
-  const getPlaidUrl = (path) => {
+  const getSnapTradeUrl = (path) => {
     const rawUrl = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
     const cleanUrl = rawUrl.trim().replace(/\/+$/, '');
     const mcpSecret = safeStorage.getItem('finflow_mcp_secret') || '';
@@ -164,48 +164,48 @@ export const AppProvider = ({ children, setCurrentView }) => {
     return `${cleanUrl}/${path}`;
   };
 
-  const loadPlaidData = async () => {
+  const loadSnapTradeData = async () => {
     try {
-      const statusUrl = getPlaidUrl('api/plaid/status');
+      const statusUrl = getSnapTradeUrl('api/snaptrade/status');
       const statusRes = await fetch(statusUrl);
       if (!statusRes.ok) throw new Error('Status failed');
       const statusData = await statusRes.json();
-      setPlaidStatus(statusData);
+      setSnapTradeStatus(statusData);
 
       if (statusData.connected) {
-        const holdingsUrl = getPlaidUrl('api/plaid/holdings');
+        const holdingsUrl = getSnapTradeUrl('api/snaptrade/holdings');
         const holdingsRes = await fetch(holdingsUrl);
         if (!holdingsRes.ok) throw new Error('Holdings failed');
         const holdingsData = await holdingsRes.json();
-        setPlaidHoldings(holdingsData);
+        setSnapTradeHoldings(holdingsData);
         return holdingsData;
       } else {
-        setPlaidHoldings(null);
+        setSnapTradeHoldings(null);
       }
     } catch (err) {
-      console.warn('[Plaid Context] Failed to fetch Plaid data:', err.message);
+      console.warn('[SnapTrade Context] Failed to fetch SnapTrade data:', err.message);
     }
     return null;
   };
 
   const mergedBalances = useMemo(() => {
     let list = [...balances];
-    if (plaidStatus.connected && plaidHoldings && plaidHoldings.accounts) {
-      plaidHoldings.accounts.forEach(acc => {
+    if (snapTradeStatus.connected && snapTradeHoldings && snapTradeHoldings.accounts) {
+      snapTradeHoldings.accounts.forEach(acc => {
         const existingIdx = list.findIndex(b => 
-          b.account_id === acc.account_id || 
+          b.account_id === acc.id || 
           (b.account && b.account.toLowerCase() === acc.name.toLowerCase())
         );
         
         const balanceRecord = {
-          id: `plaid_${acc.account_id}`,
+          id: `snaptrade_${acc.id}`,
           date: new Date().toISOString().split('T')[0],
-          institution: acc.institution_name || 'Plaid Connected Bank',
+          institution: acc.institution_name || 'Brokerage',
           account: acc.name,
-          account_id: acc.account_id,
-          balance: acc.balances.current,
+          account_id: acc.id,
+          balance: acc.balances?.current || 0,
           class: 'Asset',
-          type: acc.type === 'investment' ? 'Investment' : 'Checking'
+          type: 'Investment'
         };
 
         if (existingIdx !== -1) {
@@ -216,7 +216,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       });
     }
     return list;
-  }, [balances, plaidHoldings, plaidStatus]);
+  }, [balances, snapTradeHoldings, snapTradeStatus]);
 
   const decoratedBalances = useMemo(() => {
     return injectMortgage(mergedBalances, enableCustomSplits, resolvedPartnerBName);
@@ -312,8 +312,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setLastSync(timestamp);
       logSync('Database local storage caches written', 'success');
 
-      // Load Plaid data in the background
-      await loadPlaidData().catch(e => console.warn('Plaid background load failed:', e));
+      // Load SnapTrade data in the background
+      await loadSnapTradeData().catch(e => console.warn('SnapTrade background load failed:', e));
     } catch (err) {
       logSync('Database fetch failed', 'error', err.message);
       console.warn("Failed to load live data, falling back to mock/cache:", err);
@@ -362,8 +362,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setLastSync(timestamp);
       logSync('Sync cached written to browser', 'success');
 
-      // Sync Plaid data
-      await loadPlaidData().catch(e => console.warn('Plaid sync failed:', e));
+      // Sync SnapTrade data
+      await loadSnapTradeData().catch(e => console.warn('SnapTrade sync failed:', e));
       return true;
     } catch (err) {
       logSync('Sync process crashed', 'error', err.message);
@@ -690,10 +690,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
       globalSearchQuery,
       setGlobalSearchQuery,
       logSync,
-      plaidStatus,
-      plaidHoldings,
-      loadPlaidData,
-      getPlaidUrl
+      snapTradeStatus,
+      snapTradeHoldings,
+      loadSnapTradeData,
+      getSnapTradeUrl
     }}>
       {children}
     </AppContext.Provider>
