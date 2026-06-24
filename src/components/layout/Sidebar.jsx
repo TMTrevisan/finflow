@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'wealth', label: 'Wealth & Portfolio', icon: Landmark },
   { id: 'transactions', label: 'Transactions', icon: ReceiptText },
-  { id: 'cashflow', label: 'Cash Flow & Budgets', icon: Waves },
+  { id: 'cashflow', label: 'Cash Flow', icon: Waves },
   { id: 'reports', label: 'Financial Reports', icon: Table },
   { id: 'assistant', label: 'Copilot AI', icon: Sparkles },
   { id: 'insights', label: 'Insights Compass', icon: Compass },
