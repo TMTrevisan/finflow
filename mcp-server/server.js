@@ -194,7 +194,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
   console.log(`[SnapTrade] Fetching holdings from SnapTrade API...`);
   try {
     const { userId, userSecret } = config;
-    const accountsResponse = await client.accountInformationUser.listUserAccounts({
+    const accountsResponse = await client.accountInformation.listUserAccounts({
       userId,
       userSecret
     });
@@ -204,7 +204,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
     const aggregatedPositions = [];
     
     for (const acc of accounts) {
-      const balRes = await client.accountInformationUser.calculateUserAccountBalances({
+      const balRes = await client.accountInformation.calculateUserAccountBalances({
         userId,
         userSecret,
         accountId: acc.id
@@ -216,7 +216,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
       const balancesData = balRes.data || [];
       const totalEquity = balancesData.find(b => b.currency?.code === 'USD')?.total?.amount || 0;
 
-      const posRes = await client.accountInformationUser.getUserAccountPositions({
+      const posRes = await client.accountInformation.getUserAccountPositions({
         userId,
         userSecret,
         accountId: acc.id
@@ -1391,7 +1391,7 @@ async function handleSnapTradeStatus(req, res) {
       });
     }
 
-    const response = await client.accountInformationUser.listUserAccounts({
+    const response = await client.accountInformation.listUserAccounts({
       userId: finalConfig.userId,
       userSecret: finalConfig.userSecret
     });
@@ -1523,12 +1523,12 @@ async function handleGetSnapTradeHoldings(req, res) {
       return res.json(mockData);
     }
 
-    const accResponse = await client.accountInformationUser.listUserAccounts({
+    const accResponse = await client.accountInformation.listUserAccounts({
       userId: finalConfig.userId,
       userSecret: finalConfig.userSecret
     });
 
-    const posResponse = await client.accountInformationUser.getUserHoldings({
+    const posResponse = await client.accountInformation.getUserHoldings({
       userId: finalConfig.userId,
       userSecret: finalConfig.userSecret
     });
