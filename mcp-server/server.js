@@ -299,8 +299,37 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
     }
     
     for (const acc of accounts) {
-      const cash = acc.balance?.cash?.amount || acc.balances?.cash || 0;
-      const totalEquity = acc.balance?.total?.amount || acc.balances?.current || acc.balance?.amount || cash || 0;
+      // Robustly extract cash balance
+      let cash = 0;
+      if (acc.balance?.cash?.amount !== undefined && acc.balance.cash.amount !== null) {
+        cash = Number(acc.balance.cash.amount) || 0;
+      } else if (acc.balance?.cash !== undefined && acc.balance.cash !== null && typeof acc.balance.cash === 'number') {
+        cash = acc.balance.cash;
+      } else if (Array.isArray(acc.balances)) {
+        for (const bal of acc.balances) {
+          const cVal = bal.cash !== null && bal.cash !== undefined ? Number(bal.cash) : 0;
+          const bpVal = bal.buying_power !== null && bal.buying_power !== undefined ? Number(bal.buying_power) : 0;
+          cash += (cVal || bpVal || 0);
+        }
+      } else if (acc.balances && typeof acc.balances === 'object') {
+        cash = Number(acc.balances.cash) || Number(acc.balances.buying_power) || 0;
+      }
+
+      // Robustly extract total equity
+      let totalEquity = 0;
+      if (acc.balance?.total?.amount !== undefined && acc.balance.total.amount !== null) {
+        totalEquity = Number(acc.balance.total.amount);
+      } else if (acc.balance?.amount !== undefined && acc.balance.amount !== null) {
+        totalEquity = Number(acc.balance.amount);
+      } else if (acc.balances?.current !== undefined && acc.balances.current !== null && typeof acc.balances.current === 'number') {
+        totalEquity = acc.balances.current;
+      } else if (Array.isArray(acc.balances)) {
+        // If it's an array, try to find the total balance or sum cash + position values
+      }
+      
+      if (!totalEquity) {
+        totalEquity = cash || 0;
+      }
 
       const hEntry = holdingsMap.get(acc.id);
       const rawAccPositions = [];
@@ -322,10 +351,26 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
         const price = pos.price || 0;
         const value = pos.value || (units * price) || 0;
         
-        // P&L calculation handles option vs stock Average Cost basis safely
-        const average_buy_price = pos.average_buy_price || pos.average_purchase_price || pos.cost || price;
-        const total_cost = average_buy_price * units;
-        const open_pnl = pos.open_pnl !== undefined ? pos.open_pnl : (value - total_cost);
+        let average_buy_price = pos.average_buy_price || pos.average_purchase_price || pos.cost || 0;
+        let open_pnl = pos.open_pnl !== undefined && pos.open_pnl !== null ? Number(pos.open_pnl) : 0;
+        
+        let total_cost = 0;
+        if (average_buy_price > 0) {
+          total_cost = average_buy_price * units;
+          if (pos.open_pnl === undefined || pos.open_pnl === null) {
+            open_pnl = value - total_cost;
+          }
+        } else if (open_pnl !== 0 && units > 0) {
+          // Back-calculate cost basis from open_pnl if average purchase price is missing
+          total_cost = value - open_pnl;
+          average_buy_price = total_cost / units;
+        } else {
+          // Fallback if we have absolutely no cost/PnL info
+          average_buy_price = price;
+          total_cost = price * units;
+          open_pnl = 0;
+        }
+        
         const total_pnl_percent = total_cost > 0 ? (open_pnl / total_cost) * 100 : 0;
         const day_pnl = pos.day_pnl || 0;
         const day_pnl_percent = value > 0 ? (day_pnl / value) * 100 : 0;
@@ -625,7 +670,26 @@ function categorizeSecurity(securityName = '', accountType = '') {
   let sector = 'Technology';
   let geography = 'United States';
 
-  if (name.includes('bond') || name.includes('treasury') || name.includes('bnd') || name.includes('ief')) {
+  // Check for short-term T-bill / cash-equivalent ETFs and cash keywords first
+  if (
+    name.includes('cash') || 
+    name.includes('vmfxx') || 
+    name.includes('money market') ||
+    name.includes('weekly t-bill') ||
+    name.includes('roundhill weekly') ||
+    name.includes('t-bill') ||
+    name.includes('t-bills') ||
+    name.includes('sgov') ||
+    name.includes('bil') ||
+    name.includes('shv') ||
+    name.includes('usfr') ||
+    name.includes('tflo') ||
+    name === 'week'
+  ) {
+    assetClass = 'Cash & Equivalents';
+    sector = 'Cash';
+    geography = 'United States';
+  } else if (name.includes('bond') || name.includes('treasury') || name.includes('bnd') || name.includes('ief')) {
     assetClass = 'Fixed Income';
     sector = 'Government';
     geography = 'United States';
@@ -637,7 +701,7 @@ function categorizeSecurity(securityName = '', accountType = '') {
     assetClass = 'Real Estate (REITs)';
     sector = 'Real Estate';
     geography = 'United States';
-  } else if (accountType.toLowerCase() === 'checking' || accountType.toLowerCase() === 'savings' || name.includes('cash') || name.includes('vmfxx') || name.includes('money market')) {
+  } else if (accountType.toLowerCase() === 'checking' || accountType.toLowerCase() === 'savings') {
     assetClass = 'Cash & Equivalents';
     sector = 'Cash';
     geography = 'United States';
@@ -650,6 +714,21 @@ function categorizeSecurity(securityName = '', accountType = '') {
     sector = 'Healthcare';
   } else if (name.includes('financial') || name.includes('jp morgan') || name.includes('xlf')) {
     sector = 'Financial Services';
+  } else if (
+    name.includes('index') ||
+    name.includes('s&p 500') ||
+    name.includes('sp 500') ||
+    name.includes('vti') ||
+    name.includes('voo') ||
+    name.includes('spy') ||
+    name.includes('fxaix') ||
+    name.includes('total stock') ||
+    name.includes('diversified') ||
+    name.includes('blend') ||
+    name.includes('mutual fund') ||
+    name.includes('etf')
+  ) {
+    sector = 'Broad Market / Diversified';
   }
 
   return { assetClass, sector, geography };
