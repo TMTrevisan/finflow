@@ -149,7 +149,15 @@ export const AppProvider = ({ children, setCurrentView }) => {
   });
 
   const [snapTradeStatus, setSnapTradeStatus] = useState({ connected: false });
-  const [snapTradeHoldings, setSnapTradeHoldings] = useState(null);
+  const [snapTradeHoldings, setSnapTradeHoldings] = useState(() => {
+    try {
+      const cached = safeStorage.getItem('finflow_cache_snaptrade_holdings');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [snapTradeError, setSnapTradeError] = useState(null);
 
   const getSnapTradeUrl = (path) => {
     const rawUrl = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
@@ -246,6 +254,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
         }
         
         setSnapTradeHoldings(holdingsData);
+        setSnapTradeError(null);
+        safeSetItem('finflow_cache_snaptrade_holdings', holdingsData);
         return holdingsData;
       } else {
         logSync('SnapTrade is configured, but no brokerages are linked. Generating connection portal is required.', 'info');
@@ -253,12 +263,12 @@ export const AppProvider = ({ children, setCurrentView }) => {
       }
     } catch (err) {
       logSync('SnapTrade sync failed', 'error', err.message);
-      setSnapTradeStatus({ 
-        connected: false, 
-        configured: !!safeStorage.getItem('finflow_snaptrade_client_id'),
-        error: err.message 
-      });
-      setSnapTradeHoldings(null);
+      setSnapTradeStatus(prev => ({
+        ...prev,
+        error: err.message
+      }));
+      setSnapTradeError(err.message);
+      // Don't null out holdings — keep stale cache visible
       throw err;
     }
     return null;
@@ -527,6 +537,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
       logSync('SnapTrade holdings cache cleared successfully', 'success');
       setSnapTradeHoldings(null);
+      setSnapTradeError(null);
+      safeStorage.removeItem('finflow_cache_snaptrade_holdings');
       await loadSnapTradeData().catch(() => {});
       return true;
     } catch (err) {
@@ -874,6 +886,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       logSync,
       snapTradeStatus,
       snapTradeHoldings,
+      snapTradeError,
       loadSnapTradeData,
       getSnapTradeUrl,
       clearSnapTradeCache,

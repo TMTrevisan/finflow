@@ -30,7 +30,7 @@ const escapeCsvCell = (val) => {
 };
 
 export default function Wealth({ setCurrentView }) {
-  const { snapTradeHoldings, snapTradeStatus, balances = [], loadSnapTradeData, isSyncing } = useAppContext();
+  const { snapTradeHoldings, snapTradeStatus, snapTradeError, balances = [], loadSnapTradeData, isSyncing } = useAppContext();
   const [snapTradeSyncing, setSnapTradeSyncing] = useState(false);
 
   const handleSyncHoldings = async () => {
@@ -626,16 +626,29 @@ export default function Wealth({ setCurrentView }) {
           {/* Empty state when no holdings loaded */}
           {!snapTradeHoldings && (
             <Card className="bg-obsidian-900 border border-obsidian-750 p-10 flex flex-col items-center justify-center text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-neon-indigo/10 border border-neon-indigo/20 flex items-center justify-center">
-                <Briefcase size={26} className="text-neon-indigo" />
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${snapTradeError ? 'bg-neon-crimson/10 border border-neon-crimson/20' : 'bg-neon-indigo/10 border border-neon-indigo/20'}`}>
+                <Briefcase size={26} className={snapTradeError ? 'text-neon-crimson' : 'text-neon-indigo'} />
               </div>
               <div>
-                <h3 className="font-bold text-white text-base">No Brokerage Holdings Loaded</h3>
-                <p className="text-slate-500 text-xs mt-1 max-w-sm mx-auto">
-                  {snapTradeStatus.configured 
-                    ? 'Click Refresh to sync your latest holdings from your connected brokerages.'
-                    : 'Configure your SnapTrade API credentials in Settings, then link your brokerage account.'}
-                </p>
+                <h3 className="font-bold text-white text-base">
+                  {snapTradeError ? 'Holdings Sync Failed' : 'No Brokerage Holdings Loaded'}
+                </h3>
+                {snapTradeError ? (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-neon-crimson text-xs font-mono max-w-sm mx-auto bg-obsidian-950 px-3 py-2 rounded-lg border border-neon-crimson/20">
+                      {snapTradeError}
+                    </p>
+                    <p className="text-slate-500 text-xs mt-2">Check that your MCP server is running and your SnapTrade credentials are correct.</p>
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-xs mt-1 max-w-sm mx-auto">
+                    {snapTradeStatus.configured 
+                      ? snapTradeStatus.connected
+                        ? 'Holdings are syncing… click Refresh if this persists.'
+                        : 'Click Refresh to sync your latest holdings from your connected brokerages.'
+                      : 'Configure your SnapTrade API credentials in Settings, then link your brokerage account.'}
+                  </p>
+                )}
               </div>
               <div className="flex space-x-3">
                 <button
@@ -655,6 +668,7 @@ export default function Wealth({ setCurrentView }) {
               </div>
             </Card>
           )}
+
 
           {/* Full content when holdings exist */}
           {snapTradeHoldings && (
