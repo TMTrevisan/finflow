@@ -36,7 +36,7 @@ export default function Wealth({ setCurrentView }) {
   const handleSyncHoldings = async () => {
     setSnapTradeSyncing(true);
     try {
-      await loadSnapTradeData();
+      await loadSnapTradeData({ force: true });
     } catch (e) {
       console.warn('Holdings sync failed:', e);
     } finally {

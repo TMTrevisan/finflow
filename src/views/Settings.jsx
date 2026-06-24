@@ -167,12 +167,7 @@ export default function Settings() {
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Refreshing investments holdings (cache TTL 24h)...' });
     try {
-      const url = `${getSnapTradeUrl('api/snaptrade/holdings')}?force=true`;
-      const response = await fetch(url, {
-        headers: getSnapTradeHeaders()
-      });
-      if (!response.ok) throw new Error('Refresh failed');
-      await loadSnapTradeData();
+      await loadSnapTradeData({ force: true });
       setSnapTradeMessage({ type: 'success', text: 'SnapTrade investments synced successfully!' });
     } catch (err) {
       logSync('Holdings sync refresh failed', 'error', err.message);
@@ -1451,6 +1446,9 @@ export default function Settings() {
                     <div key={conn.item_id} className="bg-obsidian-900/45 p-3 rounded-xl border border-obsidian-850 text-xs flex items-center justify-between">
                       <div className="space-y-1">
                         <span className="text-white font-medium block">{conn.institution_name}</span>
+                        <span className="text-slate-500 block text-[9px] font-semibold">
+                          {conn.account_count || 0} account{conn.account_count === 1 ? '' : 's'}
+                        </span>
                         {conn.last_sync && (
                           <span className="text-slate-400 block text-[9px] font-mono">
                             Last synced: {new Date(conn.last_sync).toLocaleString()}

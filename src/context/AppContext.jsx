@@ -246,7 +246,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
       if (statusData.connected || shouldFetchMock) {
         logSync('Fetching brokerage investment holdings from SnapTrade...', 'info');
-        const holdingsUrl = getSnapTradeUrl('api/snaptrade/holdings');
+        const holdingsUrl = force
+          ? `${getSnapTradeUrl('api/snaptrade/holdings')}?force=true`
+          : getSnapTradeUrl('api/snaptrade/holdings');
         const holdingsRes = await fetch(holdingsUrl, { headers });
         if (!holdingsRes.ok) {
           const errData = await holdingsRes.json().catch(() => ({}));
@@ -255,7 +257,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
         const holdingsData = await holdingsRes.json();
         const accountsCount = holdingsData.accounts ? holdingsData.accounts.length : 0;
         const positionsCount = holdingsData.positions ? holdingsData.positions.length : 0;
-        logSync('Brokerage holdings sync complete', 'success', `accounts: ${accountsCount}, positions: ${positionsCount}`);
+        const connectionsCount = statusData.connections ? statusData.connections.length : 0;
+        logSync('Brokerage holdings sync complete', 'success', `connections: ${connectionsCount}, accounts: ${accountsCount}, positions: ${positionsCount}`);
         
         if (accountsCount === 0 && !shouldFetchMock) {
           logSync('No connected brokerage accounts found. Go to Settings > SnapTrade to link your brokerage account.', 'info');
@@ -264,6 +267,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
         setSnapTradeHoldings(holdingsData);
         setSnapTradeError(null);
         safeSetItem('finflow_cache_snaptrade_holdings', holdingsData);
+        lastSnapTradeLoadAtRef.current = Date.now();
+        lastSnapTradeLoadResultRef.current = holdingsData;
         return holdingsData;
       } else {
         logSync('SnapTrade is configured, but no brokerages are linked. Generating connection portal is required.', 'info');
