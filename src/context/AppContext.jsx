@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { fetchFinData, updateTransactionCategory, updateAccountBalance } from '../services/api';
 import { MOCK_TRANSACTIONS, MOCK_CATEGORIES, MOCK_BALANCES } from '../services/mockData';
 import { safeStorage } from '../utils/storage';
@@ -33,7 +33,7 @@ const logSync = (stepName, status, details = '') => {
   try {
     const logs = JSON.parse(safeStorage.getItem('finflow_sync_logs') || '[]');
     logs.push(newLog);
-    if (logs.length > 50) logs.shift();
+    if (logs.length > 300) logs.splice(0, logs.length - 300);
     safeStorage.setItem('finflow_sync_logs', JSON.stringify(logs));
   } catch (e) {}
 
@@ -159,7 +159,11 @@ export const AppProvider = ({ children, setCurrentView }) => {
   });
   const [snapTradeError, setSnapTradeError] = useState(null);
 
-  const getSnapTradeUrl = (path) => {
+  const snapTradeLoadPromiseRef = useRef(null);
+  const lastSnapTradeLoadAtRef = useRef(0);
+  const lastSnapTradeLoadResultRef = useRef(null);
+
+  const getSnapTradeUrl = useCallback((path) => {
     const rawUrl = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
     const cleanUrl = rawUrl.trim().replace(/\/+$/, '');
     const mcpSecret = safeStorage.getItem('finflow_mcp_secret') || '';
@@ -170,9 +174,22 @@ export const AppProvider = ({ children, setCurrentView }) => {
         : `${cleanUrl}/${mcpSecret}/${path}`;
     }
     return `${cleanUrl}/${path}`;
-  };
+  }, []);
 
-  const loadSnapTradeData = async () => {
+  const loadSnapTradeData = useCallback(async (options = {}) => {
+    const force = options?.force === true;
+    const now = Date.now();
+    if (!force && lastSnapTradeLoadResultRef.current && now - lastSnapTradeLoadAtRef.current < 15000) {
+      logSync('SnapTrade sync recently completed; reusing local holdings cache', 'info');
+      return lastSnapTradeLoadResultRef.current;
+    }
+
+    if (snapTradeLoadPromiseRef.current) {
+      logSync('SnapTrade sync already in progress; joining existing request', 'info');
+      return snapTradeLoadPromiseRef.current;
+    }
+
+    const loadPromise = (async () => {
     try {
       const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
       const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
@@ -238,7 +255,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
       if (statusData.connected || shouldFetchMock) {
         logSync('Fetching brokerage investment holdings from SnapTrade...', 'info');
-        const holdingsUrl = getSnapTradeUrl('api/snaptrade/holdings');
+        const holdingsUrl = force
+          ? `${getSnapTradeUrl('api/snaptrade/holdings')}?force=true`
+          : getSnapTradeUrl('api/snaptrade/holdings');
         const holdingsRes = await fetch(holdingsUrl, { headers });
         if (!holdingsRes.ok) {
           const errData = await holdingsRes.json().catch(() => ({}));
@@ -247,7 +266,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
         const holdingsData = await holdingsRes.json();
         const accountsCount = holdingsData.accounts ? holdingsData.accounts.length : 0;
         const positionsCount = holdingsData.positions ? holdingsData.positions.length : 0;
-        logSync('Brokerage holdings sync complete', 'success', `accounts: ${accountsCount}, positions: ${positionsCount}`);
+        const connectionsCount = statusData.connections ? statusData.connections.length : 0;
+        logSync('Brokerage holdings sync complete', 'success', `connections: ${connectionsCount}, accounts: ${accountsCount}, positions: ${positionsCount}`);
         
         if (accountsCount === 0 && !shouldFetchMock) {
           logSync('No connected brokerage accounts found. Go to Settings > SnapTrade to link your brokerage account.', 'info');
@@ -256,6 +276,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
         setSnapTradeHoldings(holdingsData);
         setSnapTradeError(null);
         safeSetItem('finflow_cache_snaptrade_holdings', holdingsData);
+        lastSnapTradeLoadAtRef.current = Date.now();
+        lastSnapTradeLoadResultRef.current = holdingsData;
         return holdingsData;
       } else {
         logSync('SnapTrade is configured, but no brokerages are linked. Generating connection portal is required.', 'info');
@@ -272,7 +294,17 @@ export const AppProvider = ({ children, setCurrentView }) => {
       throw err;
     }
     return null;
-  };
+    })();
+
+    snapTradeLoadPromiseRef.current = loadPromise;
+    try {
+      return await loadPromise;
+    } finally {
+      if (snapTradeLoadPromiseRef.current === loadPromise) {
+        snapTradeLoadPromiseRef.current = null;
+      }
+    }
+  }, [getSnapTradeUrl]);
 
   const mergedBalances = useMemo(() => {
     let list = [...balances];

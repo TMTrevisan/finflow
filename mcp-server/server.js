@@ -116,6 +116,7 @@ function saveHoldingsCache(data) {
 
 async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = false) {
   const userCacheFile = getUserCacheFilePath(config.userId);
+  const isRealSnapTradeUser = !!client && !!config.userSecret && !config.userSecret.includes('mock');
 
   function loadHoldingsCache() {
     try {
@@ -139,17 +140,27 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
     }
   }
 
-  // Check cache first
+  const isMockHoldingsCache = (data) => {
+    const accounts = data?.accounts || [];
+    return !!data?.is_mock || accounts.some(acc => acc.id === 'acc_1' || acc.id === 'acc_2');
+  };
+
+  // Check cache first. Never let older mock/demo cache satisfy a real SnapTrade user.
   const cache = loadHoldingsCache();
   if (cache && !forceRefresh && (Date.now() - cache.timestamp < CACHE_HOLDINGS_TTL_MS)) {
-    console.log(`[SnapTrade Cache] Returning cached holdings.`);
-    return cache.data;
+    if (isRealSnapTradeUser && isMockHoldingsCache(cache.data)) {
+      console.log(`[SnapTrade Cache] Ignoring stale mock holdings cache for real SnapTrade user.`);
+    } else {
+      console.log(`[SnapTrade Cache] Returning cached holdings.`);
+      return cache.data;
+    }
   }
 
-  if (!client || !config.userSecret || config.userSecret.includes('mock')) {
+  if (!isRealSnapTradeUser) {
     // Generate mock sandbox holdings
     console.log(`[SnapTrade] Generating mock sandbox holdings.`);
     const mockData = {
+      is_mock: true,
       accounts: [
         {
           id: 'acc_1',
@@ -288,20 +299,8 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
     }
     
     for (const acc of accounts) {
-      const balRes = await client.accountInformation.calculateUserAccountBalances({
-        userId,
-        userSecret,
-        accountId: acc.id
-      }).catch(e => {
-        console.error(`[SnapTrade] Balances call failed for ${acc.name}:`, e.message);
-        return { data: [] };
-      });
-      
-      const balancesData = balRes.data || [];
-      const usdBalance = balancesData.find(b => b.currency?.code === 'USD');
-      const primaryBalance = usdBalance || balancesData[0];
-      const cash = primaryBalance?.cash || 0;
-      const totalEquity = primaryBalance?.total?.amount || primaryBalance?.amount || cash || 0;
+      const cash = acc.balance?.cash?.amount || acc.balances?.cash || 0;
+      const totalEquity = acc.balance?.total?.amount || acc.balances?.current || acc.balance?.amount || cash || 0;
 
       const hEntry = holdingsMap.get(acc.id);
       const rawAccPositions = [];
@@ -407,10 +406,11 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
         id: acc.id,
         name: acc.name,
         number: acc.number,
-        institution_name: acc.brokerage?.name || 'Brokerage',
-        brokerage: acc.brokerage || { name: 'Brokerage' },
+        institution_name: acc.institution_name || acc.brokerage?.name || acc.meta?.institution_name || 'Brokerage',
+        brokerage: acc.brokerage || { name: acc.institution_name || acc.meta?.institution_name || 'Brokerage' },
+        brokerage_authorization: acc.brokerage_authorization || acc.brokerageAuthorization,
         sync_status: acc.sync_status || {},
-        last_synced: acc.sync_status?.last_successful_sync || null,
+        last_synced: acc.sync_status?.holdings?.last_successful_sync || acc.sync_status?.last_successful_sync || null,
         balances: {
           current: finalAccountBalance,
           cash: cash
@@ -421,6 +421,7 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
     }
     
     const result = {
+      is_mock: false,
       accounts: aggregatedBalances,
       positions: aggregatedPositions
     };
@@ -1557,14 +1558,21 @@ async function handleSnapTradeStatus(req, res) {
     const accounts = response.data || [];
     const connectionsMap = new Map();
     accounts.forEach(acc => {
-      const instName = acc.brokerage?.name || 'Brokerage';
-      const authId = acc.brokerageAuthorization?.id || acc.brokerageAuthorization || acc.id;
+      const instName = acc.institution_name || acc.brokerage?.name || acc.meta?.institution_name || 'Brokerage';
+      const authId = acc.brokerage_authorization || acc.brokerageAuthorization?.id || acc.brokerageAuthorization || acc.id;
       if (!connectionsMap.has(instName)) {
         connectionsMap.set(instName, {
           institution_name: instName,
           item_id: authId,
-          last_sync: new Date().toISOString()
+          account_count: 0,
+          last_sync: acc.sync_status?.holdings?.last_successful_sync || new Date().toISOString()
         });
+      }
+      const connection = connectionsMap.get(instName);
+      connection.account_count += 1;
+      const holdingsSync = acc.sync_status?.holdings?.last_successful_sync;
+      if (holdingsSync && (!connection.last_sync || new Date(holdingsSync) > new Date(connection.last_sync))) {
+        connection.last_sync = holdingsSync;
       }
     });
 
