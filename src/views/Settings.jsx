@@ -56,6 +56,9 @@ export default function Settings() {
   // SnapTrade Integration state
   const [snapTradeSyncing, setSnapTradeSyncing] = useState(false);
   const [snapTradeMessage, setSnapTradeMessage] = useState(null);
+  const [clientId, setClientId] = useState(() => safeStorage.getItem('finflow_snaptrade_client_id') || '');
+  const [consumerKey, setConsumerKey] = useState(() => safeStorage.getItem('finflow_snaptrade_consumer_key') || '');
+  const [isSavingKeys, setIsSavingKeys] = useState(false);
 
   useEffect(() => {
     loadSnapTradeData().catch(() => {});
@@ -104,6 +107,37 @@ export default function Settings() {
     }
   };
 
+  const handleSaveKeys = async (e) => {
+    e.preventDefault();
+    if (!clientId.trim() || !consumerKey.trim()) {
+      setSnapTradeMessage({ type: 'error', text: 'Both Client ID and Consumer Key are required' });
+      return;
+    }
+    setIsSavingKeys(true);
+    setSnapTradeMessage({ type: 'info', text: 'Initializing SnapTrade client on backend...' });
+    try {
+      const configUrl = getSnapTradeUrl('api/snaptrade/config');
+      const response = await fetch(configUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: clientId.trim(), consumerKey: consumerKey.trim() })
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        safeStorage.setItem('finflow_snaptrade_client_id', clientId.trim());
+        safeStorage.setItem('finflow_snaptrade_consumer_key', consumerKey.trim());
+        setSnapTradeMessage({ type: 'success', text: 'SnapTrade credentials saved and initialized successfully!' });
+        await loadSnapTradeData();
+      } else {
+        throw new Error(data.error || 'Failed to save configuration');
+      }
+    } catch (err) {
+      setSnapTradeMessage({ type: 'error', text: `Failed to save credentials: ${err.message}` });
+    } finally {
+      setIsSavingKeys(false);
+    }
+  };
+
   const handleSnapTradeDisconnect = async () => {
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Disconnecting SnapTrade connection...' });
@@ -113,6 +147,10 @@ export default function Settings() {
       if (!response.ok) throw new Error('Failed to disconnect');
       const result = await response.json();
       if (result.success) {
+        safeStorage.removeItem('finflow_snaptrade_client_id');
+        safeStorage.removeItem('finflow_snaptrade_consumer_key');
+        setClientId('');
+        setConsumerKey('');
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade connection removed successfully.' });
         await loadSnapTradeData();
       } else {
@@ -1200,6 +1238,40 @@ export default function Settings() {
             </div>
 
             <div className="space-y-3">
+              <div className="space-y-2 bg-obsidian-800/40 p-4 rounded-xl border border-obsidian-850">
+                <span className="text-xs font-bold text-slate-300 block">SnapTrade Credentials</span>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Client ID</label>
+                    <input
+                      type="text"
+                      value={clientId}
+                      onChange={(e) => setClientId(e.target.value)}
+                      placeholder="e.g. finflow-prod"
+                      className="w-full bg-obsidian-950/80 border border-obsidian-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-neon-indigo/50 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Consumer Key</label>
+                    <input
+                      type="password"
+                      value={consumerKey}
+                      onChange={(e) => setConsumerKey(e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      className="w-full bg-obsidian-950/80 border border-obsidian-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-neon-indigo/50 font-mono"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSaveKeys}
+                    disabled={isSavingKeys || snapTradeSyncing}
+                    className="w-full mt-1 py-1.5 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-center space-x-1"
+                  >
+                    <KeyRound size={12} />
+                    <span>{isSavingKeys ? 'Initializing...' : 'Save & Initialize Keys'}</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between bg-obsidian-800/40 p-3 rounded-xl border border-obsidian-850">
                 <span className="text-xs font-semibold text-slate-300">Connection Status</span>
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
@@ -1271,7 +1343,7 @@ export default function Settings() {
             )}
             <button
               onClick={handleLinkAccount}
-              disabled={snapTradeSyncing}
+              disabled={snapTradeSyncing || !snapTradeStatus.configured}
               className="px-3.5 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-2 ml-auto cursor-pointer"
             >
               <Link size={14} />

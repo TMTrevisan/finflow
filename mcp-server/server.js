@@ -23,27 +23,22 @@ const PORT = process.env.PORT || 3001;
 const MCP_SECRET = process.env.MCP_SECRET || '';
 const SHEETS_API_URL = process.env.SHEETS_API_URL || ''; // Your Google Apps Script URL
 
-const SNAPTRADE_CLIENT_ID = process.env.SNAPTRADE_CLIENT_ID || '';
-const SNAPTRADE_CONSUMER_KEY = process.env.SNAPTRADE_CONSUMER_KEY || '';
-
-// Initialize SnapTrade Client
-let snaptradeClient = null;
-if (SNAPTRADE_CLIENT_ID && SNAPTRADE_CONSUMER_KEY) {
-  snaptradeClient = new Snaptrade({
-    clientId: SNAPTRADE_CLIENT_ID,
-    consumerKey: SNAPTRADE_CONSUMER_KEY,
-  });
-  console.log(`[SnapTrade] Client initialized.`);
-} else {
-  console.warn(`[SnapTrade] Missing SNAPTRADE_CLIENT_ID or SNAPTRADE_CONSUMER_KEY. Running in Mock/Dry-run mode.`);
-}
+let snaptradeClientId = process.env.SNAPTRADE_CLIENT_ID || '';
+let snaptradeConsumerKey = process.env.SNAPTRADE_CONSUMER_KEY || '';
 
 // Config file for SnapTrade User
 const CONFIG_FILE_PATH = path.join(__dirname, 'snaptrade_config.json');
 
 function saveSnapTradeConfig(config) {
   try {
-    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(config, null, 2));
+    const existing = loadSnapTradeConfig() || {};
+    const updated = {
+      ...existing,
+      ...config,
+      snaptradeClientId,
+      snaptradeConsumerKey
+    };
+    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(updated, null, 2));
     console.log(`[SnapTrade] Config saved.`);
   } catch (err) {
     console.error(`[SnapTrade] Error saving config:`, err.message);
@@ -53,10 +48,30 @@ function saveSnapTradeConfig(config) {
 function loadSnapTradeConfig() {
   try {
     if (fs.existsSync(CONFIG_FILE_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, 'utf8'));
+      const data = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, 'utf8'));
+      if (data.snaptradeClientId) snaptradeClientId = data.snaptradeClientId;
+      if (data.snaptradeConsumerKey) snaptradeConsumerKey = data.snaptradeConsumerKey;
+      return data;
     }
   } catch (err) {}
   return null;
+}
+
+// Load config first to initialize keys on startup
+loadSnapTradeConfig();
+
+// Initialize SnapTrade Client
+let snaptradeClient = null;
+function getSnapTradeClient() {
+  if (snaptradeClient) return snaptradeClient;
+  if (snaptradeClientId && snaptradeConsumerKey) {
+    snaptradeClient = new Snaptrade({
+      clientId: snaptradeClientId,
+      consumerKey: snaptradeConsumerKey,
+    });
+    console.log(`[SnapTrade] Client initialized.`);
+  }
+  return snaptradeClient;
 }
 
 // Automatically register a user on startup if not present
@@ -69,14 +84,15 @@ async function ensureSnapTradeUser() {
   const userId = 'finflow_user';
   console.log(`[SnapTrade] Registering default user "${userId}"...`);
   
-  if (!snaptradeClient) {
+  const client = getSnapTradeClient();
+  if (!client) {
     config = { userId, userSecret: 'mock-user-secret-12345' };
     saveSnapTradeConfig(config);
     return config;
   }
 
   try {
-    const registerResponse = await snaptradeClient.authentication.registerSnapTradeUser({
+    const registerResponse = await client.authentication.registerSnapTradeUser({
       userId,
     });
     config = {
@@ -123,6 +139,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
   if (!config || !config.userSecret) {
     return null;
   }
+  const client = getSnapTradeClient();
 
   // Check cache first
   const cache = loadHoldingsCache();
@@ -131,7 +148,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
     return cache.data;
   }
 
-  if (!snaptradeClient || config.userSecret.includes('mock')) {
+  if (!client || config.userSecret.includes('mock')) {
     // Generate mock sandbox holdings
     console.log(`[SnapTrade] Generating mock sandbox holdings.`);
     const mockData = {
@@ -158,8 +175,8 @@ async function getSnapTradeHoldings(forceRefresh = false) {
           account_id: 'acc_1',
           symbol: { symbol: 'FXAIX', name: 'Fidelity 500 Index Fund' },
           units: 1000,
-          price: 353.62,
-          value: 353620.00
+          price: 454.604,
+          value: 454604.00
         },
         {
           account_id: 'acc_1',
@@ -184,7 +201,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
   console.log(`[SnapTrade] Fetching holdings from SnapTrade API...`);
   try {
     const { userId, userSecret } = config;
-    const accountsResponse = await snaptradeClient.accountInformationUser.listUserAccounts({
+    const accountsResponse = await client.accountInformationUser.listUserAccounts({
       userId,
       userSecret
     });
@@ -194,7 +211,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
     const aggregatedPositions = [];
     
     for (const acc of accounts) {
-      const balRes = await snaptradeClient.accountInformationUser.calculateUserAccountBalances({
+      const balRes = await client.accountInformationUser.calculateUserAccountBalances({
         userId,
         userSecret,
         accountId: acc.id
@@ -206,7 +223,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
       const balancesData = balRes.data || [];
       const totalEquity = balancesData.find(b => b.currency?.code === 'USD')?.total?.amount || 0;
 
-      const posRes = await snaptradeClient.accountInformationUser.getUserAccountPositions({
+      const posRes = await client.accountInformationUser.getUserAccountPositions({
         userId,
         userSecret,
         accountId: acc.id
@@ -1126,13 +1143,41 @@ async function handleJsonRpc(payload) {
 }
 
 // ─── SnapTrade HTTP Route Handlers ────────────────────────────────────────────
+async function handleSaveConfig(req, res) {
+  try {
+    const { clientId, consumerKey } = req.body;
+    if (!clientId || !consumerKey) {
+      return res.status(400).json({ error: 'Missing clientId or consumerKey' });
+    }
+    snaptradeClientId = clientId;
+    snaptradeConsumerKey = consumerKey;
+    snaptradeClient = null; // force reinitialization
+    
+    // Test if we can initialize it
+    const client = getSnapTradeClient();
+    if (!client) {
+      return res.status(500).json({ error: 'Failed to initialize SnapTrade client with provided keys' });
+    }
+    
+    // Trigger user registration attempt to make sure everything works
+    // and keys are saved
+    const config = await ensureSnapTradeUser();
+    
+    res.json({ success: true, configured: true, connected: config && !config.userSecret.includes('mock') });
+  } catch (err) {
+    console.error(`[SnapTrade] Error saving config:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 async function handleCreatePortalUrl(req, res) {
   try {
     const config = await ensureSnapTradeUser();
-    if (!snaptradeClient || config.userSecret.includes('mock')) {
+    const client = getSnapTradeClient();
+    if (!client || config.userSecret.includes('mock')) {
       return res.json({ redirectURI: 'https://web.snaptrade.com/session/mock-portal-url' });
     }
-    const response = await snaptradeClient.authentication.login({
+    const response = await client.authentication.login({
       userId: config.userId,
       userSecret: config.userSecret
     });
@@ -1146,17 +1191,18 @@ async function handleCreatePortalUrl(req, res) {
 async function handleSnapTradeStatus(req, res) {
   try {
     const config = await ensureSnapTradeUser();
-    if (!snaptradeClient || config.userSecret.includes('mock')) {
+    const client = getSnapTradeClient();
+    const configured = !!(snaptradeClientId && snaptradeConsumerKey);
+
+    if (!client || config.userSecret.includes('mock')) {
       return res.json({
-        connected: true,
-        connections: [
-          { institution_name: 'Fidelity Sandbox', item_id: 'acc_1', last_sync: new Date().toISOString() },
-          { institution_name: 'Robinhood Sandbox', item_id: 'acc_2', last_sync: new Date().toISOString() }
-        ]
+        configured,
+        connected: false,
+        connections: []
       });
     }
 
-    const response = await snaptradeClient.accountInformationUser.listUserAccounts({
+    const response = await client.accountInformationUser.listUserAccounts({
       userId: config.userId,
       userSecret: config.userSecret
     });
@@ -1175,12 +1221,13 @@ async function handleSnapTradeStatus(req, res) {
     });
 
     res.json({
+      configured,
       connected: connectionsMap.size > 0,
       connections: Array.from(connectionsMap.values())
     });
   } catch (err) {
     console.error(`[SnapTrade] Error getting status:`, err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, configured: !!(snaptradeClientId && snaptradeConsumerKey) });
   }
 }
 
@@ -1201,9 +1248,10 @@ async function handleGetSnapTradeHoldings(req, res) {
 async function handleSnapTradeDisconnect(req, res) {
   try {
     const config = loadSnapTradeConfig();
+    const client = getSnapTradeClient();
     if (config && config.userId) {
-      if (snaptradeClient && !config.userSecret.includes('mock')) {
-        await snaptradeClient.authentication.deleteSnapTradeUser({
+      if (client && !config.userSecret.includes('mock')) {
+        await client.authentication.deleteSnapTradeUser({
           userId: config.userId
         }).catch(e => console.warn('[SnapTrade] Delete user API warning:', e.message));
       }
@@ -1213,6 +1261,10 @@ async function handleSnapTradeDisconnect(req, res) {
       if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
         fs.unlinkSync(HOLDINGS_CACHE_FILE);
       }
+      // Reset global credentials
+      snaptradeClientId = '';
+      snaptradeConsumerKey = '';
+      snaptradeClient = null;
       console.log(`[SnapTrade] User configuration reset.`);
     }
     res.json({ success: true });
@@ -1225,6 +1277,9 @@ async function handleSnapTradeDisconnect(req, res) {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // SnapTrade endpoints
+app.post('/api/snaptrade/config', handleSaveConfig);
+app.post('/:secretPrefix/api/snaptrade/config', handleSaveConfig);
+
 app.post('/api/snaptrade/create_portal_url', handleCreatePortalUrl);
 app.post('/:secretPrefix/api/snaptrade/create_portal_url', handleCreatePortalUrl);
 

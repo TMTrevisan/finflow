@@ -167,9 +167,30 @@ export const AppProvider = ({ children, setCurrentView }) => {
   const loadSnapTradeData = async () => {
     try {
       const statusUrl = getSnapTradeUrl('api/snaptrade/status');
-      const statusRes = await fetch(statusUrl);
+      let statusRes = await fetch(statusUrl);
       if (!statusRes.ok) throw new Error('Status failed');
-      const statusData = await statusRes.json();
+      let statusData = await statusRes.json();
+
+      // Dynamic backend self-healing configuration check
+      if (!statusData.configured) {
+        const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
+        const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
+        if (localClientId && localConsumerKey) {
+          const configUrl = getSnapTradeUrl('api/snaptrade/config');
+          const configRes = await fetch(configUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId: localClientId, consumerKey: localConsumerKey })
+          });
+          if (configRes.ok) {
+            statusRes = await fetch(statusUrl);
+            if (statusRes.ok) {
+              statusData = await statusRes.json();
+            }
+          }
+        }
+      }
+
       setSnapTradeStatus(statusData);
 
       if (statusData.connected) {
