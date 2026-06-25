@@ -33,11 +33,12 @@ describe('Formatting Utilities', () => {
       expect(cleanMerchantName('MERCHANT 800-555-0199')).toBe('MERCHANT');
     });
 
-    it('cleans annuity descriptions without triggering payroll mapping', () => {
+    it('cleans annuity and auto loan/payment descriptions without triggering payroll mapping', () => {
       expect(cleanMerchantName('Clear Spring Lif Des:ins.prem, ID:x2600BC, Indn:todd Michael Trevisan, CO ID:x3214 Ppd')).not.toBe('Todd Trevisan Payroll');
       expect(cleanMerchantName('Guggenheim Life Des:ins.prem Id:xxxx2600bc Indn:todd Michael Trevisan Co Id:1471')).not.toBe('Todd Trevisan Payroll');
       expect(cleanMerchantName('Natl West Life Des:inst Bn Pd Id:xxxxxx5655 Indn:todd M Trevisan Co Id:1840')).not.toBe('Todd Trevisan Payroll');
       expect(cleanMerchantName('North American L Des:benef Pymt Id:xxxx6860 Indn:todd Trevisan Co Id:4362')).not.toBe('Todd Trevisan Payroll');
+      expect(cleanMerchantName('HYUNDAI MOTOR CO ID: 1952918880 Indn: TODD TREVISAN PPD')).not.toBe('Todd Trevisan Payroll');
     });
 
     it('maps payroll descriptions when custom splits are enabled', () => {

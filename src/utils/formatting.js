@@ -29,15 +29,21 @@ export const cleanMerchantName = (description) => {
       return 'Kaitlyn Trevisan Payroll';
     }
 
-    const isAnnuity = 
+    const isExcluded = 
       lower.includes('clear spring') || 
       lower.includes('clearspring') || 
       lower.includes('guggenheim') || 
       lower.includes('natl west') || 
       lower.includes('national western') || 
-      lower.includes('north american');
+      lower.includes('north american') ||
+      lower.includes('hyundai') ||
+      lower.includes('auto') ||
+      lower.includes('motor') ||
+      lower.includes('finance') ||
+      lower.includes('payment') ||
+      lower.includes('loan');
 
-    if (!isAnnuity) {
+    if (!isExcluded) {
       if (lower.includes('trevisan,todd') || (lower.includes('todd trevisan') && (lower.includes('zik') || lower.includes('ppd')))) {
         return 'Todd Trevisan Payroll';
       }
