@@ -41,18 +41,24 @@ describe('Formatting Utilities', () => {
       expect(cleanMerchantName('HYUNDAI MOTOR CO ID: 1952918880 Indn: TODD TREVISAN PPD')).not.toBe('Todd Trevisan Payroll');
     });
 
-    it('maps payroll descriptions when custom splits are enabled', () => {
+    it('maps payroll descriptions when custom splits are enabled and category is paycheck', () => {
       safeStorage.setItem('finflow_enable_custom_splits', 'true');
-      expect(cleanMerchantName('Becton')).toBe('Becton Dickinson');
-      expect(cleanMerchantName('trevisan,todd')).toBe('Todd Trevisan Payroll');
-      expect(cleanMerchantName('Kaitlyn Trevisan Payroll cerx')).toBe('Kaitlyn Trevisan Payroll');
+      expect(cleanMerchantName('Becton', 'Paycheck')).toBe('Becton Dickinson');
+      expect(cleanMerchantName('trevisan,todd', 'Paycheck')).toBe('Todd Trevisan Payroll');
+      expect(cleanMerchantName('Kaitlyn Trevisan Payroll cerx', 'Paycheck')).toBe('Kaitlyn Trevisan Payroll');
     });
 
     it('does not map payroll descriptions when custom splits are disabled', () => {
       safeStorage.setItem('finflow_enable_custom_splits', 'false');
-      expect(cleanMerchantName('Becton')).toBe('Becton');
+      expect(cleanMerchantName('Becton', 'Paycheck')).toBe('Becton');
+      expect(cleanMerchantName('trevisan,todd', 'Paycheck')).toBe('trevisan,todd');
+      expect(cleanMerchantName('Kaitlyn Trevisan Payroll cerx', 'Paycheck')).toBe('Kaitlyn Trevisan Payroll cerx');
+    });
+
+    it('does not map payroll descriptions when category is not paycheck/income', () => {
+      safeStorage.setItem('finflow_enable_custom_splits', 'true');
+      expect(cleanMerchantName('trevisan,todd', 'Auto')).toBe('trevisan,todd');
       expect(cleanMerchantName('trevisan,todd')).toBe('trevisan,todd');
-      expect(cleanMerchantName('Kaitlyn Trevisan Payroll cerx')).toBe('Kaitlyn Trevisan Payroll cerx');
     });
 
     it('handles null/undefined descriptions gracefully', () => {

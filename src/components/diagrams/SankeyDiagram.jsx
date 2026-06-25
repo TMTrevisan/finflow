@@ -84,7 +84,7 @@ export default function SankeyDiagram({ transactions, onSelectNode, activeFilter
       if (type === 'Income') {
         const catNameLower = catName.toLowerCase();
         let sourceName = (catNameLower.includes('deposit') || catNameLower.includes('paycheck') || catNameLower === 'income')
-          ? cleanMerchantName(t.description)
+          ? cleanMerchantName(t.description, t.category)
           : catName;
 
         const sourceLower = sourceName.toLowerCase();

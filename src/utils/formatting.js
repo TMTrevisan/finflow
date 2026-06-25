@@ -12,17 +12,20 @@ export const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString('en-US', options);
 };
 
-export const cleanMerchantName = (description) => {
+export const cleanMerchantName = (description, category) => {
   if (!description) return '';
   
   let cleaned = description;
   const lower = description.toLowerCase();
   
+  const lowerCat = String(category || '').toLowerCase();
+  const isPayrollCategory = lowerCat.includes('paycheck') || lowerCat.includes('salary') || lowerCat.includes('wages') || lowerCat.includes('deposit') || lowerCat.includes('income');
+
   const customSplitsEnabled = safeStorage.getItem('finflow_enable_custom_splits') === 'true';
 
-  // Specific Payroll/Employer / Tax Refund Mappings
-  if (customSplitsEnabled) {
-    if (lower.includes('becton dickinson') || lower.includes('becton')) {
+  // Specific Payroll/Employer / Tax Refund Mappings - ONLY if explicitly a paycheck/direct deposit/income category!
+  if (customSplitsEnabled && isPayrollCategory) {
+    if (lower.includes('becton') || lower.includes('becton dickinson')) {
       return 'Becton Dickinson';
     }
     if (lower.includes('kaitlyn trevisan') && (lower.includes('payroll') || lower.includes('ayroll') || lower.includes('cerx'))) {
