@@ -290,6 +290,31 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
     const aggregatedBalances = [];
     const aggregatedPositions = [];
 
+    // Fetch currency exchange rates to normalize everything to USD
+    const usdRates = { 'USD': 1.0 };
+    try {
+      console.log(`[SnapTrade] Fetching currency exchange rates...`);
+      const ratesResponse = await client.referenceData.listAllCurrenciesRates();
+      const rates = ratesResponse.data || [];
+      for (const pair of rates) {
+        const srcCode = pair.src?.code?.toUpperCase();
+        const dstCode = pair.dst?.code?.toUpperCase();
+        const rate = Number(pair.exchange_rate);
+        if (!srcCode || !dstCode || isNaN(rate) || rate <= 0) continue;
+
+        if (dstCode === 'USD') {
+          usdRates[srcCode] = rate;
+        } else if (srcCode === 'USD') {
+          if (!usdRates[dstCode]) {
+            usdRates[dstCode] = 1 / rate;
+          }
+        }
+      }
+      console.log(`[SnapTrade] Loaded ${Object.keys(usdRates).length} USD currency exchange rates.`);
+    } catch (ratesErr) {
+      console.error(`[SnapTrade] Error fetching currency exchange rates, defaulting to 1.0:`, ratesErr.message);
+    }
+
     // Create holdings map by account ID for easy lookup
     const holdingsMap = new Map();
     for (const h of holdings) {
@@ -331,6 +356,44 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
         totalEquity = cash || 0;
       }
 
+      // Normalize account cash and total equity to USD
+      let cashCurrencyCode = 'USD';
+      if (acc.balance?.cash?.currency) {
+        cashCurrencyCode = acc.balance.cash.currency;
+      } else if (acc.balance?.total?.currency) {
+        cashCurrencyCode = acc.balance.total.currency;
+      } else if (acc.currency) {
+        cashCurrencyCode = typeof acc.currency === 'object' ? (acc.currency.code || 'USD') : acc.currency;
+      }
+
+      let totalEquityCurrencyCode = 'USD';
+      if (acc.balance?.total?.currency) {
+        totalEquityCurrencyCode = acc.balance.total.currency;
+      } else if (acc.balance?.currency) {
+        totalEquityCurrencyCode = typeof acc.balance.currency === 'object' ? (acc.balance.currency.code || 'USD') : acc.balance.currency;
+      } else if (acc.currency) {
+        totalEquityCurrencyCode = typeof acc.currency === 'object' ? (acc.currency.code || 'USD') : acc.currency;
+      }
+
+      cashCurrencyCode = cashCurrencyCode.toUpperCase();
+      totalEquityCurrencyCode = totalEquityCurrencyCode.toUpperCase();
+
+      if (cashCurrencyCode !== 'USD') {
+        const rate = usdRates[cashCurrencyCode];
+        if (rate) {
+          console.log(`[SnapTrade Currency] Converting cash from ${cashCurrencyCode} to USD using rate ${rate}`);
+          cash = cash * rate;
+        }
+      }
+
+      if (totalEquityCurrencyCode !== 'USD') {
+        const rate = usdRates[totalEquityCurrencyCode];
+        if (rate) {
+          console.log(`[SnapTrade Currency] Converting total equity from ${totalEquityCurrencyCode} to USD using rate ${rate}`);
+          totalEquity = totalEquity * rate;
+        }
+      }
+
       const hEntry = holdingsMap.get(acc.id);
       const rawAccPositions = [];
       if (hEntry) {
@@ -348,8 +411,8 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
 
       const positions = rawAccPositions.map(pos => {
         const units = pos.units || 0;
-        const price = pos.price || 0;
-        const value = pos.value || (units * price) || 0;
+        let price = pos.price || 0;
+        let value = pos.value || (units * price) || 0;
         
         let average_buy_price = pos.average_buy_price || pos.average_purchase_price || pos.cost || 0;
         let open_pnl = pos.open_pnl !== undefined && pos.open_pnl !== null ? Number(pos.open_pnl) : 0;
@@ -371,9 +434,7 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
           open_pnl = 0;
         }
         
-        const total_pnl_percent = total_cost > 0 ? (open_pnl / total_cost) * 100 : 0;
-        const day_pnl = pos.day_pnl || 0;
-        const day_pnl_percent = value > 0 ? (day_pnl / value) * 100 : 0;
+        let day_pnl = pos.day_pnl || 0;
 
         let ticker = '';
         let name = '';
@@ -392,6 +453,26 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
         if (!name) {
           name = ticker || 'Unknown Security';
         }
+
+        // Normalize position values to USD if they are in another currency
+        const posCurrencyCode = (pos.currency?.code || 'USD').toUpperCase();
+        if (posCurrencyCode !== 'USD') {
+          const rate = usdRates[posCurrencyCode];
+          if (rate) {
+            console.log(`[SnapTrade Currency] Converting position ${ticker} from ${posCurrencyCode} to USD using rate ${rate}`);
+            price = price * rate;
+            value = value * rate;
+            average_buy_price = average_buy_price * rate;
+            total_cost = total_cost * rate;
+            open_pnl = open_pnl * rate;
+            day_pnl = day_pnl * rate;
+          } else {
+            console.warn(`[SnapTrade Currency] Exchange rate for ${posCurrencyCode} not found, using original values.`);
+          }
+        }
+
+        const total_pnl_percent = total_cost > 0 ? (open_pnl / total_cost) * 100 : 0;
+        const day_pnl_percent = value > 0 ? (day_pnl / value) * 100 : 0;
 
         let { assetClass, sector, geography } = categorizeSecurity(name, acc.name || '');
         if (pos.is_option) {

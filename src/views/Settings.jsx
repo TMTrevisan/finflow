@@ -1716,18 +1716,45 @@ export default function Settings() {
                 </button>
               </div>
             </div>
-            <div className="h-96 max-h-[60vh] overflow-y-auto bg-black/80 border border-obsidian-800 rounded-2xl p-4 font-mono text-xs space-y-1 text-slate-350 scrollbar-thin scrollbar-thumb-obsidian-750">
+            <div className="h-96 max-h-[60vh] overflow-y-auto bg-black/80 border border-obsidian-800 rounded-2xl p-4 font-mono text-xs space-y-1.5 text-slate-300 scrollbar-thin scrollbar-thumb-obsidian-750">
               {syncLogs.length === 0 ? (
                 <div className="text-slate-600 italic">No diagnostic events logged yet. Trigger a refetch or sync to generate logs.</div>
               ) : (
                 syncLogs.map((log, idx) => {
-                  let colorClass = 'text-slate-350';
-                  if (log.includes('$') || log.includes('finflow db')) colorClass = 'text-neon-indigo font-bold';
-                  else if (log.includes('[ERROR]')) colorClass = 'text-neon-crimson font-semibold';
-                  else if (log.includes('[SUCCESS]')) colorClass = 'text-neon-emerald font-semibold';
-                  else if (log.includes('[INFO]')) colorClass = 'text-slate-450';
+                  const match = log.match(/^\[([^\]]+)\]\s+(.*)$/);
+                  if (match) {
+                    const timestamp = match[1];
+                    const msg = match[2];
+                    let msgColorClass = 'text-slate-200';
+                    if (msg.startsWith('$') || msg.includes('finflow db') || msg.includes('finflow snaptrade')) {
+                      msgColorClass = 'text-cyan-400 font-bold';
+                    } else if (msg.includes('[ERROR]')) {
+                      msgColorClass = 'text-neon-crimson font-semibold';
+                    } else if (msg.includes('[SUCCESS]')) {
+                      msgColorClass = 'text-neon-emerald font-semibold';
+                    } else if (msg.includes('[INFO]')) {
+                      msgColorClass = 'text-slate-300';
+                    }
+                    return (
+                      <div key={idx} className="whitespace-pre-wrap break-all text-[11px] leading-relaxed">
+                        <span className="text-slate-500 mr-2">[{timestamp}]</span>
+                        <span className={msgColorClass}>{msg}</span>
+                      </div>
+                    );
+                  }
+
+                  let colorClass = 'text-slate-300';
+                  if (log.includes('$') || log.includes('finflow db') || log.includes('finflow snaptrade')) {
+                    colorClass = 'text-cyan-400 font-bold';
+                  } else if (log.includes('[ERROR]')) {
+                    colorClass = 'text-neon-crimson font-semibold';
+                  } else if (log.includes('[SUCCESS]')) {
+                    colorClass = 'text-neon-emerald font-semibold';
+                  } else if (log.includes('[INFO]')) {
+                    colorClass = 'text-slate-300';
+                  }
                   return (
-                    <div key={idx} className={`${colorClass} whitespace-pre-wrap break-all`}>
+                    <div key={idx} className={`${colorClass} whitespace-pre-wrap break-all text-[11px] leading-relaxed`}>
                       {log}
                     </div>
                   );
