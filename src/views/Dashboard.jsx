@@ -150,7 +150,7 @@ export default function Dashboard({ setCurrentView }) {
 
     let recommendation = 'Optimal liquidity allocation.';
     let recommendationColor = 'text-neon-emerald';
-    if (cashDragRatio > 15) {
+    if (cashDragRatio > 8) {
       recommendation = 'High cash drag. Consider moving excess cash to sweep accounts.';
       recommendationColor = 'text-neon-crimson';
     } else if (cashDragRatio < 3 && totalValue > 1000) {

@@ -193,7 +193,7 @@ export default function Wealth({ setCurrentView }) {
 
     let recommendation = 'Optimal liquidity allocation.';
     let recommendationColor = 'text-neon-emerald';
-    if (cashDragRatio > 15) {
+    if (cashDragRatio > 8) {
       recommendation = 'High cash drag. Consider moving excess cash to yield sweep accounts or investing.';
       recommendationColor = 'text-neon-crimson';
     } else if (cashDragRatio < 3 && totalValue > 1000) {
