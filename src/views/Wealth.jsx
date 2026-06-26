@@ -85,41 +85,6 @@ export default function Wealth({ setCurrentView }) {
     return { totalValue, totalCost, totalPnl, pnlPercent, totalDayPnl, dayPnlPercent };
   }, [positions]);
 
-  const liquidityStats = useMemo(() => {
-    let totalCash = 0;
-    let totalInvested = 0;
-    
-    positions.forEach(pos => {
-      const val = pos.value || 0;
-      if (pos.symbol?.symbol === 'CASH' || pos.is_cash || pos.assetClass === 'Cash & Equivalents') {
-        totalCash += val;
-      } else {
-        totalInvested += val;
-      }
-    });
-
-    const totalValue = totalCash + totalInvested;
-    const cashDragRatio = totalValue > 0 ? (totalCash / totalValue) * 100 : 0;
-
-    let recommendation = 'Optimal liquidity allocation.';
-    let recommendationColor = 'text-neon-emerald';
-    if (cashDragRatio > 15) {
-      recommendation = 'High cash drag. Consider moving excess cash to yield sweep accounts or investing.';
-      recommendationColor = 'text-neon-crimson';
-    } else if (cashDragRatio < 3 && totalValue > 1000) {
-      recommendation = 'Low cash reserves. Ensure you have adequate emergency liquidity.';
-      recommendationColor = 'text-neon-indigo';
-    }
-
-    return {
-      totalCash,
-      totalInvested,
-      cashDragRatio,
-      recommendation,
-      recommendationColor
-    };
-  }, [positions]);
-
   // 1-day and 90-day change computations for accounts list from actual balance ledger history
   const accountMetrics = useMemo(() => {
     const list = [];
@@ -175,6 +140,7 @@ export default function Wealth({ setCurrentView }) {
         accountName: latest.account,
         institution: latest.institution,
         class: latest.class,
+        type: latest.type || latest.account_type || '',
         balance: curVal,
         change1d,
         pct1d,
@@ -185,6 +151,64 @@ export default function Wealth({ setCurrentView }) {
 
     return list.sort((a, b) => b.balance - a.balance);
   }, [balances]);
+
+  const liquidityStats = useMemo(() => {
+    let totalCash = 0;
+    let totalInvested = 0;
+
+    const isCashEquivalent = (pos) => {
+      if (pos.symbol?.symbol === 'CASH' || pos.is_cash || pos.assetClass === 'Cash & Equivalents') return true;
+      const sym = String(pos.symbol?.symbol || '').toUpperCase().trim();
+      const name = String(pos.symbol?.name || '').toUpperCase();
+      const cashEtfs = ['SGOV', 'BIL', 'SHV', 'USFR', 'TFLO', 'CLIP', 'TBIL', 'JPST', 'MINT', 'FLOT', 'ICSH', 'WEEK', 'WKLY'];
+      if (cashEtfs.includes(sym)) return true;
+      if (sym.includes('USTB') || sym.includes('TREASURY') || sym.includes('T-BILL')) return true;
+      if (name.includes('TREASURY BILL') || name.includes('T-BILL') || name.includes('0-3 MONTH') || name.includes('1-3 MONTH')) return true;
+      return false;
+    };
+
+    // 1. Brokerage positions cash & cash equivalents
+    positions.forEach(pos => {
+      const val = pos.value || 0;
+      if (isCashEquivalent(pos)) {
+        totalCash += val;
+      } else {
+        totalInvested += val;
+      }
+    });
+
+    // 2. Bank accounts cash (checking, savings, manual cash)
+    accountMetrics.forEach(acc => {
+      if (acc.class === 'Asset') {
+        const type = String(acc.type || '').toLowerCase();
+        const name = String(acc.accountName || '').toLowerCase();
+        if (type === 'checking' || type === 'savings' || type === 'cash' || name.includes('checking') || name.includes('savings')) {
+          totalCash += (acc.balance || 0);
+        }
+      }
+    });
+
+    const totalValue = totalCash + totalInvested;
+    const cashDragRatio = totalValue > 0 ? (totalCash / totalValue) * 100 : 0;
+
+    let recommendation = 'Optimal liquidity allocation.';
+    let recommendationColor = 'text-neon-emerald';
+    if (cashDragRatio > 15) {
+      recommendation = 'High cash drag. Consider moving excess cash to yield sweep accounts or investing.';
+      recommendationColor = 'text-neon-crimson';
+    } else if (cashDragRatio < 3 && totalValue > 1000) {
+      recommendation = 'Low cash reserves. Ensure you have adequate emergency liquidity.';
+      recommendColor = 'text-neon-indigo';
+    }
+
+    return {
+      totalCash,
+      totalInvested,
+      cashDragRatio,
+      recommendation,
+      recommendationColor
+    };
+  }, [positions, accountMetrics]);
 
   // Aggregate balance history for Stacked Area Chart (balances tab)
   const stackedChartData = useMemo(() => {
