@@ -19,7 +19,8 @@ import {
   Settings as SettingsIcon,
   CheckCircle,
   Activity,
-  Square
+  Square,
+  Download
 } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -1327,6 +1328,24 @@ Rules:
               className="flex items-center space-x-1.5 text-[10px] font-bold text-slate-400 hover:text-white px-2.5 py-1.5 bg-obsidian-800 rounded-lg border border-obsidian-750 transition-all"
             >
               <span>{showSharedContext ? 'Hide Payload' : 'Show Payload'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(financialContext, null, 2));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", `finflow_agent_snapshot_${new Date().toISOString().split('T')[0]}.json`);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+              }}
+              className="flex items-center space-x-1.5 text-[10px] font-bold text-amber-400 hover:text-amber-300 px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/30 rounded-lg transition-all cursor-pointer shadow-sm active:scale-[0.98]"
+              title="Download entire structured financial payload for separate AI agents"
+            >
+              <Download size={12} />
+              <span>Export AI Snapshot</span>
             </button>
           </div>
         </div>
