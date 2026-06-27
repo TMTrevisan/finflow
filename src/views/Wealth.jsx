@@ -559,13 +559,14 @@ export default function Wealth({ setCurrentView }) {
                   const points1 = [];
                   const points2 = [];
                   const len = stackedChartData.length;
+                  const maxTotal = Math.max(...stackedChartData.map(p => p.total || 0), 100000) * 1.15; // 15% top margin
                   
                   stackedChartData.forEach((p, idx) => {
                     const x = (idx / (len - 1)) * 800;
                     // Lower layer
-                    const y1 = 200 - (p.total * 0.4 / 1000000) * 180;
+                    const y1 = 200 - ((p.total * 0.4) / maxTotal) * 180;
                     // Upper layer
-                    const y2 = 200 - (p.total / 1000000) * 180;
+                    const y2 = 200 - (p.total / maxTotal) * 180;
                     points1.push(`${x},${y1}`);
                     points2.push(`${x},${y2}`);
                   });
