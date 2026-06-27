@@ -1,2 +1,4 @@
 node_modules/
 .env
+snaptrade_config.json
+*cache.json

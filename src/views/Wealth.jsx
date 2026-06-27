@@ -435,18 +435,27 @@ export default function Wealth({ setCurrentView }) {
               : perfBenchmark === 'foreignStock' ? 'foreignStock' 
               : perfBenchmark === 'usBond' ? 'usBond' : 'alternatives';
 
-    const values = performanceHistory.map(d => d[key]);
-    const minVal = Math.min(...values) - 0.5;
-    const maxVal = Math.max(...values) + 0.5;
+    const portValues = performanceHistory.map(d => d.portfolio);
+    const benchValues = performanceHistory.map(d => d[key]);
+    const allValues = [...portValues, ...benchValues];
+
+    const minVal = Math.min(...allValues) - 0.5;
+    const maxVal = Math.max(...allValues) + 0.5;
     const valRange = maxVal - minVal || 1;
 
-    const points = performanceHistory.map((d, i) => {
+    const portfolioPoints = performanceHistory.map((d, i) => {
+      const x = padding + (i / 89) * (width - padding * 2);
+      const y = height - padding - ((d.portfolio - minVal) / valRange) * (height - padding * 2);
+      return `${x},${y}`;
+    }).join(' ');
+
+    const benchmarkPoints = performanceHistory.map((d, i) => {
       const x = padding + (i / 89) * (width - padding * 2);
       const y = height - padding - ((d[key] - minVal) / valRange) * (height - padding * 2);
       return `${x},${y}`;
     }).join(' ');
 
-    return { points, minVal, maxVal };
+    return { portfolioPoints, benchmarkPoints, minVal, maxVal };
   }, [performanceHistory, perfBenchmark]);
 
   return (
@@ -966,15 +975,35 @@ export default function Wealth({ setCurrentView }) {
                   <line x1="0" y1="230" x2="800" y2="230" stroke="#1e293b" strokeDasharray="3 3" />
                   <line x1="0" y1="260" x2="800" y2="260" stroke="#334155" />
 
-                  {/* Draw the selected index curve */}
+                  {/* Draw My Portfolio curve */}
                   <polyline
                     fill="none"
-                    stroke="#0284c7"
+                    stroke="#6366F1"
                     strokeWidth="3.5"
                     strokeLinecap="round"
-                    points={performanceLinePoints.points}
+                    points={performanceLinePoints.portfolioPoints}
                     className="transition-all duration-300"
                   />
+
+                  {/* Draw Benchmark index overlay curve if not portfolio */}
+                  {perfBenchmark !== 'portfolio' && (
+                    <polyline
+                      fill="none"
+                      stroke={
+                        perfBenchmark === 'blended' ? '#94A3B8' :
+                        perfBenchmark === 'usStock' ? '#F59E0B' :
+                        perfBenchmark === 'foreignStock' ? '#FBBF24' :
+                        perfBenchmark === 'usBond' ? '#06B6D4' :
+                        perfBenchmark === 'foreignBond' ? '#14B8A6' :
+                        perfBenchmark === 'alternatives' ? '#D946EF' : '#38BDF8'
+                      }
+                      strokeWidth="2"
+                      strokeDasharray="5,5"
+                      strokeLinecap="round"
+                      points={performanceLinePoints.benchmarkPoints}
+                      className="transition-all duration-300"
+                    />
+                  )}
                 </svg>
                 <div className="flex justify-between text-[9px] text-slate-500 font-bold uppercase mt-1">
                   <span>90 days ago</span>

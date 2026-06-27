@@ -31,3 +31,8 @@ dist-ssr
 .env.*
 
 .vercel
+
+# SnapTrade configs & caches
+mcp-server/snaptrade_config.json
+mcp-server/snaptrade_holdings_*_cache.json
+mcp-server/*_cache.json

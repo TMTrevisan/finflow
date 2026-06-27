@@ -2147,6 +2147,31 @@ async function handleProxyCall(req, res) {
     return res.status(400).json({ error: 'Missing target url parameter in proxy request.' });
   }
 
+  // SSRF Loopback/Private network protection
+  try {
+    const parsedUrl = new URL(url);
+    const host = parsedUrl.hostname.toLowerCase();
+    const isLocalOrPrivate = 
+      host === 'localhost' || 
+      host === '127.0.0.1' || 
+      host === '[::1]' || 
+      host === '::1' || 
+      host.startsWith('127.') || 
+      host.startsWith('10.') || 
+      host.startsWith('192.168.') || 
+      (host.startsWith('172.') && (() => {
+        const parts = host.split('.');
+        const second = parseInt(parts[1], 10);
+        return second >= 16 && second <= 31;
+      })());
+
+    if (isLocalOrPrivate) {
+      return res.status(403).json({ error: 'Forbidden: Proxy call to local or private addresses is blocked for security reasons.' });
+    }
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid URL format provided to proxy.' });
+  }
+
   // If MCP_SECRET is configured, restrict proxy access to authenticated clients
   if (MCP_SECRET) {
     if (secretPrefix) {

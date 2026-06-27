@@ -3,8 +3,10 @@ import { RefreshCw, Bell, AlertTriangle, Settings, Search, Sun, Moon, CheckCircl
 import { useAppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { formatCurrency } from '../../utils/formatting';
+
 export default function Header({ title, currentView, setCurrentView }) {
-  const { syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen, balances = [], transactions = [], categories = [] } = useAppContext();
+  const { syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen, balances = [], transactions = [], categories = [], snapTradeHoldings } = useAppContext();
   
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('finflow_theme') || 'dark';
@@ -94,8 +96,67 @@ export default function Header({ title, currentView, setCurrentView }) {
       }
     });
 
+    // 4. Cash Drag Warning (if > 8%)
+    let totalCash = 0;
+    let totalInvested = 0;
+
+    const isCashEquivalent = (pos) => {
+      if (pos.symbol?.symbol === 'CASH' || pos.is_cash || pos.assetClass === 'Cash & Equivalents') return true;
+      const sym = String(pos.symbol?.symbol || '').toUpperCase().trim();
+      const name = String(pos.symbol?.name || '').toUpperCase();
+      const cashEtfs = ['SGOV', 'BIL', 'SHV', 'USFR', 'TFLO', 'CLIP', 'TBIL', 'JPST', 'MINT', 'FLOT', 'ICSH', 'WEEK', 'WKLY'];
+      if (cashEtfs.includes(sym)) return true;
+      if (sym.includes('USTB') || sym.includes('TREASURY') || sym.includes('T-BILL')) return true;
+      if (name.includes('TREASURY BILL') || name.includes('T-BILL') || name.includes('0-3 MONTH') || name.includes('1-3 MONTH')) return true;
+      return false;
+    };
+
+    const positions = snapTradeHoldings?.positions || [];
+    positions.forEach(pos => {
+      const val = pos.value || 0;
+      if (isCashEquivalent(pos)) {
+        totalCash += val;
+      } else {
+        totalInvested += val;
+      }
+    });
+
+    // Filter latest balance entries per account
+    const latestMapForDrag = new Map();
+    const sortedBalancesForDrag = [...(balances || [])]
+      .filter(b => b && b.date && b.institution && b.account)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    sortedBalancesForDrag.forEach(b => {
+      const key = `${b.institution}_${b.account}_${b.account_id || ''}`;
+      latestMapForDrag.set(key, b);
+    });
+
+    Array.from(latestMapForDrag.values()).forEach(b => {
+      if (b.class === 'Asset') {
+        const type = String(b.type || '').toLowerCase();
+        const name = String(b.account || '').toLowerCase();
+        if (type === 'checking' || type === 'savings' || type === 'cash' || name.includes('checking') || name.includes('savings')) {
+          totalCash += (Number(b.balance) || 0);
+        }
+      }
+    });
+
+    const totalValue = totalCash + totalInvested;
+    const cashDragRatio = totalValue > 0 ? (totalCash / totalValue) * 100 : 0;
+
+    if (cashDragRatio > 8) {
+      list.push({
+        id: 'cash_drag_alert',
+        type: 'warning',
+        title: 'High Cash Drag Detected',
+        description: `Your cash sweep & liquid reserves are currently at ${cashDragRatio.toFixed(1)}% (${formatCurrency(totalCash)}). This exceeds the 8% target and may drag your portfolio returns.`,
+        actionLabel: 'View Wealth',
+        action: 'view_wealth'
+      });
+    }
+
     return list;
-  }, [balances, transactions, categories, lastSync]);
+  }, [balances, transactions, categories, lastSync, snapTradeHoldings]);
 
   const handleAlertAction = (action) => {
     setIsAlertsOpen(false);
@@ -105,6 +166,8 @@ export default function Header({ title, currentView, setCurrentView }) {
       setCurrentView('accounts');
     } else if (action === 'view_budgets') {
       setCurrentView('budgets');
+    } else if (action === 'view_wealth') {
+      setCurrentView('wealth');
     }
   };
 
