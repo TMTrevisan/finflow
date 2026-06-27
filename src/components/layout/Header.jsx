@@ -252,51 +252,63 @@ export default function Header({ title, currentView, setCurrentView }) {
     return `Connected. Displaying up-to-date data synced at ${lastSync ? new Date(lastSync).toLocaleTimeString() : 'start'}.`;
   };
 
+  const getShortSyncTimeLabel = (label) => {
+    return label
+      .replace('Synced ', '')
+      .replace(' ago', '')
+      .replace('Offline (Local Cache)', 'Offline')
+      .replace('Demo Mode', 'Demo')
+      .replace('Stale Data (>24h)', 'Stale')
+      .replace('Sync Failed', 'Failed')
+      .replace('Live Synced', 'Live');
+  };
+
   return (
-    <header className="flex items-center justify-between p-6 border-b border-obsidian-700 bg-obsidian-900/80 backdrop-blur-md sticky top-0 z-40">
-      <h2 className="text-xl font-semibold md:hidden text-white">{title}</h2>
+    <header className="flex items-center justify-between p-4 sm:p-6 border-b border-obsidian-700 bg-obsidian-900/80 backdrop-blur-md sticky top-0 z-40">
+      <h2 className="text-lg font-bold md:hidden text-white truncate max-w-[120px]">{title}</h2>
       <div className="hidden md:block">
         <h2 className="text-2xl font-bold text-white capitalize">{title}</h2>
       </div>
       
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-1.5 sm:space-x-3 md:space-x-4">
         {/* Dynamic Connection/Sync Status Indicator */}
         <div 
           title={getTooltipText()}
-          className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-colors duration-300 cursor-help ${getStatusStyles()}`}
+          className={`flex items-center space-x-1 sm:space-x-1.5 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border transition-colors duration-300 cursor-help ${getStatusStyles()}`}
         >
-          <span className="relative flex h-2 w-2">
+          <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
             {/* Pulsing ring animation */}
             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${getDotStyles()}`}></span>
-            <span className={`relative inline-flex rounded-full h-2 w-2 ${getDotStyles()}`}></span>
+            <span className={`relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 ${getDotStyles()}`}></span>
           </span>
-          <span>{syncTimeLabel}</span>
+          <span className="hidden xs:inline">{syncTimeLabel}</span>
+          <span className="xs:hidden">{getShortSyncTimeLabel(syncTimeLabel)}</span>
         </div>
 
         <button 
           onClick={() => setCurrentView('settings')}
-          className={`p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
+          className={`p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
             currentView === 'settings' ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
           }`}
           title="Settings"
         >
-          <Settings size={20} />
+          <Settings size={18} className="sm:w-5 sm:h-5" />
         </button>
 
         <button 
           onClick={toggleTheme}
-          className="p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
+          className="p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
           title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
         >
-          {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+          {theme === 'light' ? <Moon size={18} className="sm:w-5 sm:h-5" /> : <Sun size={18} className="sm:w-5 sm:h-5" />}
         </button>
 
         <button 
           onClick={() => setGlobalSearchOpen(true)}
-          className="p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
+          className="p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
           title="Search (Cmd+K)"
         >
-          <Search size={20} />
+          <Search size={18} className="sm:w-5 sm:h-5" />
         </button>
 
         <div className="relative">
@@ -305,14 +317,14 @@ export default function Header({ title, currentView, setCurrentView }) {
               e.stopPropagation();
               setIsAlertsOpen(prev => !prev);
             }}
-            className={`p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
+            className={`p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
               isAlertsOpen ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
             }`}
             title="Notifications"
           >
-            <Bell size={20} />
+            <Bell size={18} className="sm:w-5 sm:h-5" />
             {alerts.length > 0 && (
-              <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-neon-crimson text-[9px] font-extrabold text-white">
+              <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded-full bg-neon-crimson text-[8px] sm:text-[9px] font-extrabold text-white">
                 {alerts.length}
               </span>
             )}
@@ -325,7 +337,7 @@ export default function Header({ title, currentView, setCurrentView }) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
                 onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 mt-2 w-80 sm:w-96 bg-obsidian-900 border border-obsidian-750 rounded-2xl shadow-2xl p-4 z-50 text-left"
+                className="absolute right-0 mt-2 w-72 sm:w-96 bg-obsidian-900 border border-obsidian-750 rounded-2xl shadow-2xl p-4 z-50 text-left"
               >
                 <div className="flex justify-between items-center pb-2 border-b border-obsidian-800 mb-3">
                   <h3 className="font-bold text-white text-sm">System Alerts</h3>
@@ -376,7 +388,7 @@ export default function Header({ title, currentView, setCurrentView }) {
                                     : 'bg-neon-indigo/15 hover:bg-neon-indigo/25 text-neon-indigo'
                               }`}
                             >
-                              {alert.actionLabel}
+                                {alert.actionLabel}
                             </button>
                           </div>
                         )}
@@ -392,10 +404,10 @@ export default function Header({ title, currentView, setCurrentView }) {
         <button 
           onClick={handleSync}
           disabled={isSyncing}
-          className="flex items-center space-x-1.5 px-3 py-2 bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+          className="flex items-center justify-center p-2 sm:px-3 sm:py-2 bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
         >
           <RefreshCw size={14} className={isSyncing ? "animate-spin text-neon-emerald" : ""} />
-          <span>{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+          <span className="hidden sm:inline sm:ml-1.5">{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
         </button>
       </div>
 
