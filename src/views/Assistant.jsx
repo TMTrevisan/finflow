@@ -26,6 +26,24 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export default function Assistant() {
   const { transactions = [], categories = [], balances = [] } = useAppContext();
 
+  // Fiduciary Planner Mode
+  const [fiduciaryMode, setFiduciaryMode] = useState(() => safeStorage.getItem('finflow_fiduciary_mode') === 'true');
+
+  const handleToggleFiduciaryMode = (enabled) => {
+    setFiduciaryMode(enabled);
+    safeStorage.setItem('finflow_fiduciary_mode', enabled ? 'true' : 'false');
+  };
+
+  const triggerFiduciaryAudit = () => {
+    const auditPrompt = `Perform a comprehensive Fiduciary Financial Audit. Analyze my current Net Worth, Cash reserves, Invested portfolios, Budgets, and spending categories. Provide objective, fiduciary-grade recommendations strictly in my best interest, including:
+1. Fee optimization (identify high-fee structures/mutual funds vs. low-cost index funds).
+2. Liquidity & Cash Drag optimization (is cash sweep optimal, too high, or too low?).
+3. Emergency fund size vs. burn rate.
+4. Tax-efficient asset location.
+5. Highlight any anomalies or recurring waste.`;
+    handleSendMessage(auditPrompt);
+  };
+
   // Unified Config States
   const [aiProvider, setAiProvider] = useState(() => safeStorage.getItem('finflow_ai_provider') || 'gemini');
   const [aiModel, setAiModel] = useState(() => safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite');
@@ -232,6 +250,17 @@ export default function Assistant() {
     "Do you see any unusual transactions or anomalies recently?"
   ];
 
+  const FIDUCIARY_SUGGESTIONS = [
+    "Run Fiduciary Financial Audit on my current net worth and holdings.",
+    "Analyze my portfolio holdings and recommend low-cost ETF fee optimizations.",
+    "Check my liquidity allocation and cash sweep drag costs.",
+    "Evaluate my emergency fund adequacy and savings yield.",
+    "Create a tax-efficient asset location strategy for my accounts.",
+    "Audit my recurring subscriptions and transaction history for hidden waste."
+  ];
+
+  const activeSuggestions = fiduciaryMode ? FIDUCIARY_SUGGESTIONS : SUGGESTIONS;
+
   // Helper to compile structured financial context
   const financialContext = useMemo(() => {
     const latestMap = new Map();
@@ -407,7 +436,17 @@ export default function Assistant() {
     const updatedChat = [...chatLog, { role: 'user', content: promptText }];
     setChatLog(updatedChat);
 
-    const systemPrompt = `You are FinFlow Copilot, an elite personal financial AI assistant.
+    const systemPrompt = `${fiduciaryMode ? `LEGALLY & ETHICALLY BOUND FIDUCIARY PLANNER CONSTRAINTS:
+You are acting as a legally and ethically bound Fiduciary Financial Planner. You must act strictly and solely in the client's best interest.
+- Minimize investment fees: suggest low-cost broad index ETFs/funds (e.g. VTI, VXUS, BND, SGOV) over high-expense active funds.
+- Optimize cash drag: calculate cash drag ratio, suggest moving cash sweeps above 8% to high-yield or invested vehicles.
+- Prioritize liquidity and emergency fund: ensure 3-6 months expenses.
+- Suggest tax-efficient asset location (bonds in tax-deferred like IRA/401k, equities/index funds in taxable).
+- Audit recurring subscriptions and transactions to locate waste.
+- Avoid recommending speculative assets (crypto, options, single-stock picking) unless explicitly requested.
+- Maintain professional, objective, and analytical tone. Always put the user's wealth preservation and low-cost growth first.` : ''}
+
+You are FinFlow Copilot, an elite personal financial AI assistant.
 You have access to the user's local financial database.
 ${mcpEnabled ? `You have live access to the local database via MCP tools.
 IMPORTANT: Do not guess or say you don't have access to historical data. If the user asks for historical data, trends, or complex summaries, call the appropriate MCP tool dynamically!
@@ -1039,20 +1078,46 @@ Rules:
       {/* Sticky Assistant Header */}
       <div className="flex items-center justify-between border-b border-obsidian-800/85 pb-4 shrink-0">
         <div className="flex items-center space-x-3">
-          <div className="p-2.5 bg-neon-indigo/10 rounded-xl text-neon-indigo border border-neon-indigo/15">
+          <div className={`p-2.5 rounded-xl border transition-all duration-300 ${
+            fiduciaryMode 
+              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.15)]' 
+              : 'bg-neon-indigo/10 text-neon-indigo border-neon-indigo/15'
+          }`}>
             <Brain size={20} className="animate-pulse" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-white font-display flex items-center space-x-1.5">
-              <span>FinFlow Copilot</span>
-              <span className="bg-neon-indigo/15 border border-neon-indigo/25 text-neon-indigo text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full select-none capitalize">{aiProvider}</span>
+              <span>{fiduciaryMode ? 'Fiduciary Planner' : 'FinFlow Copilot'}</span>
+              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full select-none capitalize border ${
+                fiduciaryMode
+                  ? 'bg-amber-500/10 border-amber-500/25 text-amber-400'
+                  : 'bg-neon-indigo/15 border-neon-indigo/25 text-neon-indigo'
+              }`}>{aiProvider}</span>
             </h1>
-            <p className="text-[10px] text-slate-400">Contextual intelligence parsing local accounts & budgets</p>
+            <p className="text-[10px] text-slate-400">
+              {fiduciaryMode 
+                ? 'Legally bound to act in your sole best interest' 
+                : 'Contextual intelligence parsing local accounts & budgets'}
+            </p>
           </div>
         </div>
 
         {/* Diagnostic active model & MCP indicator */}
         <div className="flex items-center space-x-2 text-[10px] text-slate-400">
+          {/* Fiduciary Mode Toggle */}
+          <button
+            onClick={() => handleToggleFiduciaryMode(!fiduciaryMode)}
+            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all select-none cursor-pointer ${
+              fiduciaryMode 
+                ? 'bg-amber-500/10 border-amber-500/35 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.15)] font-extrabold'
+                : 'bg-obsidian-850 hover:bg-obsidian-800 border-obsidian-750 text-slate-400 hover:text-slate-300'
+            }`}
+            title="Enable legally bound fiduciary advisory recommendations"
+          >
+            <Sparkles size={10} className={fiduciaryMode ? "text-amber-400 animate-pulse" : ""} />
+            <span>Fiduciary Mode</span>
+          </button>
+
           <div className="flex items-center space-x-1 px-2 py-1 bg-obsidian-850 rounded-lg border border-obsidian-750">
             <Activity size={10} className="text-neon-emerald" />
             <span className="truncate max-w-[80px] md:max-w-none">{aiModel}</span>
@@ -1146,17 +1211,43 @@ Rules:
         
         {/* Starter suggestion chips */}
         {chatLog.length === 1 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-6 max-w-2xl">
-            {SUGGESTIONS.map((s, idx) => (
+          <div className="space-y-4 pt-6 max-w-2xl">
+            {fiduciaryMode && (
               <button
-                key={idx}
-                onClick={() => handleSendMessage(s)}
-                className="text-left p-3.5 bg-obsidian-800/35 hover:bg-obsidian-800/60 border border-obsidian-800/80 rounded-2xl text-xs font-semibold text-slate-300 hover:text-white transition-all duration-150 flex items-center justify-between group active:scale-[0.98]"
+                onClick={triggerFiduciaryAudit}
+                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent hover:from-amber-500/15 border border-amber-500/20 hover:border-amber-500/40 rounded-2xl transition-all duration-200 cursor-pointer text-left group active:scale-[0.99] shadow-[0_0_15px_rgba(245,158,11,0.05)]"
               >
-                <span>{s}</span>
-                <ArrowRight size={14} className="text-slate-500 group-hover:text-neon-indigo group-hover:translate-x-1 transition-all shrink-0 ml-3" />
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-amber-500/15 text-amber-400 border border-amber-500/20 rounded-xl">
+                    <Sparkles size={16} className="animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-xs sm:text-sm">Run Fiduciary Financial Audit</h4>
+                    <p className="text-[10px] text-slate-400">Perform a comprehensive best-interest analysis of fees, cash drag, allocations, and emergency reserves.</p>
+                  </div>
+                </div>
+                <ArrowRight size={16} className="text-amber-500 group-hover:translate-x-1.5 transition-all shrink-0 ml-3 animate-pulse" />
               </button>
-            ))}
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {activeSuggestions.map((s, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSendMessage(s)}
+                  className={`text-left p-3.5 border rounded-2xl text-xs font-semibold transition-all duration-150 flex items-center justify-between group active:scale-[0.98] ${
+                    fiduciaryMode
+                      ? 'bg-obsidian-800/25 hover:bg-obsidian-800/55 border-amber-500/10 hover:border-amber-500/25 text-slate-350 hover:text-white'
+                      : 'bg-obsidian-800/35 hover:bg-obsidian-800/60 border-obsidian-800/80 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <span>{s}</span>
+                  <ArrowRight size={14} className={`text-slate-500 group-hover:translate-x-1 transition-all shrink-0 ml-3 ${
+                    fiduciaryMode ? 'group-hover:text-amber-500' : 'group-hover:text-neon-indigo'
+                  }`} />
+                </button>
+              ))}
+            </div>
           </div>
         )}
         
