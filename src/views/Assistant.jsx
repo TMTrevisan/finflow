@@ -73,6 +73,15 @@ export default function Assistant() {
   const [redactSensitiveData, setRedactSensitiveData] = useState(() => safeStorage.getItem('finflow_ai_redact') === 'true');
   const [aggregateOnlyMode, setAggregateOnlyMode] = useState(() => safeStorage.getItem('finflow_ai_aggregate_only') === 'true');
 
+  const [copiedIndex, setCopiedIndex] = useState(null);
+
+  const handleCopyText = (content, index) => {
+    const cleanContent = content.replace(/<suggestions>[\s\S]*?<\/suggestions>/gi, '').trim();
+    navigator.clipboard.writeText(cleanContent);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
   const [chatLog, setChatLog] = useState(() => {
     const saved = safeStorage.getItem('finflow_chat_history');
     if (saved) {
@@ -436,8 +445,8 @@ export default function Assistant() {
     const updatedChat = [...chatLog, { role: 'user', content: promptText }];
     setChatLog(updatedChat);
 
-    const systemPrompt = `${fiduciaryMode ? `LEGALLY & ETHICALLY BOUND FIDUCIARY PLANNER CONSTRAINTS:
-You are acting as a legally and ethically bound Fiduciary Financial Planner. You must act strictly and solely in the client's best interest.
+    const systemPrompt = `${fiduciaryMode ? `LEGALLY & ETHICALLY BOUND FIDUCIARY ADVISOR & PLANNER CONSTRAINTS:
+You are acting as a legally and ethically bound Fiduciary Financial Advisor & Wealth Planner. You must act strictly and solely in the client's best interest.
 - Minimize investment fees: suggest low-cost broad index ETFs/funds (e.g. VTI, VXUS, BND, SGOV) over high-expense active funds.
 - Optimize cash drag: calculate cash drag ratio, suggest moving cash sweeps above 8% to high-yield or invested vehicles.
 - Prioritize liquidity and emergency fund: ensure 3-6 months expenses.
@@ -1087,7 +1096,7 @@ Rules:
           </div>
           <div>
             <h1 className="text-xl font-bold text-white font-display flex items-center space-x-1.5">
-              <span>{fiduciaryMode ? 'Fiduciary Planner' : 'FinFlow Copilot'}</span>
+              <span>{fiduciaryMode ? 'Fiduciary Advisor' : 'FinFlow Copilot'}</span>
               <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full select-none capitalize border ${
                 fiduciaryMode
                   ? 'bg-amber-500/10 border-amber-500/25 text-amber-400'
@@ -1103,19 +1112,19 @@ Rules:
         </div>
 
         {/* Diagnostic active model & MCP indicator */}
-        <div className="flex items-center space-x-2 text-[10px] text-slate-400">
-          {/* Fiduciary Mode Toggle */}
+        <div className="flex items-center space-x-2 text-[10px] text-slate-450">
+          {/* Fiduciary Advisor Toggle */}
           <button
             onClick={() => handleToggleFiduciaryMode(!fiduciaryMode)}
             className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all select-none cursor-pointer ${
               fiduciaryMode 
                 ? 'bg-amber-500/10 border-amber-500/35 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.15)] font-extrabold'
-                : 'bg-obsidian-850 hover:bg-obsidian-800 border-obsidian-750 text-slate-400 hover:text-slate-300'
+                : 'bg-obsidian-850 hover:bg-obsidian-800 border-obsidian-750 text-slate-400 hover:text-slate-350'
             }`}
-            title="Enable legally bound fiduciary advisory recommendations"
+            title="Enable legally bound fiduciary financial advisor & planner mode"
           >
             <Sparkles size={10} className={fiduciaryMode ? "text-amber-400 animate-pulse" : ""} />
-            <span>Fiduciary Mode</span>
+            <span>Fiduciary Advisor</span>
           </button>
 
           <div className="flex items-center space-x-1 px-2 py-1 bg-obsidian-850 rounded-lg border border-obsidian-750">
@@ -1175,12 +1184,20 @@ Rules:
               )}
 
               <div className="flex flex-col space-y-2 max-w-[85%]">
-                <div className={`p-4 rounded-2xl border shadow-sm ${
+                <div className={`p-4 rounded-2xl border shadow-sm relative group/msg ${
                   message.role === 'user'
                     ? 'bg-neon-indigo/15 border-neon-indigo/25 text-slate-200'
                     : 'bg-obsidian-800/40 border-obsidian-800/80 text-slate-350'
                 }`}>
-                  <div className="space-y-2">
+                  <button
+                    onClick={() => handleCopyText(message.content, index)}
+                    className="absolute top-2 right-2 p-1 rounded bg-obsidian-900/85 border border-obsidian-750 text-slate-400 hover:text-white opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 cursor-pointer flex items-center justify-center shadow-md"
+                    title="Copy message"
+                  >
+                    {copiedIndex === index ? <Check size={12} className="text-neon-emerald" /> : <Copy size={12} />}
+                  </button>
+
+                  <div className="space-y-2 pr-4">
                     {text ? renderMarkdown(text) : (
                       <div className="flex items-center space-x-2 text-xs text-slate-500">
                         <RefreshCw size={12} className="animate-spin" />
