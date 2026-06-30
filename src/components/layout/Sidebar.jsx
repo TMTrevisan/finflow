@@ -84,18 +84,20 @@ export default function Sidebar({ currentView, setCurrentView }) {
                       setCurrentView(item.id);
                     }}
                     className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl transition-all duration-200 relative
-                      ${isActive ? 'text-white font-bold' : 'text-slate-400 hover:text-white hover:bg-obsidian-800/50'}
+                      ${isActive 
+                        ? 'text-slate-900 dark:text-white font-bold' 
+                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-obsidian-800/50'}
                     `}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="active-nav-desktop"
-                        className="absolute inset-0 bg-obsidian-800 border-l-2 border-neon-indigo rounded-xl"
+                        className="absolute inset-0 bg-obsidian-800 rounded-xl"
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
                       />
                     )}
                     <div className="relative z-10 flex items-center space-x-3">
-                      <Icon size={18} className={isActive ? 'text-neon-indigo' : ''} />
+                      <Icon size={18} className={isActive ? 'text-slate-900 dark:text-white' : ''} />
                       <span className="text-xs font-semibold">{item.label}</span>
                     </div>
                   </button>
