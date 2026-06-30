@@ -168,7 +168,7 @@ export default function BottomNav({ currentView, setCurrentView }) {
                           <div className={`p-2 rounded-xl ${
                             isActive ? 'bg-neon-indigo/20 text-neon-indigo' : 'bg-obsidian-900/50 text-slate-400'
                           }`}>
-                            <Icon size={18} />
+                            <Icon size={18} aria-hidden="true" />
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-sm truncate">{item.label}</p>
@@ -213,7 +213,7 @@ export default function BottomNav({ currentView, setCurrentView }) {
                   <div className="absolute inset-0 bg-obsidian-700/50 rounded-xl" />
                 )}
                 <div className="relative z-10 flex flex-col items-center space-y-1">
-                  <Icon size={20} className={isActive ? 'text-neon-emerald' : ''} />
+                  <Icon size={20} className={isActive ? 'text-neon-emerald' : ''} aria-hidden="true" />
                   <span className="text-[10px] font-medium">{item.label}</span>
                 </div>
               </button>

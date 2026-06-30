@@ -79,6 +79,7 @@
   h1, h2, h3, h4, h5, h6 {
     letter-spacing: -0.01em;
     line-height: 1.25;
+    text-wrap: balance;
   }
 
   /* Override all hardcoded background/border color utility classes dynamically in Light Mode */

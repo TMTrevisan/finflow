@@ -97,7 +97,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
                       />
                     )}
                     <div className="relative z-10 flex items-center space-x-3">
-                      <Icon size={18} className={isActive ? 'text-slate-900 dark:text-white' : ''} />
+                      <Icon size={18} className={isActive ? 'text-slate-900 dark:text-white' : ''} aria-hidden="true" />
                       <span className="text-xs font-semibold">{item.label}</span>
                     </div>
                   </button>
