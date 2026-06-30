@@ -43,6 +43,10 @@ describe('Formatting Utilities', () => {
 
     it('maps payroll descriptions when custom splits are enabled and category is paycheck', () => {
       safeStorage.setItem('finflow_enable_custom_splits', 'true');
+      globalThis.__customSplitsEnabled = 'true';
+      try {
+        localStorage.setItem('finflow_enable_custom_splits', 'true');
+      } catch (e) {}
       expect(cleanMerchantName('Becton', 'Paycheck')).toBe('Becton Dickinson');
       expect(cleanMerchantName('trevisan,todd', 'Paycheck')).toBe('Todd Trevisan Payroll');
       expect(cleanMerchantName('Kaitlyn Trevisan Payroll cerx', 'Paycheck')).toBe('Kaitlyn Trevisan Payroll');
@@ -50,6 +54,10 @@ describe('Formatting Utilities', () => {
 
     it('does not map payroll descriptions when custom splits are disabled', () => {
       safeStorage.setItem('finflow_enable_custom_splits', 'false');
+      globalThis.__customSplitsEnabled = 'false';
+      try {
+        localStorage.setItem('finflow_enable_custom_splits', 'false');
+      } catch (e) {}
       expect(cleanMerchantName('Becton', 'Paycheck')).toBe('Becton');
       expect(cleanMerchantName('trevisan,todd', 'Paycheck')).toBe('trevisan,todd');
       expect(cleanMerchantName('Kaitlyn Trevisan Payroll cerx', 'Paycheck')).toBe('Kaitlyn Trevisan Payroll cerx');

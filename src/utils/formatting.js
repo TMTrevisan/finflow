@@ -1,4 +1,3 @@
-import { safeStorage } from './storage';
 
 export const formatCurrency = (amount) => {
   return new Intl.NumberFormat('en-US', {
@@ -21,7 +20,16 @@ export const cleanMerchantName = (description, category) => {
   const lowerCat = String(category || '').toLowerCase();
   const isPayrollCategory = lowerCat.includes('paycheck') || lowerCat.includes('salary') || lowerCat.includes('wages') || lowerCat.includes('deposit') || lowerCat.includes('income');
 
-  const customSplitsEnabled = safeStorage.getItem('finflow_enable_custom_splits') === 'true';
+  let customSplitsEnabled = false;
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.__customSplitsEnabled !== undefined) {
+      customSplitsEnabled = globalThis.__customSplitsEnabled === 'true';
+    } else if (typeof localStorage !== 'undefined' && localStorage !== null) {
+      customSplitsEnabled = localStorage.getItem('finflow_enable_custom_splits') === 'true';
+    }
+  } catch (e) {
+    // Fallback for restricted/sandboxed environments
+  }
 
   // Specific Payroll/Employer / Tax Refund Mappings - ONLY if explicitly a paycheck/direct deposit/income category!
   if (customSplitsEnabled && isPayrollCategory) {
