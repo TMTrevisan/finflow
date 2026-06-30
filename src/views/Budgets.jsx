@@ -75,45 +75,36 @@ const getCategoryIcon = (name) => {
   return <IconComponent size={14} className="shrink-0" />;
 };
 
-function BudgetProgressBar({ spent, budget }) {
+function BudgetProgressBar({ spent, budget, paceProgress }) {
   const spentAbs = Math.abs(spent);
   const isOver = spentAbs > budget;
+  const progressPercent = budget > 0 ? (spentAbs / budget) * 100 : 0;
   
-  if (!isOver) {
-    const progressPercent = budget > 0 ? (spentAbs / budget) * 100 : 0;
-    let barColor = 'bg-neon-emerald';
-    if (progressPercent > 80) {
-      barColor = 'bg-amber-400';
-    }
-    return (
-      <div className="w-full h-1.5 bg-obsidian-900 rounded-full overflow-hidden relative">
+  return (
+    <div className="relative w-full py-1">
+      {/* Pacing Marker representing current day in month */}
+      {paceProgress > 0 && paceProgress < 1 && (
         <div 
-          className={`h-full rounded-full transition-all duration-500 ${barColor}`} 
+          className="absolute top-0 bottom-0 w-[2px] bg-slate-400/40 dark:bg-slate-500/50 z-20 pointer-events-none"
+          style={{ left: `${paceProgress * 100}%` }}
+          title="Current day in month"
+        />
+      )}
+      
+      <div className="w-full h-2 bg-obsidian-950 rounded-full overflow-hidden relative">
+        <div 
+          className={`h-full rounded-full transition-all duration-500 ${
+            isOver 
+              ? 'bg-rose-500' 
+              : progressPercent > 90 
+                ? 'bg-amber-500' 
+                : 'bg-emerald-500'
+          }`} 
           style={{ width: `${Math.min(100, progressPercent)}%` }}
         />
       </div>
-    );
-  } else {
-    // Over budget visual: budget point is a vertical tick, excess is pulsing red
-    const budgetPercent = spentAbs > 0 ? (budget / spentAbs) * 100 : 100;
-    const overPercent = 100 - budgetPercent;
-    return (
-      <div className="w-full h-1.5 bg-obsidian-900 rounded-full overflow-hidden relative flex">
-        {/* Budgeted Portion */}
-        <div 
-          className="h-full bg-slate-650 transition-all duration-500" 
-          style={{ width: `${budgetPercent}%` }}
-        />
-        {/* Goal limit line separator */}
-        <div className="w-[1.5px] h-full bg-white z-10 opacity-80" />
-        {/* Over budget portion */}
-        <div 
-          className="h-full bg-neon-crimson animate-pulse transition-all duration-500" 
-          style={{ width: `${overPercent}%` }}
-        />
-      </div>
-    );
-  }
+    </div>
+  );
 }
 
 // Mock data representing the exact values in the user's second screenshot
@@ -292,9 +283,36 @@ export default function Budgets({ setCurrentView }) {
       budgeted: totalBudgeted,
       spent: totalSpent,
       underPace: underPacePct,
-      dayProgress: `DAY ${currentDay} / ${totalDays}`
+      dayProgress: `DAY ${currentDay} / ${totalDays}`,
+      paceProgress
     };
   }, [finalGroups, referenceDate]);
+
+  const incomeMetrics = useMemo(() => {
+    let budgetTotal = 0;
+    let actualTotal = 0;
+
+    if (isMockData) {
+      return { budget: 8250, actual: 8250 };
+    }
+
+    categories.forEach(c => {
+      if (c.type === 'Income') budgetTotal += c.budget || 0;
+    });
+
+    const refDateObj = referenceDate || new Date();
+    const currentMonth = refDateObj.getMonth();
+    const currentYear = refDateObj.getFullYear();
+
+    transactions.forEach(t => {
+      const d = new Date(t.date);
+      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear && t.type === 'Income') {
+        actualTotal += t.amount || 0;
+      }
+    });
+
+    return { budget: budgetTotal, actual: actualTotal };
+  }, [categories, transactions, isMockData, referenceDate]);
 
   // Dot-meter overview categories list (12 items matching screenshot)
   const dotCategories = useMemo(() => {
@@ -358,114 +376,74 @@ export default function Budgets({ setCurrentView }) {
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-6 p-4">
-        <div className="h-32 bg-[#0B0E14] border border-slate-800/80 rounded-3xl w-full"></div>
-        <div className="h-64 bg-[#0B0E14] border border-slate-800/80 rounded-3xl w-full"></div>
+        <div className="h-32 bg-[#0B0E14] border border-slate-800/80 rounded-3xl w-full animate-pulse"></div>
+        <div className="h-64 bg-[#0B0E14] border border-slate-800/80 rounded-3xl w-full animate-pulse"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 pb-12 max-w-lg mx-auto md:max-w-none">
-      {/* 1. Budgets Metric Header */}
-      <div className="flex items-center justify-between border-b border-slate-900 pb-5">
-        <div className="space-y-1">
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Remaining</span>
-          <h1 className="text-4xl font-extrabold text-white tracking-tight flex items-baseline">
-            {formatCurrency(aggregatedMetrics.remaining)}
-          </h1>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
-            of {formatCurrency(aggregatedMetrics.budgeted)} • <span className="text-slate-400">{formatCurrency(aggregatedMetrics.spent)} Spent</span>
-          </p>
+      {/* 1. Monarch Style Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Income Card */}
+        <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-5 space-y-2.5">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Income</span>
+          <div className="flex items-baseline space-x-1.5">
+            <span className="text-2xl font-black text-white font-variant-numeric:tabular-nums">{formatCurrency(incomeMetrics.actual)}</span>
+            <span className="text-xs text-slate-500">of {formatCurrency(incomeMetrics.budget)}</span>
+          </div>
+          <div className="w-full h-1.5 bg-obsidian-950 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+              style={{ width: `${Math.min(100, incomeMetrics.budget > 0 ? (incomeMetrics.actual / incomeMetrics.budget) * 100 : 0)}%` }}
+            />
+          </div>
         </div>
 
-        {/* Pacing Badge Pill */}
-        <div className={`px-3 py-1.5 rounded-2xl text-right border ${
-          aggregatedMetrics.underPace >= 0 
-            ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' 
-            : 'bg-rose-500/5 border-rose-500/20 text-rose-400'
-        }`}>
-          <span className="text-[10px] font-black uppercase tracking-wider block">
-            ● {aggregatedMetrics.underPace >= 0 
-              ? `${aggregatedMetrics.underPace}% under pace` 
-              : `${Math.abs(aggregatedMetrics.underPace)}% over pace`
-            }
-          </span>
-          <span className="text-[9px] text-slate-500 block mt-0.5">{aggregatedMetrics.dayProgress}</span>
-        </div>
-      </div>
-
-      {/* 2. 10-Dot Category Meter Overview List */}
-      <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-5 space-y-4">
-        <div className="divide-y divide-slate-800/40">
-          {dotCategories.map((item, idx) => {
-            const dot = getDotStyle(item.percent, item.remaining);
-            const filledDots = '●'.repeat(dot.count);
-            const emptyDots = '○'.repeat(10 - dot.count);
-            return (
+        {/* Expenses Card */}
+        <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-5 space-y-2.5">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Expenses</span>
+          <div className="flex items-baseline space-x-1.5">
+            <span className="text-2xl font-black text-white font-variant-numeric:tabular-nums">{formatCurrency(aggregatedMetrics.spent)}</span>
+            <span className="text-xs text-slate-500">of {formatCurrency(aggregatedMetrics.budgeted)}</span>
+          </div>
+          <div className="w-full h-1.5 bg-obsidian-950 rounded-full overflow-hidden relative">
+            {aggregatedMetrics.paceProgress > 0 && aggregatedMetrics.paceProgress < 1 && (
               <div 
-                key={idx} 
-                onClick={() => handleCategoryClick(item.name)}
-                className="flex items-center justify-between py-2 hover:bg-slate-800/10 px-2 -mx-2 rounded-lg transition-colors cursor-pointer"
-              >
-                <div className="flex items-center space-x-2 min-w-0 pr-4">
-                  <span className="text-xs text-slate-500 select-none shrink-0">{getCategoryIcon(item.name)}</span>
-                  <span className="text-xs font-bold text-slate-300 truncate">{item.name}</span>
-                </div>
-                
-                {/* Dot Meter bar + Value */}
-                <div className="flex items-center space-x-4 shrink-0 font-mono">
-                  <div className="text-[10px] tracking-[1.5px] select-none">
-                    <span className={dot.color}>{filledDots}</span>
-                    <span className="text-slate-850">{emptyDots}</span>
-                  </div>
-                  <span className={`text-xs font-extrabold w-16 text-right ${item.remaining < 0 ? 'text-rose-500' : 'text-slate-200'}`}>
-                    {item.remaining < 0 ? '-' : ''}{formatCurrency(Math.abs(item.remaining))}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Legend */}
-        <div className="flex justify-between text-[9px] font-black text-slate-500 uppercase tracking-widest pt-2 border-t border-slate-800/40">
-          <div className="flex items-center space-x-3">
-            <span><span className="text-emerald-500">●</span> On Track</span>
-            <span><span className="text-amber-500">●</span> Drifting</span>
-            <span><span className="text-rose-500">●</span> Over</span>
+                className="absolute top-0 bottom-0 w-[1.5px] bg-slate-400/50 z-15" 
+                style={{ left: `${aggregatedMetrics.paceProgress * 100}%` }} 
+              />
+            )}
+            <div 
+              className={`h-full rounded-full transition-all duration-500 ${aggregatedMetrics.spent > aggregatedMetrics.budgeted ? 'bg-rose-500' : 'bg-emerald-500'}`} 
+              style={{ width: `${Math.min(100, aggregatedMetrics.budgeted > 0 ? (aggregatedMetrics.spent / aggregatedMetrics.budgeted) * 100 : 0)}%` }}
+            />
           </div>
-          <span>| Today's Pace</span>
-        </div>
-      </div>
-
-      {/* 3. Budget Summary Box */}
-      <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-5 space-y-3.5">
-        <div className="flex items-center justify-between text-xs text-slate-400 font-semibold">
-          <span>Available funds</span>
-          <span className="text-white font-bold">{formatCurrency(17108.14)}</span>
-        </div>
-        <div className="flex items-center justify-between text-xs text-slate-455 border-t border-slate-800/40 pt-3">
-          <span>Budgeted</span>
-          <span className="text-slate-400 font-bold">-{formatCurrency(aggregatedMetrics.budgeted)}</span>
-        </div>
-        <div className="flex items-center justify-between text-xs text-slate-450 border-t border-slate-800/40 pt-3">
-          <span>For next month</span>
-          <span className="text-slate-500 font-bold">{formatCurrency(0.00)}</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 border-t border-slate-800/60 pt-4 mt-1 text-center">
-          <div className="space-y-0.5">
-            <span className="text-base font-extrabold text-white">{formatCurrency(8250)}</span>
-            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">Income</span>
+        {/* Remaining Card */}
+        <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-5 space-y-2.5">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Remaining</span>
+          <div className="flex items-baseline space-x-1.5">
+            <span className={`text-2xl font-black font-variant-numeric:tabular-nums ${aggregatedMetrics.remaining >= 0 ? 'text-emerald-400' : 'text-rose-500'}`}>
+              {aggregatedMetrics.remaining < 0 ? '-' : ''}{formatCurrency(Math.abs(aggregatedMetrics.remaining))}
+            </span>
+            <span className="text-xs text-slate-500">left to spend</span>
           </div>
-          <div className="space-y-0.5 border-l border-slate-800/40">
-            <span className="text-base font-extrabold text-white">{formatCurrency(aggregatedMetrics.budgeted)}</span>
-            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block">Budgeted</span>
+          <div className="flex justify-between items-center text-[10px] font-extrabold tracking-wide uppercase mt-0.5">
+            <span className={aggregatedMetrics.underPace >= 0 ? 'text-emerald-450' : 'text-rose-400'}>
+              {aggregatedMetrics.underPace >= 0 
+                ? `● ${aggregatedMetrics.underPace}% under pace` 
+                : `⚠️ ${Math.abs(aggregatedMetrics.underPace)}% over pace`
+              }
+            </span>
+            <span className="text-slate-500 font-bold">{aggregatedMetrics.dayProgress}</span>
           </div>
         </div>
       </div>
 
-      {/* 4. Collapsible Category Groups */}
+      {/* 2. Collapsible Category Groups */}
       <div className="space-y-4">
         {Object.entries(finalGroups).map(([groupName, items]) => {
           if (items.length === 0) return null;
@@ -475,26 +453,35 @@ export default function Budgets({ setCurrentView }) {
           const balanceSum = items.reduce((sum, item) => sum + item.balance, 0);
 
           return (
-            <div key={groupName} className="bg-[#0B0E14] border border-[#161B26] rounded-3xl overflow-hidden">
+            <div key={groupName} className="bg-[#0B0E14] border border-[#161B26] rounded-3xl overflow-hidden shadow-sm">
               {/* Group Toggle Header */}
               <div 
                 onClick={() => toggleGroup(groupName)}
-                className="flex items-center justify-between p-4 hover:bg-slate-800/10 cursor-pointer select-none transition-colors border-b border-slate-850"
+                className="flex items-center justify-between p-4 sm:p-5 hover:bg-slate-800/10 cursor-pointer select-none transition-colors border-b border-slate-850/60"
               >
-                <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-4">
                   <span className="text-slate-500">
                     {isExpanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                   </span>
                   <h4 className="text-sm font-extrabold text-slate-100 truncate">{groupName}</h4>
-                  <span className="text-[10px] bg-slate-850 border border-slate-800 px-1.5 py-0.2 rounded font-black text-slate-400 shrink-0">
+                  <span className="text-[10px] bg-slate-850 border border-slate-800/80 px-1.5 py-0.2 rounded font-black text-slate-400 shrink-0">
                     {items.length}
                   </span>
                 </div>
 
-                <div className="flex items-center space-x-4 shrink-0 text-xs">
-                  <span className="font-extrabold text-slate-400">{formatCurrency(budgetedSum)}</span>
-                  <span className="font-bold text-slate-500">-{formatCurrency(Math.abs(spentSum))}</span>
-                  <span className={`font-black ${balanceSum < 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
+                {/* Group aggregated pacing bar (desktop only) */}
+                <div className="hidden md:block w-32 px-4 shrink-0">
+                  <BudgetProgressBar 
+                    spent={spentSum} 
+                    budget={budgetedSum || 1} 
+                    paceProgress={aggregatedMetrics.paceProgress}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-5 shrink-0 text-xs font-mono">
+                  <span className="font-extrabold text-slate-400 w-16 text-right">{formatCurrency(budgetedSum)}</span>
+                  <span className="font-bold text-slate-500 w-16 text-right">-{formatCurrency(Math.abs(spentSum))}</span>
+                  <span className={`font-black w-16 text-right ${balanceSum < 0 ? 'text-rose-500' : 'text-emerald-450'}`}>
                     {balanceSum < 0 ? '-' : ''}{formatCurrency(Math.abs(balanceSum))}
                   </span>
                 </div>
@@ -502,54 +489,55 @@ export default function Budgets({ setCurrentView }) {
 
               {/* Sub items table/list */}
               {isExpanded && (
-                <div className="p-4 space-y-4">
+                <div className="p-4 sm:p-5 space-y-4">
                   {/* Table headers */}
-                  <div className="grid grid-cols-12 text-[8px] font-black text-slate-500 uppercase tracking-widest pb-1 border-b border-slate-900">
-                    <span className="col-span-7 sm:col-span-5">Category</span>
-                    <span className="hidden sm:inline sm:col-span-2 text-right text-slate-400 font-bold">Monthly Budget</span>
-                    <span className="hidden sm:inline sm:col-span-2 text-right">Spent</span>
-                    <span className="col-span-5 sm:col-span-3 text-right text-slate-300 font-bold">Remaining Budget</span>
+                  <div className="grid grid-cols-12 text-[9px] font-black text-slate-500 uppercase tracking-widest pb-1.5 border-b border-slate-850/60">
+                    <span className="col-span-6 sm:col-span-4">Category</span>
+                    <span className="hidden sm:inline sm:col-span-3 text-center">Activity & Pacing</span>
+                    <span className="col-span-3 sm:col-span-2 text-right">Spent</span>
+                    <span className="hidden sm:inline sm:col-span-1 text-right">Limit</span>
+                    <span className="col-span-3 sm:col-span-2 text-right">Remaining</span>
                   </div>
 
-                  <div className="space-y-3.5">
+                  <div className="space-y-2.5">
                     {items.map((item, index) => {
                       const isOver = item.balance < 0;
                       return (
                         <div 
                           key={index}
                           onClick={() => handleCategoryClick(item.category)}
-                          className="space-y-2 group cursor-pointer hover:bg-slate-800/5 -mx-2 p-2 rounded-xl transition-all"
+                          className="space-y-1.5 group cursor-pointer hover:bg-slate-800/10 -mx-2 p-2 rounded-xl transition-colors"
                         >
                           <div className="grid grid-cols-12 items-center text-xs">
-                            <div className="col-span-7 sm:col-span-5 flex items-center space-x-2 min-w-0 pr-2">
-                              <span className="text-slate-500 shrink-0 select-none">{getCategoryIcon(item.category)}</span>
-                              <span className="font-bold text-slate-200 group-hover:text-emerald-400 truncate transition-colors">{item.category}</span>
+                            {/* Category Icon & Name */}
+                            <div className="col-span-6 sm:col-span-4 flex items-center space-x-2.5 min-w-0 pr-2">
+                              <span className="text-slate-550 shrink-0 select-none">{getCategoryIcon(item.category)}</span>
+                              <span className="font-bold text-slate-200 group-hover:text-neon-indigo truncate transition-colors">{item.category}</span>
                             </div>
 
-                            {/* Budgeted Capsule */}
-                            <div className="hidden sm:block sm:col-span-2 text-right">
-                              <span className="border border-amber-500/25 text-amber-500 bg-amber-500/5 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                {formatCurrency(item.budget)}
-                              </span>
+                            {/* Pacing bar (desktop only) */}
+                            <div className="hidden sm:block sm:col-span-3 px-3">
+                              <BudgetProgressBar 
+                                spent={item.spent} 
+                                budget={item.budget || 1} 
+                                paceProgress={aggregatedMetrics.paceProgress}
+                              />
                             </div>
 
                             {/* Spent Amount */}
-                            <span className="hidden sm:block sm:col-span-2 text-right font-semibold text-slate-500">
+                            <span className="col-span-3 sm:col-span-2 text-right font-medium text-slate-500 font-mono">
                               -{formatCurrency(Math.abs(item.spent))}
                             </span>
 
-                            {/* Balance Amount */}
-                            <span className={`col-span-5 sm:col-span-3 text-right font-extrabold ${isOver ? 'text-rose-500 font-black' : 'text-emerald-400'}`}>
+                            {/* Limit/Budget (desktop only) */}
+                            <span className="hidden sm:block sm:col-span-1 text-right font-medium text-slate-400 font-mono">
+                              {formatCurrency(item.budget)}
+                            </span>
+
+                            {/* Remaining Amount */}
+                            <span className={`col-span-3 sm:col-span-2 text-right font-extrabold font-mono ${isOver ? 'text-rose-500' : 'text-emerald-450'}`}>
                               {isOver ? '-' : ''}{formatCurrency(Math.abs(item.balance))}
                             </span>
-                          </div>
-
-                          {/* Inline Progress Bar */}
-                          <div className="px-1">
-                            <BudgetProgressBar 
-                              spent={item.spent} 
-                              budget={item.budget || 1} 
-                            />
                           </div>
 
                           {/* MoM Delta Badge */}
@@ -557,8 +545,8 @@ export default function Budgets({ setCurrentView }) {
                             const mom = getMoMDelta(item.category, item.spent, item.budget, item.lastMonthSpent);
                             if (!mom) return null;
                             return (
-                              <div className="px-1 mt-1.5">
-                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md inline-block border ${mom.color}`}>
+                              <div className="pl-8 mt-1">
+                                <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md inline-block border ${mom.color}`}>
                                   {mom.text}
                                 </span>
                               </div>
