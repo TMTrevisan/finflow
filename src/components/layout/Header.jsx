@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency } from '../../utils/formatting';
 
 export default function Header({ title, currentView, setCurrentView }) {
-  const { syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen, balances = [], transactions = [], categories = [], snapTradeHoldings } = useAppContext();
+  const { syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen, balances = [], transactions = [], categories = [], snapTradeHoldings, snapTradeError } = useAppContext();
   
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('finflow_theme') || 'dark';
@@ -155,8 +155,20 @@ export default function Header({ title, currentView, setCurrentView }) {
       });
     }
 
+    // 5. SnapTrade Sync Error Alert
+    if (snapTradeError) {
+      list.push({
+        id: 'snaptrade_error',
+        type: 'error',
+        title: 'Brokerage Sync Failed',
+        description: `SnapTrade connection error: ${snapTradeError}. Displaying cached holdings.`,
+        actionLabel: 'Check Settings',
+        action: 'view_settings'
+      });
+    }
+
     return list;
-  }, [balances, transactions, categories, lastSync, snapTradeHoldings]);
+  }, [balances, transactions, categories, lastSync, snapTradeHoldings, snapTradeError]);
 
   const handleAlertAction = (action) => {
     setIsAlertsOpen(false);
@@ -168,6 +180,8 @@ export default function Header({ title, currentView, setCurrentView }) {
       setCurrentView('budgets');
     } else if (action === 'view_wealth') {
       setCurrentView('wealth');
+    } else if (action === 'view_settings') {
+      setCurrentView('settings');
     }
   };
 
