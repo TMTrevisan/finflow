@@ -34,6 +34,11 @@ function getUserCacheFilePath(userId) {
   return path.join(__dirname, `snaptrade_holdings_${safeUserId}_cache.json`);
 }
 
+function getUserStatusCacheFilePath(userId) {
+  const safeUserId = String(userId || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(__dirname, `snaptrade_status_${safeUserId}_cache.json`);
+}
+
 function saveSnapTradeConfig(config) {
   try {
     const existing = loadSnapTradeConfig() || {};
@@ -1850,6 +1855,7 @@ async function handleCreatePortalUrl(req, res) {
 }
 
 async function handleSnapTradeStatus(req, res) {
+  const forceRefresh = req.query.force === 'true';
   try {
     const { client, config } = getSnapTradeClientAndConfig(req);
     const finalConfig = await ensureSnapTradeUserForClient(client, config);
@@ -1863,6 +1869,21 @@ async function handleSnapTradeStatus(req, res) {
         userId: finalConfig.userId,
         userSecret: finalConfig.userSecret
       });
+    }
+
+    const statusCacheFile = getUserStatusCacheFilePath(finalConfig.userId);
+    const CACHE_STATUS_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+    if (!forceRefresh && fs.existsSync(statusCacheFile)) {
+      try {
+        const cache = JSON.parse(fs.readFileSync(statusCacheFile, 'utf8'));
+        if (Date.now() - cache.timestamp < CACHE_STATUS_TTL_MS) {
+          console.log(`[SnapTrade Cache] Returning cached status for user ${finalConfig.userId}.`);
+          return res.json(cache.data);
+        }
+      } catch (err) {
+        console.error(`[SnapTrade Cache] Error loading status cache:`, err.message);
+      }
     }
 
     const response = await client.accountInformation.listUserAccounts({
@@ -1891,13 +1912,25 @@ async function handleSnapTradeStatus(req, res) {
       }
     });
 
-    res.json({
+    const statusResult = {
       configured,
       connected: connectionsMap.size > 0,
       connections: Array.from(connectionsMap.values()),
       userId: finalConfig.userId,
       userSecret: finalConfig.userSecret
-    });
+    };
+
+    // Save to status cache
+    try {
+      fs.writeFileSync(statusCacheFile, JSON.stringify({
+        timestamp: Date.now(),
+        data: statusResult
+      }, null, 2));
+    } catch (err) {
+      console.error(`[SnapTrade Cache] Error saving status cache:`, err.message);
+    }
+
+    res.json(statusResult);
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
     console.error(`[SnapTrade] Error getting status:`, errMsg);
@@ -1941,6 +1974,10 @@ async function handleSnapTradeDisconnect(req, res) {
           if (fs.existsSync(userCacheFile)) {
             fs.unlinkSync(userCacheFile);
           }
+          const userStatusCacheFile = getUserStatusCacheFilePath(config.userId);
+          if (fs.existsSync(userStatusCacheFile)) {
+            fs.unlinkSync(userStatusCacheFile);
+          }
         }
       } else {
         if (client && config.userSecret && !config.userSecret.includes('mock')) {
@@ -1979,7 +2016,12 @@ async function handleClearSnapTradeCache(req, res) {
         fs.unlinkSync(userCacheFile);
         clearedCount++;
       }
-      console.log(`[SnapTrade Cache] Cleared cache file for user ${config.userId}`);
+      const userStatusCacheFile = getUserStatusCacheFilePath(config.userId);
+      if (fs.existsSync(userStatusCacheFile)) {
+        fs.unlinkSync(userStatusCacheFile);
+        clearedCount++;
+      }
+      console.log(`[SnapTrade Cache] Cleared cache files for user ${config.userId}`);
     }
     if (fs.existsSync(HOLDINGS_CACHE_FILE)) {
       fs.unlinkSync(HOLDINGS_CACHE_FILE);

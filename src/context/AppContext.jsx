@@ -198,7 +198,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
         'x-snaptrade-user-secret': localUserSecret
       };
 
-      const statusUrl = getSnapTradeUrl('api/snaptrade/status');
+      const statusUrl = force
+        ? `${getSnapTradeUrl('api/snaptrade/status')}?force=true`
+        : getSnapTradeUrl('api/snaptrade/status');
       let statusData = { connected: false, configured: false };
 
       if (localClientId && localConsumerKey) {
@@ -460,6 +462,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
   });
 
   const loadData = async (forceSpinner = false) => {
+    if (isLoading || isSyncing) {
+      return;
+    }
     const hasCache = rawTransactions.length > 0;
     logSync('finflow db load --cache=' + hasCache, 'cmd');
     if (!hasCache || forceSpinner) {
@@ -529,6 +534,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
   };
 
   const syncData = async () => {
+    if (isSyncing || isLoading) {
+      logSync('Sync already in progress; request ignored', 'warning');
+      return false;
+    }
     if (safeStorage.getItem('finflow_force_mock') === 'true') {
       logSync('Cannot sync data while forced Sandbox/Mock Mode is active', 'error');
       setError('Cannot sync while Sandbox/Mock Mode is enabled.');
