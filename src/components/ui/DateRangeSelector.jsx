@@ -43,15 +43,17 @@ export default function DateRangeSelector({
   const dateRangeString = getDateRangeLabel(filterType, customStart, customEnd, allTransactions);
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div className="w-full md:w-auto relative inline-block text-left" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2.5 px-4 py-2.5 bg-obsidian-800 hover:bg-obsidian-750 border border-obsidian-700 hover:border-obsidian-600 rounded-xl text-sm font-semibold text-slate-100 hover:text-white transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-neon-indigo/40"
+        className="w-full md:w-auto flex items-center justify-between md:justify-start space-x-2.5 px-4 py-2.5 bg-obsidian-800 hover:bg-obsidian-750 border border-obsidian-700 hover:border-obsidian-600 rounded-xl text-xs sm:text-sm font-semibold text-slate-100 hover:text-white transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-neon-indigo/40"
       >
-        <Calendar size={16} className="text-neon-indigo" />
-        <span>{activeOption.name}</span>
-        <span className="text-slate-400 font-normal">({dateRangeString})</span>
-        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <div className="flex items-center space-x-2">
+          <Calendar size={14} className="text-neon-indigo shrink-0" />
+          <span>{activeOption.name}</span>
+          <span className="text-slate-400 font-normal hidden xs:inline ml-1">({dateRangeString})</span>
+        </div>
+        <ChevronDown size={14} className={`text-slate-400 transition-transform shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (

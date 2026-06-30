@@ -358,23 +358,25 @@ export default function Header({ title, currentView, setCurrentView }) {
       </div>
       
       {/* Right side controls (Filters and Buttons) */}
-      <div className="flex flex-wrap items-center justify-between md:justify-end w-full md:w-auto gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between md:justify-end w-full md:w-auto gap-3">
         {/* Global Date & Account Filters */}
-        <div className="flex items-center space-x-2 w-full xs:w-auto">
-          <DateRangeSelector
-            filterType={globalDateRange}
-            setFilterType={setGlobalDateRange}
-            customStart={globalCustomStart}
-            setCustomStart={setGlobalCustomStart}
-            customEnd={globalCustomEnd}
-            setCustomEnd={setGlobalCustomEnd}
-          />
+        <div className="flex items-center space-x-2 w-full sm:w-auto">
+          <div className="flex-1 sm:flex-initial">
+            <DateRangeSelector
+              filterType={globalDateRange}
+              setFilterType={setGlobalDateRange}
+              customStart={globalCustomStart}
+              setCustomStart={setGlobalCustomStart}
+              customEnd={globalCustomEnd}
+              setCustomEnd={setGlobalCustomEnd}
+            />
+          </div>
 
           <select
             value={globalAccount}
             onChange={(e) => setGlobalAccount(e.target.value)}
             aria-label="Select Account"
-            className="flex-1 xs:flex-initial bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-700 text-xs font-bold rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-slate-200 cursor-pointer focus:border-neon-indigo focus:ring-1 focus:ring-neon-indigo outline-none max-w-[130px] sm:max-w-[180px] truncate transition-colors duration-200 shadow-sm"
+            className="flex-1 sm:flex-initial bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-700 text-xs font-bold rounded-xl px-2.5 py-2.5 sm:px-3 sm:py-2 text-slate-200 cursor-pointer focus:border-neon-indigo focus:ring-1 focus:ring-neon-indigo outline-none w-full sm:max-w-[180px] truncate transition-colors duration-200 shadow-sm"
           >
             <option value="All Accounts">All Accounts</option>
             {uniqueAccounts.map(acc => (
