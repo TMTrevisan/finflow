@@ -765,12 +765,20 @@ export default function Settings() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Apps Script Web App URL</label>
+              <label 
+                htmlFor="settings-google-script-url"
+                className="block text-xs font-bold text-slate-400 uppercase tracking-wider"
+              >
+                Apps Script Web App URL
+              </label>
               <input 
                 type="text" 
+                id="settings-google-script-url"
                 value={apiUrlInput}
                 onChange={(e) => setApiUrlInput(e.target.value)}
-                placeholder="https://script.google.com/macros/s/.../exec"
+                placeholder="https://script.google.com/macros/s/…/exec"
+                autoComplete="off"
+                spellCheck={false}
                 className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
               />
             </div>

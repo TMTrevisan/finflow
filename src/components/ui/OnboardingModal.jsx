@@ -54,11 +54,12 @@ export default function OnboardingModal() {
       >
         <button 
           onClick={handleClose}
+          aria-label="Close onboarding modal"
           className="absolute top-5 right-5 p-2 rounded-xl bg-obsidian-800 border border-obsidian-750 text-slate-400 hover:text-white transition-colors"
         >
           <X size={16} />
         </button>
-
+ 
         {/* Step 1: Welcome */}
         {step === 1 && (
           <div className="space-y-5 text-center py-4">
@@ -73,7 +74,7 @@ export default function OnboardingModal() {
             </div>
             <button
               onClick={() => setStep(2)}
-              className="w-full py-3.5 bg-neon-indigo hover:bg-neon-indigo-hover text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg shadow-neon-indigo/15"
+              className="w-full py-3.5 bg-neon-indigo hover:bg-neon-indigo-hover text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition-[background-color,transform,box-shadow] duration-200 active:scale-[0.98] shadow-lg shadow-neon-indigo/15"
             >
               <span>Connect Database</span>
               <ArrowRight size={16} />
@@ -86,7 +87,7 @@ export default function OnboardingModal() {
             </button>
           </div>
         )}
-
+ 
         {/* Step 2: Input API Url */}
         {step === 2 && (
           <div className="space-y-5">
@@ -99,14 +100,22 @@ export default function OnboardingModal() {
                 Provide your deployed Google Apps Script URL. FinFlow communicates only with this script, keeping all your raw financial data local and private.
               </p>
             </div>
-
+ 
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Web App API URL</label>
+              <label 
+                htmlFor="onboarding-api-url"
+                className="block text-[10px] font-black text-slate-500 uppercase tracking-widest"
+              >
+                Web App API URL
+              </label>
               <input
                 type="text"
+                id="onboarding-api-url"
                 value={apiUrl}
                 onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="https://script.google.com/macros/s/.../exec"
+                placeholder="https://script.google.com/macros/s/…/exec"
+                autoComplete="off"
+                spellCheck={false}
                 className="w-full bg-obsidian-950 border border-obsidian-750 px-4 py-3.5 rounded-xl outline-none text-sm text-white placeholder-slate-600 focus:border-neon-indigo/50 transition-colors"
               />
             </div>
