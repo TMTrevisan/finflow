@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, CardContent } from './Card';
+
 import { formatCurrency } from '../../utils/formatting';
 import { Compass, Sparkles, CheckCircle, Flame } from 'lucide-react';
 import { safeStorage } from '../../utils/storage';
@@ -29,7 +29,7 @@ export default function SurplusGoalTracker({ surplusMetrics = {} }) {
   const StatusIcon = statusInfo().icon;
 
   return (
-    <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-5 space-y-4">
+    <div className="bg-[#0B0E14] border border-[#161B26] rounded-3xl p-6 space-y-4 transition-all duration-300 hover:border-neon-indigo/55 shadow-sm">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
           <Sparkles size={16} className="text-neon-indigo" />
@@ -76,6 +76,6 @@ export default function SurplusGoalTracker({ surplusMetrics = {} }) {
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
