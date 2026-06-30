@@ -134,7 +134,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     return partnerBEmployer || (enableCustomSplits ? 'BD' : 'Employer B');
   }, [partnerBEmployer, enableCustomSplits]);
 
-  const { transactions, categories } = useMemo(() => {
+  const { transactions: allDecoratedTransactions, categories } = useMemo(() => {
     return decorateData(rawTransactions, rawCategories, useCalendarToday);
   }, [rawTransactions, rawCategories, useCalendarToday]);
 
@@ -388,9 +388,73 @@ export const AppProvider = ({ children, setCurrentView }) => {
     return list;
   }, [balances, snapTradeHoldings, snapTradeStatus]);
 
-  const decoratedBalances = useMemo(() => {
+  const allDecoratedBalances = useMemo(() => {
     return injectMortgage(mergedBalances, enableCustomSplits, resolvedPartnerBName);
   }, [mergedBalances, enableCustomSplits, resolvedPartnerBName]);
+
+  const [globalDateRange, setGlobalDateRange] = useState('All Time');
+  const [globalAccount, setGlobalAccount] = useState('All Accounts');
+
+  const uniqueAccounts = useMemo(() => {
+    const set = new Set();
+    (allDecoratedBalances || []).forEach(b => {
+      if (b.account) set.add(b.account);
+      if (b.institution && b.institution !== 'Brokerage') set.add(b.institution);
+    });
+    return Array.from(set).sort();
+  }, [allDecoratedBalances]);
+
+  // Global filtering for transactions and balances
+  const transactions = useMemo(() => {
+    let list = allDecoratedTransactions || [];
+
+    // 1. Account Filtering
+    if (globalAccount !== 'All Accounts') {
+      list = list.filter(t => 
+        (t.account || '').toLowerCase() === globalAccount.toLowerCase() ||
+        (t.institution || '').toLowerCase() === globalAccount.toLowerCase()
+      );
+    }
+
+    // 2. Date Range Filtering
+    if (globalDateRange !== 'All Time') {
+      const today = referenceDate || new Date();
+      list = list.filter(t => {
+        if (!t.date) return false;
+        const tDate = new Date(t.date);
+        
+        if (globalDateRange === 'This Month') {
+          return tDate.getFullYear() === today.getFullYear() && tDate.getMonth() === today.getMonth();
+        } else if (globalDateRange === 'Last 30 Days') {
+          const limit = new Date(today);
+          limit.setDate(limit.getDate() - 30);
+          return tDate >= limit && tDate <= today;
+        } else if (globalDateRange === 'Last 90 Days') {
+          const limit = new Date(today);
+          limit.setDate(limit.getDate() - 90);
+          return tDate >= limit && tDate <= today;
+        } else if (globalDateRange === 'This Year') {
+          return tDate.getFullYear() === today.getFullYear();
+        }
+        return true;
+      });
+    }
+
+    return list;
+  }, [allDecoratedTransactions, globalAccount, globalDateRange, referenceDate]);
+
+  const filteredBalances = useMemo(() => {
+    let list = allDecoratedBalances || [];
+
+    if (globalAccount !== 'All Accounts') {
+      list = list.filter(b => 
+        (b.account || '').toLowerCase() === globalAccount.toLowerCase() ||
+        (b.institution || '').toLowerCase() === globalAccount.toLowerCase()
+      );
+    }
+
+    return list;
+  }, [allDecoratedBalances, globalAccount]);
 
   const [lifeOptimization, setLifeOptimization] = useState(() => {
     try {
@@ -921,11 +985,11 @@ export const AppProvider = ({ children, setCurrentView }) => {
   // Exposed in context so all views use the same "current" period.
   const referenceDate = useMemo(() => {
     if (useCalendarToday) return new Date();
-    const dates = (transactions || [])
+    const dates = (allDecoratedTransactions || [])
       .map(t => t.date ? new Date(t.date) : null)
       .filter(d => d && !isNaN(d.getTime()));
     return dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : new Date();
-  }, [transactions, useCalendarToday]);
+  }, [allDecoratedTransactions, useCalendarToday]);
 
   useEffect(() => {
     loadData();
@@ -961,7 +1025,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     <AppContext.Provider value={{
       transactions,
       categories,
-      balances: decoratedBalances,
+      balances: filteredBalances,
       lifeOptimization,
       surplusMetrics,
       isLoading,
@@ -1002,6 +1066,11 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setGlobalSearchOpen,
       globalSearchQuery,
       setGlobalSearchQuery,
+      globalDateRange,
+      setGlobalDateRange,
+      globalAccount,
+      setGlobalAccount,
+      uniqueAccounts,
       logSync,
       snapTradeStatus,
       snapTradeHoldings,

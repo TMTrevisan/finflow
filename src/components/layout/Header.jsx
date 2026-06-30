@@ -6,7 +6,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { formatCurrency } from '../../utils/formatting';
 
 export default function Header({ title, currentView, setCurrentView }) {
-  const { syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen, balances = [], transactions = [], categories = [], snapTradeHoldings, snapTradeError } = useAppContext();
+  const { 
+    syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen, 
+    balances = [], transactions = [], categories = [], snapTradeHoldings, 
+    snapTradeError, globalDateRange, setGlobalDateRange, globalAccount, 
+    setGlobalAccount, uniqueAccounts 
+  } = useAppContext();
   
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('finflow_theme') || 'dark';
@@ -341,151 +346,183 @@ export default function Header({ title, currentView, setCurrentView }) {
   };
 
   return (
-    <header className="flex items-center justify-between p-4 sm:p-6 border-b border-obsidian-700 bg-obsidian-900/80 backdrop-blur-md sticky top-0 z-40">
-      <h2 className="text-lg font-bold md:hidden text-white truncate max-w-[120px]">{title}</h2>
-      <div className="hidden md:block">
-        <h2 className="text-2xl font-bold text-white capitalize">{title}</h2>
+    <header className="flex flex-col md:flex-row md:items-center md:justify-between p-4 sm:p-6 border-b border-obsidian-750 bg-obsidian-900/80 backdrop-blur-md sticky top-0 z-40 gap-4">
+      {/* Title */}
+      <div className="flex items-center justify-between w-full md:w-auto">
+        <h2 className="text-lg font-bold md:hidden text-white truncate max-w-[150px] capitalize">{title}</h2>
+        <div className="hidden md:block">
+          <h2 className="text-2xl font-bold text-white capitalize">{title}</h2>
+        </div>
       </div>
       
-      <div className="flex items-center space-x-1.5 sm:space-x-3 md:space-x-4">
-        {/* Dynamic Connection/Sync Status Indicator */}
-        <div 
-          title={getTooltipText()}
-          className={`flex items-center space-x-1 sm:space-x-1.5 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-bold border transition-colors duration-300 cursor-help ${getStatusStyles()}`}
-        >
-          <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
-            {/* Pulsing ring animation */}
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${getDotStyles()}`}></span>
-            <span className={`relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 ${getDotStyles()}`}></span>
-          </span>
-          <span className="hidden xs:inline">{syncTimeLabel}</span>
-          <span className="xs:hidden">{getShortSyncTimeLabel(syncTimeLabel)}</span>
-        </div>
-
-        <button 
-          onClick={() => setCurrentView('settings')}
-          className={`p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
-            currentView === 'settings' ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
-          }`}
-          title="Settings"
-        >
-          <Settings size={18} className="sm:w-5 sm:h-5" />
-        </button>
-
-        <button 
-          onClick={toggleTheme}
-          className="p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
-          title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-        >
-          {theme === 'light' ? <Moon size={18} className="sm:w-5 sm:h-5" /> : <Sun size={18} className="sm:w-5 sm:h-5" />}
-        </button>
-
-        <button 
-          onClick={() => setGlobalSearchOpen(true)}
-          className="p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
-          title="Search (Cmd+K)"
-        >
-          <Search size={18} className="sm:w-5 sm:h-5" />
-        </button>
-
-        <div className="relative">
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsAlertsOpen(prev => !prev);
-            }}
-            className={`p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
-              isAlertsOpen ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
-            }`}
-            title="Notifications"
+      {/* Right side controls (Filters and Buttons) */}
+      <div className="flex flex-wrap items-center justify-between md:justify-end w-full md:w-auto gap-3">
+        {/* Global Date & Account Filters */}
+        <div className="flex items-center space-x-2 w-full xs:w-auto">
+          <select
+            value={globalDateRange}
+            onChange={(e) => setGlobalDateRange(e.target.value)}
+            className="flex-1 xs:flex-initial bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-700 text-xs font-bold rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-slate-200 cursor-pointer focus:border-neon-indigo focus:ring-1 focus:ring-neon-indigo outline-none transition-all shadow-sm"
           >
-            <Bell size={18} className="sm:w-5 sm:h-5" />
-            {alerts.length > 0 && (
-              <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded-full bg-neon-crimson text-[8px] sm:text-[9px] font-extrabold text-white">
-                {alerts.length}
-              </span>
-            )}
+            <option value="All Time">All Time</option>
+            <option value="This Month">This Month</option>
+            <option value="Last 30 Days">Last 30 Days</option>
+            <option value="Last 90 Days">Last 90 Days</option>
+            <option value="This Year">This Year</option>
+          </select>
+
+          <select
+            value={globalAccount}
+            onChange={(e) => setGlobalAccount(e.target.value)}
+            className="flex-1 xs:flex-initial bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-700 text-xs font-bold rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-slate-200 cursor-pointer focus:border-neon-indigo focus:ring-1 focus:ring-neon-indigo outline-none max-w-[130px] sm:max-w-[180px] truncate transition-all shadow-sm"
+          >
+            <option value="All Accounts">All Accounts</option>
+            {uniqueAccounts.map(acc => (
+              <option key={acc} value={acc}>{acc}</option>
+            ))}
+          </select>
+        </div>
+ 
+        {/* Action Buttons */}
+        <div className="flex items-center space-x-1.5 sm:space-x-2 ml-auto xs:ml-0 shrink-0">
+          {/* Dynamic Connection/Sync Status Indicator */}
+          <div 
+            title={getTooltipText()}
+            className={`flex items-center space-x-1 sm:space-x-1.5 px-2 py-1 rounded-full text-[10px] sm:text-xs font-bold border transition-colors duration-300 cursor-help ${getStatusStyles()}`}
+          >
+            <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${getDotStyles()}`}></span>
+              <span className={`relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 ${getDotStyles()}`}></span>
+            </span>
+            <span className="hidden xs:inline">{syncTimeLabel}</span>
+            <span className="xs:hidden">{getShortSyncTimeLabel(syncTimeLabel)}</span>
+          </div>
+
+          <button 
+            onClick={() => setCurrentView('settings')}
+            className={`p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
+              currentView === 'settings' ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
+            }`}
+            title="Settings"
+          >
+            <Settings size={18} className="sm:w-5 sm:h-5" />
           </button>
 
-          <AnimatePresence>
-            {isAlertsOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 mt-2 w-72 sm:w-96 bg-obsidian-900 border border-obsidian-750 rounded-2xl shadow-2xl p-4 z-50 text-left"
-              >
-                <div className="flex justify-between items-center pb-2 border-b border-obsidian-800 mb-3">
-                  <h3 className="font-bold text-white text-sm">System Alerts</h3>
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{alerts.length} active</span>
-                </div>
+          <button 
+            onClick={toggleTheme}
+            className="p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
+            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+          >
+            {theme === 'light' ? <Moon size={18} className="sm:w-5 sm:h-5" /> : <Sun size={18} className="sm:w-5 sm:h-5" />}
+          </button>
 
-                {alerts.length === 0 ? (
-                  <div className="py-8 text-center text-slate-500 text-xs">
-                    <CheckCircle2 className="mx-auto text-neon-emerald mb-2" size={24} />
-                    All caught up! No recent alerts.
+          <button 
+            onClick={() => setGlobalSearchOpen(true)}
+            className="p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors relative"
+            title="Search (Cmd+K)"
+          >
+            <Search size={18} className="sm:w-5 sm:h-5" />
+          </button>
+
+          <div className="relative">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsAlertsOpen(prev => !prev);
+              }}
+              className={`p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 transition-colors relative ${
+                isAlertsOpen ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
+              }`}
+              title="Notifications"
+            >
+              <Bell size={18} className="sm:w-5 sm:h-5" />
+              {alerts.length > 0 && (
+                <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 flex h-3.5 w-3.5 sm:h-4 sm:w-4 items-center justify-center rounded-full bg-neon-crimson text-[8px] sm:text-[9px] font-extrabold text-white">
+                  {alerts.length}
+                </span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {isAlertsOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute right-0 mt-2 w-72 sm:w-96 bg-obsidian-900 border border-obsidian-750 rounded-2xl shadow-2xl p-4 z-50 text-left"
+                >
+                  <div className="flex justify-between items-center pb-2 border-b border-obsidian-800 mb-3">
+                    <h3 className="font-bold text-white text-sm">System Alerts</h3>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{alerts.length} active</span>
                   </div>
-                ) : (
-                  <div className="max-h-[320px] overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
-                    {alerts.map(alert => (
-                      <div 
-                        key={alert.id}
-                        className={`p-3 rounded-xl border text-xs flex flex-col space-y-2 ${
-                          alert.type === 'error'
-                            ? 'bg-neon-crimson/5 border-neon-crimson/15'
-                            : alert.type === 'warning'
-                              ? 'bg-amber-500/5 border-amber-500/15'
-                              : 'bg-neon-indigo/5 border-neon-indigo/15'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <AlertTriangle 
-                            size={14} 
-                            className={
-                              alert.type === 'error'
-                                ? 'text-neon-crimson'
-                                : alert.type === 'warning'
-                                  ? 'text-amber-500'
-                                  : 'text-neon-indigo'
-                            } 
-                          />
-                          <span className="font-bold text-slate-200">{alert.title}</span>
-                        </div>
-                        <p className="text-slate-400 leading-relaxed text-[11px]">{alert.description}</p>
-                        {alert.actionLabel && (
-                          <div className="flex justify-end">
-                            <button
-                              onClick={() => handleAlertAction(alert.action)}
-                              className={`px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors ${
+
+                  {alerts.length === 0 ? (
+                    <div className="py-8 text-center text-slate-500 text-xs">
+                      <CheckCircle2 className="mx-auto text-neon-emerald mb-2" size={24} />
+                      All caught up! No recent alerts.
+                    </div>
+                  ) : (
+                    <div className="max-h-[320px] overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
+                      {alerts.map(alert => (
+                        <div 
+                          key={alert.id}
+                          className={`p-3 rounded-xl border text-xs flex flex-col space-y-2 ${
+                            alert.type === 'error'
+                              ? 'bg-neon-crimson/5 border-neon-crimson/15'
+                              : alert.type === 'warning'
+                                ? 'bg-amber-500/5 border-amber-500/15'
+                                : 'bg-neon-indigo/5 border-neon-indigo/15'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <AlertTriangle 
+                              size={14} 
+                              className={
                                 alert.type === 'error'
-                                  ? 'bg-neon-crimson/15 hover:bg-neon-crimson/25 text-neon-crimson'
+                                  ? 'text-neon-crimson'
                                   : alert.type === 'warning'
-                                    ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-500'
-                                    : 'bg-neon-indigo/15 hover:bg-neon-indigo/25 text-neon-indigo'
-                              }`}
-                            >
-                                {alert.actionLabel}
-                            </button>
+                                    ? 'text-amber-500'
+                                    : 'text-neon-indigo'
+                              } 
+                            />
+                            <span className="font-bold text-slate-200">{alert.title}</span>
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                          <p className="text-slate-400 leading-relaxed text-[11px]">{alert.description}</p>
+                          {alert.actionLabel && (
+                            <div className="flex justify-end">
+                              <button
+                                onClick={() => handleAlertAction(alert.action)}
+                                className={`px-2.5 py-1 rounded-lg font-bold text-[10px] uppercase tracking-wider transition-colors ${
+                                  alert.type === 'error'
+                                    ? 'bg-neon-crimson/15 hover:bg-neon-crimson/25 text-neon-crimson'
+                                    : alert.type === 'warning'
+                                      ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-500'
+                                      : 'bg-neon-indigo/15 hover:bg-neon-indigo/25 text-neon-indigo'
+                                }`}
+                              >
+                                  {alert.actionLabel}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <button 
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="flex items-center justify-center px-3 py-1.5 sm:px-4 sm:py-2 bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-750 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+          >
+            <RefreshCw size={14} className={isSyncing ? "animate-spin text-neon-emerald" : ""} />
+            <span className="hidden sm:inline sm:ml-1.5">{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+          </button>
         </div>
-        
-        <button 
-          onClick={handleSync}
-          disabled={isSyncing}
-          className="flex items-center justify-center p-2 sm:px-3 sm:py-2 bg-obsidian-800 hover:bg-obsidian-700 border border-obsidian-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-        >
-          <RefreshCw size={14} className={isSyncing ? "animate-spin text-neon-emerald" : ""} />
-          <span className="hidden sm:inline sm:ml-1.5">{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
-        </button>
       </div>
 
       <AnimatePresence>

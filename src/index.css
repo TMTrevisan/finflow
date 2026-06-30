@@ -10,8 +10,8 @@
   --color-obsidian-700: var(--obsidian-700);
   
   --color-neon-emerald: #10B981;
-  --color-neon-indigo: #6366F1;
-  --color-neon-violet: #8B5CF6;
+  --color-neon-indigo: var(--neon-indigo);
+  --color-neon-violet: var(--neon-violet);
   --color-neon-crimson: #EF4444;
 
   --color-slate-400: var(--slate-400);
@@ -27,10 +27,13 @@
   --obsidian-750: #161D2D;
   --obsidian-700: #1A2234;
 
+  --neon-indigo: #6366F1;
+  --neon-violet: #8B5CF6;
+
   --slate-400: #94A3B8;
   --slate-500: #64748B;
 
-  --background: #000000;
+  --background: #05070A;
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --card-bg: #0B0E14;
@@ -39,23 +42,26 @@
 }
 
 .light {
-  /* Premium, harmonized Light Mode Variables */
-  --obsidian-950: #F8FAFC;
-  --obsidian-900: #FFFFFF;
-  --obsidian-850: #F8FAFC;
-  --obsidian-800: #F1F5F9;
-  --obsidian-750: #E2E8F0;
-  --obsidian-700: #CBD5E1;
+  /* Premium, harmonized Light Mode Variables based on Sierra.ai & Monarch Money */
+  --obsidian-950: #F4F6FA;      /* Page main background: soft, cool slate-blue-gray */
+  --obsidian-900: #FFFFFF;      /* Primary container/card/sidebar background: crisp white */
+  --obsidian-850: #F4F6FA;      /* Outer sections background */
+  --obsidian-800: #F8FAFC;      /* Inactive button / secondary area background */
+  --obsidian-750: #E2E8F0;      /* Thin divider / soft border */
+  --obsidian-700: #CBD5E1;      /* Interactive element border */
+
+  --neon-indigo: #FF6B00;       /* Monarch Orange active state */
+  --neon-violet: #FF8533;       /* Accents and highlight gradients */
 
   --slate-400: #475569;
   --slate-500: #64748B;
 
-  --background: #F8FAFC;
+  --background: #F4F6FA;
   --text-primary: #0F172A;
   --text-secondary: #475569;
   --card-bg: #FFFFFF;
   --card-border: #E2E8F0;
-  --bg-nested: #F1F5F9;
+  --bg-nested: #F8FAFC;
 }
 
 @layer base {
