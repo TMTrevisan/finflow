@@ -23,7 +23,7 @@ export const fetchFinData = async () => {
   const url = getApiUrl('getData');
   if (url) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 35000);
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
     try {
       const response = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
@@ -38,7 +38,7 @@ export const fetchFinData = async () => {
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
-        throw new Error('Sync timed out after 35s. Google Apps Script may be cold-starting — try again in a moment.', { cause: err });
+        throw new Error('Sync timed out after 90s. Google Apps Script is taking longer to process your large database — please try again in a moment.', { cause: err });
       }
       throw err;
     }
