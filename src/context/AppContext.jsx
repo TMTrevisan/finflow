@@ -404,6 +404,16 @@ export const AppProvider = ({ children, setCurrentView }) => {
     return Array.from(set).sort();
   }, [allDecoratedBalances]);
 
+  // Shared reference date: latest transaction date (or today if useCalendarToday).
+  // Exposed in context so all views use the same "current" period.
+  const referenceDate = useMemo(() => {
+    if (useCalendarToday) return new Date();
+    const dates = (allDecoratedTransactions || [])
+      .map(t => t.date ? new Date(t.date) : null)
+      .filter(d => d && !isNaN(d.getTime()));
+    return dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : new Date();
+  }, [allDecoratedTransactions, useCalendarToday]);
+
   // Global filtering for transactions and balances
   const transactions = useMemo(() => {
     let list = allDecoratedTransactions || [];
@@ -981,15 +991,6 @@ export const AppProvider = ({ children, setCurrentView }) => {
     };
   }, [transactions, categories, useCalendarToday]);
 
-  // Shared reference date: latest transaction date (or today if useCalendarToday).
-  // Exposed in context so all views use the same "current" period.
-  const referenceDate = useMemo(() => {
-    if (useCalendarToday) return new Date();
-    const dates = (allDecoratedTransactions || [])
-      .map(t => t.date ? new Date(t.date) : null)
-      .filter(d => d && !isNaN(d.getTime()));
-    return dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : new Date();
-  }, [allDecoratedTransactions, useCalendarToday]);
 
   useEffect(() => {
     loadData();
