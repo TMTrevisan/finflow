@@ -533,7 +533,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     }
   };
 
-  const syncData = async () => {
+  const syncData = useCallback(async () => {
     if (isSyncing || isLoading) {
       logSync('Sync already in progress; request ignored', 'warning');
       return false;
@@ -580,7 +580,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     } finally {
       setIsSyncing(false);
     }
-  };
+  }, [useCalendarToday, loadSnapTradeData, isSyncing, isLoading]);
 
   const clearCache = () => {
     safeStorage.removeItem('finflow_cache_transactions');
@@ -931,6 +931,31 @@ export const AppProvider = ({ children, setCurrentView }) => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Background auto-sync checker (runs once an hour, triggers sync if lastSync > 24 hours)
+  useEffect(() => {
+    const checkAndSync = () => {
+      const lastSyncTime = safeStorage.getItem('finflow_last_sync');
+      if (lastSyncTime) {
+        const diffMs = Date.now() - new Date(lastSyncTime).getTime();
+        const hours = diffMs / (1000 * 60 * 60);
+        if (hours >= 24) {
+          logSync('Auto-triggering daily database sync...', 'info');
+          syncData();
+        }
+      }
+    };
+
+    // Check on mount (after a 5 second delay to avoid blocking initial load)
+    const initialTimer = setTimeout(checkAndSync, 5000);
+    // Check every hour
+    const interval = setInterval(checkAndSync, 60 * 60 * 1000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [syncData]);
 
   return (
     <AppContext.Provider value={{

@@ -850,14 +850,80 @@ async function runTool(toolName, args) {
   const data = await fetchSheetData();
   const { transactions = [], categories = [], balances = [] } = data;
 
-  // Deduplicate balances to latest per account
-  const latestBalances = (() => {
+  // Deduplicate balances to latest per account and merge SnapTrade if connected
+  let latestBalances = (() => {
     const map = new Map();
     [...balances].sort((a, b) => new Date(a.date) - new Date(b.date)).forEach(b => {
       map.set(`${b.institution}_${b.account}_${b.account_id}`, b);
     });
     return Array.from(map.values());
   })();
+
+  const snapData = await getSnapTradeHoldings(false).catch(() => null);
+  if (snapData && snapData.accounts) {
+    const snapAccounts = snapData.accounts;
+    snapAccounts.forEach(acc => {
+      const bInst = (acc.institution_name || acc.brokerage?.name || '').toLowerCase();
+      const accName = (acc.name || '').toLowerCase();
+
+      // Filter out duplicate sheet balances
+      latestBalances = latestBalances.filter(b => {
+        if (b.account_id === acc.id) return false;
+
+        const sheetInst = (b.institution || '').toLowerCase();
+        const sheetName = (b.account || '').toLowerCase();
+
+        const instMatch = sheetInst.includes(bInst) || bInst.includes(sheetInst) ||
+          (sheetInst.includes('fidelity') && bInst.includes('fidelity')) ||
+          (sheetInst.includes('robinhood') && bInst.includes('robinhood')) ||
+          (sheetInst.includes('e*trade') && bInst.includes('etrade')) ||
+          (sheetInst.includes('etrade') && bInst.includes('etrade')) ||
+          (sheetInst.includes('morgan stanley') && bInst.includes('etrade'));
+
+        if (!instMatch) return true;
+
+        // Check account type similarity
+        if (sheetName === accName) return false;
+        
+        if ((accName.includes('401') || accName.includes('retirement') || accName.includes('plan')) && 
+            (sheetName.includes('401') || sheetName.includes('retirement') || sheetName.includes('plan'))) {
+          return false;
+        }
+        
+        if (accName.includes('roth') && sheetName.includes('roth')) {
+          return false;
+        }
+        
+        if (accName.includes('traditional') && sheetName.includes('traditional')) {
+          return false;
+        }
+
+        const isIndividualSnap = accName.includes('individual') || accName.includes('securities') || accName.includes('brokerage') || accName.includes('cash') || (!accName.includes('roth') && !accName.includes('401'));
+        const isIndividualSheet = sheetName.includes('individual') || sheetName.includes('securities') || sheetName.includes('brokerage') || sheetName.includes('cash') || (!sheetName.includes('roth') && !sheetName.includes('401'));
+        if (isIndividualSnap && isIndividualSheet) {
+          return false;
+        }
+
+        if (sheetName.includes(accName) || accName.includes(sheetName)) {
+          return false;
+        }
+
+        return true;
+      });
+
+      // Add the SnapTrade account record
+      latestBalances.push({
+        id: `snaptrade_${acc.id}`,
+        date: new Date().toISOString().split('T')[0],
+        institution: acc.institution_name || acc.brokerage?.name || 'Brokerage',
+        account: acc.name,
+        account_id: acc.id,
+        balance: acc.balances?.current || 0,
+        class: 'Asset',
+        type: 'Investment'
+      });
+    });
+  }
 
   switch (toolName) {
     case 'get_summary': {
