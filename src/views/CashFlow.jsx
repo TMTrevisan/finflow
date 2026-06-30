@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import SankeyDiagram from '../components/diagrams/SankeyDiagram';
-import DateRangeSelector from '../components/ui/DateRangeSelector';
-import { filterTransactionsByDateRange } from '../utils/dateFilters';
 import { formatCurrency, cleanMerchantName } from '../utils/formatting';
 import { Waves, Grid, CalendarDays, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
@@ -19,18 +17,13 @@ export default function CashFlow() {
     resolvedPartnerBEmployer = "Employer B"
   } = useAppContext() || {};
   const width = useWindowWidth();
-  const [filterType, setFilterType] = useState('this_month');
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
   const [visualMode, setVisualMode] = useState(() => 
     typeof window !== 'undefined' && window.innerWidth < 480 ? 'grid' : 'sankey'
   );
   const [activeSankeyFilter, setActiveSankeyFilter] = useState(null);
-
-  // Date filtered transactions
-  const dateFilteredTransactions = useMemo(() => {
-    return filterTransactionsByDateRange(transactions, filterType, customStart, customEnd);
-  }, [transactions, filterType, customStart, customEnd]);
+ 
+  // Date filtered transactions are fed directly from globally filtered transactions context
+  const dateFilteredTransactions = transactions;
 
   // Handle Sankey Node selection callback
   const handleSelectSankeyNode = (type, name) => {
@@ -78,10 +71,10 @@ export default function CashFlow() {
     });
   }, [dateFilteredTransactions, activeSankeyFilter]);
 
-  // Reset active filter when date range changes
+  // Reset active filter when global date range changes
   useEffect(() => {
     setActiveSankeyFilter(null);
-  }, [filterType, customStart, customEnd]);
+  }, [transactions]);
 
   // Aggregate stats for summary cards
   const stats = useMemo(() => {
@@ -185,22 +178,20 @@ export default function CashFlow() {
 
   return (
     <div className="space-y-6">
-      {/* Filters & Control bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-obsidian-800 p-4 rounded-2xl border border-obsidian-750">
+      {/* Toggle visualizer & view header */}
+      <div className="flex items-center justify-between border-b border-slate-900/60 pb-4">
+        <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+          <Waves className="text-neon-indigo animate-pulse" size={18} />
+          <span>Sankey Flow Analysis</span>
+        </h2>
+        
         <div className="flex items-center space-x-3">
-          <DateRangeSelector
-            filterType={filterType}
-            setFilterType={setFilterType}
-            customStart={customStart}
-            setCustomStart={setCustomStart}
-            customEnd={customEnd}
-            setCustomEnd={setCustomEnd}
-          />
-        </div>
-
-        {/* Toggle visualizer */}
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="flex bg-obsidian-800 p-1 rounded-xl border border-obsidian-750">
+          {width < 480 && visualMode === 'grid' && (
+            <span className="text-[9px] text-slate-500 font-semibold italic text-center mr-1">
+              💡 Tap "Sankey Flow" to view flow (best on desktop)
+            </span>
+          )}
+          <div className="flex bg-obsidian-900 p-1 rounded-xl border border-obsidian-750">
             <button
               onClick={() => setVisualMode('sankey')}
               className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
@@ -224,11 +215,6 @@ export default function CashFlow() {
               <span>Grid Table</span>
             </button>
           </div>
-          {width < 480 && visualMode === 'grid' && (
-            <span className="text-[9px] text-slate-500 font-semibold italic text-center">
-              💡 Tap "Sankey Flow" above to view flow diagram (best on desktop)
-            </span>
-          )}
         </div>
       </div>
 
