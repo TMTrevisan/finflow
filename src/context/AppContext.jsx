@@ -10,6 +10,7 @@ import {
   compressBalances,
   injectMortgage
 } from '../utils/dataPrep';
+import { filterTransactionsByDateRange } from '../utils/dateFilters';
 
 const AppContext = createContext();
 
@@ -392,7 +393,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
     return injectMortgage(mergedBalances, enableCustomSplits, resolvedPartnerBName);
   }, [mergedBalances, enableCustomSplits, resolvedPartnerBName]);
 
-  const [globalDateRange, setGlobalDateRange] = useState('All Time');
+  const [globalDateRange, setGlobalDateRange] = useState('all');
+  const [globalCustomStart, setGlobalCustomStart] = useState('');
+  const [globalCustomEnd, setGlobalCustomEnd] = useState('');
   const [globalAccount, setGlobalAccount] = useState('All Accounts');
 
   const uniqueAccounts = useMemo(() => {
@@ -427,31 +430,10 @@ export const AppProvider = ({ children, setCurrentView }) => {
     }
 
     // 2. Date Range Filtering
-    if (globalDateRange !== 'All Time') {
-      const today = referenceDate || new Date();
-      list = list.filter(t => {
-        if (!t.date) return false;
-        const tDate = new Date(t.date);
-        
-        if (globalDateRange === 'This Month') {
-          return tDate.getFullYear() === today.getFullYear() && tDate.getMonth() === today.getMonth();
-        } else if (globalDateRange === 'Last 30 Days') {
-          const limit = new Date(today);
-          limit.setDate(limit.getDate() - 30);
-          return tDate >= limit && tDate <= today;
-        } else if (globalDateRange === 'Last 90 Days') {
-          const limit = new Date(today);
-          limit.setDate(limit.getDate() - 90);
-          return tDate >= limit && tDate <= today;
-        } else if (globalDateRange === 'This Year') {
-          return tDate.getFullYear() === today.getFullYear();
-        }
-        return true;
-      });
-    }
+    list = filterTransactionsByDateRange(list, globalDateRange, globalCustomStart, globalCustomEnd);
 
     return list;
-  }, [allDecoratedTransactions, globalAccount, globalDateRange, referenceDate]);
+  }, [allDecoratedTransactions, globalAccount, globalDateRange, globalCustomStart, globalCustomEnd]);
 
   const filteredBalances = useMemo(() => {
     let list = allDecoratedBalances || [];
@@ -1069,6 +1051,11 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setGlobalSearchQuery,
       globalDateRange,
       setGlobalDateRange,
+      globalCustomStart,
+      setGlobalCustomStart,
+      globalCustomEnd,
+      setGlobalCustomEnd,
+      allTransactions: allDecoratedTransactions || [],
       globalAccount,
       setGlobalAccount,
       uniqueAccounts,

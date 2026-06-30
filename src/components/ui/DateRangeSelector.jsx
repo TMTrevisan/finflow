@@ -26,7 +26,7 @@ export default function DateRangeSelector({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
-  const { transactions = [] } = useAppContext();
+  const { allTransactions = [] } = useAppContext();
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function DateRangeSelector({
   }, []);
 
   const activeOption = FILTER_OPTIONS.find(o => o.id === filterType) || FILTER_OPTIONS[1];
-  const dateRangeString = getDateRangeLabel(filterType, customStart, customEnd, transactions);
+  const dateRangeString = getDateRangeLabel(filterType, customStart, customEnd, allTransactions);
 
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>

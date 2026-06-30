@@ -4,12 +4,14 @@ import { useAppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { formatCurrency } from '../../utils/formatting';
+import DateRangeSelector from '../ui/DateRangeSelector';
 
 export default function Header({ title, currentView, setCurrentView }) {
   const { 
     syncData, isSyncing, error, isMockData, lastSync, setGlobalSearchOpen, 
     balances = [], transactions = [], categories = [], snapTradeHoldings, 
-    snapTradeError, globalDateRange, setGlobalDateRange, globalAccount, 
+    snapTradeError, globalDateRange, setGlobalDateRange, globalCustomStart,
+    setGlobalCustomStart, globalCustomEnd, setGlobalCustomEnd, globalAccount, 
     setGlobalAccount, uniqueAccounts 
   } = useAppContext();
   
@@ -359,18 +361,14 @@ export default function Header({ title, currentView, setCurrentView }) {
       <div className="flex flex-wrap items-center justify-between md:justify-end w-full md:w-auto gap-3">
         {/* Global Date & Account Filters */}
         <div className="flex items-center space-x-2 w-full xs:w-auto">
-          <select
-            value={globalDateRange}
-            onChange={(e) => setGlobalDateRange(e.target.value)}
-            aria-label="Select Date Range"
-            className="flex-1 xs:flex-initial bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-700 text-xs font-bold rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-slate-200 cursor-pointer focus:border-neon-indigo focus:ring-1 focus:ring-neon-indigo outline-none transition-colors duration-200 shadow-sm"
-          >
-            <option value="All Time">All Time</option>
-            <option value="This Month">This Month</option>
-            <option value="Last 30 Days">Last 30 Days</option>
-            <option value="Last 90 Days">Last 90 Days</option>
-            <option value="This Year">This Year</option>
-          </select>
+          <DateRangeSelector
+            filterType={globalDateRange}
+            setFilterType={setGlobalDateRange}
+            customStart={globalCustomStart}
+            setCustomStart={setGlobalCustomStart}
+            customEnd={globalCustomEnd}
+            setCustomEnd={setGlobalCustomEnd}
+          />
 
           <select
             value={globalAccount}
