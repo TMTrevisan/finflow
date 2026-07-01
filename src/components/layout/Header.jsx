@@ -348,7 +348,7 @@ export default function Header({ title, currentView, setCurrentView }) {
   };
 
   return (
-    <header className="flex flex-col md:flex-row md:items-center md:justify-between p-4 sm:p-6 border-b border-obsidian-750 bg-obsidian-900/80 backdrop-blur-md sticky top-0 z-40 gap-4">
+    <header className="flex flex-col md:flex-row md:items-center md:justify-between p-4 sm:p-6 border-b border-obsidian-750 bg-obsidian-900/80 backdrop-blur-md md:sticky md:top-0 z-40 gap-4">
       {/* Title */}
       <div className="flex items-center justify-between w-full md:w-auto">
         <h2 className="text-lg font-bold md:hidden text-white truncate max-w-[150px] capitalize">{title}</h2>
