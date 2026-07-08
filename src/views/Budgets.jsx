@@ -208,8 +208,8 @@ export default function Budgets({ setCurrentView }) {
     };
 
     const refDateObj = referenceDate || new Date();
-    const currentMonth = refDateObj.getMonth();
-    const currentYear = refDateObj.getFullYear();
+    const currentMonth = refDateObj.getUTCMonth();
+    const currentYear = refDateObj.getUTCFullYear();
 
     // Get last month's month and year
     let lastMonth = currentMonth - 1;
@@ -224,13 +224,15 @@ export default function Budgets({ setCurrentView }) {
     transactions.forEach(t => {
       const d = new Date(t.date);
       if (!isNaN(d.getTime())) {
-        if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+        if (d.getUTCMonth() === currentMonth && d.getUTCFullYear() === currentYear) {
           if (t.type === 'Expense') {
-            spentMap[t.category] = (spentMap[t.category] || 0) + t.amount; // Negative amount
+            const cleanCat = (t.category || '').trim().toLowerCase();
+            spentMap[cleanCat] = (spentMap[cleanCat] || 0) + t.amount; // Negative amount
           }
-        } else if (d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear) {
+        } else if (d.getUTCMonth() === lastMonth && d.getUTCFullYear() === lastMonthYear) {
           if (t.type === 'Expense') {
-            lastMonthSpentMap[t.category] = (lastMonthSpentMap[t.category] || 0) + t.amount;
+            const cleanCat = (t.category || '').trim().toLowerCase();
+            lastMonthSpentMap[cleanCat] = (lastMonthSpentMap[cleanCat] || 0) + t.amount;
           }
         }
       }
@@ -239,7 +241,8 @@ export default function Budgets({ setCurrentView }) {
     categories.forEach(cat => {
       if (cat.type !== 'Expense') return;
       const budgetVal = cat.budget || 0;
-      const spentVal = spentMap[cat.category] || 0;
+      const cleanCat = (cat.category || '').trim().toLowerCase();
+      const spentVal = spentMap[cleanCat] || 0;
       const balanceVal = budgetVal + spentVal; // Spent is negative
       const percentVal = budgetVal > 0 ? (Math.abs(spentVal) / budgetVal) * 100 : 0;
       const group = mapCategoryToGroup(cat.category);
@@ -250,7 +253,7 @@ export default function Budgets({ setCurrentView }) {
         spent: spentVal,
         balance: balanceVal,
         percent: percentVal,
-        lastMonthSpent: lastMonthSpentMap[cat.category] || 0
+        lastMonthSpent: lastMonthSpentMap[cleanCat] || 0
       });
     });
 
@@ -301,12 +304,12 @@ export default function Budgets({ setCurrentView }) {
     });
 
     const refDateObj = referenceDate || new Date();
-    const currentMonth = refDateObj.getMonth();
-    const currentYear = refDateObj.getFullYear();
+    const currentMonth = refDateObj.getUTCMonth();
+    const currentYear = refDateObj.getUTCFullYear();
 
     transactions.forEach(t => {
       const d = new Date(t.date);
-      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear && t.type === 'Income') {
+      if (d.getUTCMonth() === currentMonth && d.getUTCFullYear() === currentYear && t.type === 'Income') {
         actualTotal += t.amount || 0;
       }
     });

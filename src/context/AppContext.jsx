@@ -344,6 +344,22 @@ export const AppProvider = ({ children, setCurrentView }) => {
 
         if (!instMatch) return true;
 
+        // Fallback 1: Balance Match (if balances match within $1, they are duplicates)
+        const sheetBal = Number(b.balance) || 0;
+        const snapBal = Number(acc.balances?.current) || 0;
+        if (sheetBal !== 0 && Math.abs(sheetBal - snapBal) < 1.00) {
+          return false;
+        }
+
+        // Fallback 2: Account Number / Last 4 digits match
+        const sheetDigits = sheetName.replace(/\D/g, '');
+        const snapDigits = accName.replace(/\D/g, '');
+        if (sheetDigits && snapDigits && sheetDigits.length >= 4 && snapDigits.length >= 4) {
+          if (sheetDigits.slice(-4) === snapDigits.slice(-4)) {
+            return false;
+          }
+        }
+
         // Check account type similarity
         if (sheetName === accName) return false;
         
@@ -904,8 +920,8 @@ export const AppProvider = ({ children, setCurrentView }) => {
     const rollingSurplus = rollingIncome - rollingCompounding - rollingBaseline;
 
     // B. BLENDED/PROJECTED CALENDAR MONTH
-    const currentMonth = refDate.getMonth();
-    const currentYear = refDate.getFullYear();
+    const currentMonth = refDate.getUTCMonth();
+    const currentYear = refDate.getUTCFullYear();
 
     let actualIncome = 0;
     let actualBaseline = 0;
@@ -915,7 +931,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     (transactions || []).forEach(t => {
       if (!t.date || !t.category || !isIncluded(t.category)) return;
       const d = new Date(t.date);
-      if (d.getMonth() !== currentMonth || d.getFullYear() !== currentYear) return;
+      if (d.getUTCMonth() !== currentMonth || d.getUTCFullYear() !== currentYear) return;
 
       const classification = getClassification(t);
       const amountVal = Number(t.amount) || 0;

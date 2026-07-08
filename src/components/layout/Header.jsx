@@ -78,17 +78,16 @@ export default function Header({ title, currentView, setCurrentView }) {
       }
     });
 
-    // 3. Budgets Overspent alert
     const today = new Date();
     const currentMonthTxns = transactions.filter(t => {
       const d = new Date(t.date);
-      return d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && t.type === 'Expense';
+      return d.getUTCFullYear() === today.getUTCFullYear() && d.getUTCMonth() === today.getUTCMonth() && t.type === 'Expense';
     });
     
     categories.forEach(cat => {
       if (cat.budget > 0) {
         const spent = currentMonthTxns
-          .filter(t => t.category === cat.category)
+          .filter(t => (t.category || '').trim().toLowerCase() === (cat.category || '').trim().toLowerCase())
           .reduce((sum, t) => sum - t.amount, 0);
         if (spent > cat.budget) {
           list.push({
