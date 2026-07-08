@@ -328,8 +328,8 @@ export default function Assistant() {
     });
 
     const latestDate = transactions.length > 0 ? new Date(Math.max(...transactions.map(t => new Date(t.date).getTime()))) : new Date();
-    const currentMonth = latestDate.getMonth();
-    const currentYear = latestDate.getFullYear();
+    const currentMonth = latestDate.getUTCMonth();
+    const currentYear = latestDate.getUTCFullYear();
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const activeMonthLabel = `${monthNames[currentMonth]} ${currentYear}`;
 
@@ -339,7 +339,7 @@ export default function Assistant() {
     transactions.forEach(t => {
       if (!t.date) return;
       const d = new Date(t.date);
-      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+      if (d.getUTCMonth() === currentMonth && d.getUTCFullYear() === currentYear) {
         const val = Number(t.amount) || 0;
         if (t.type === 'Income') currentMonthIncome += val;
         else if (t.type === 'Expense') currentMonthExpenses += Math.abs(val);
@@ -354,7 +354,7 @@ export default function Assistant() {
           (() => {
             if (!t.date) return false;
             const d = new Date(t.date);
-            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+            return d.getUTCMonth() === currentMonth && d.getUTCFullYear() === currentYear;
           })()
         )
         .reduce((sum, t) => sum + Math.abs(t.amount), 0);
