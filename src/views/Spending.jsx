@@ -39,7 +39,7 @@ export default function Spending() {
   }, [balances]);
 
   const incExpMetrics = useMemo(() => {
-    const accountFilteredTxns = transactions.filter(t => {
+    const accountFilteredTxns = allTransactions.filter(t => {
       if (selectedAccount === 'all') return true;
       return t.account === selectedAccount;
     });
@@ -315,7 +315,7 @@ export default function Spending() {
       </div>
 
       {/* Spending Alerts (Spikes) */}
-      <AnomalyDetector currentTransactions={expenseTransactions} allTransactions={transactions} />
+      <AnomalyDetector currentTransactions={expenseTransactions} allTransactions={allTransactions} />
 
       {/* Main Analysis Block */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

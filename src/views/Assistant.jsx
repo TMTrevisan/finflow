@@ -25,7 +25,7 @@ import {
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default function Assistant() {
-  const { transactions = [], categories = [], balances = [] } = useAppContext();
+  const { transactions = [], categories = [], balances = [], logSync = () => {} } = useAppContext();
 
   // Fiduciary Planner Mode
   const [fiduciaryMode, setFiduciaryMode] = useState(() => safeStorage.getItem('finflow_fiduciary_mode') === 'true');
@@ -109,6 +109,14 @@ export default function Assistant() {
   const [errorMessage, setErrorMessage] = useState('');
   
   const chatEndRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(128, textareaRef.current.scrollHeight)}px`;
+    }
+  }, [userInput]);
 
   // Active Key resolver
   const activeApiKey = useMemo(() => {
@@ -436,6 +444,7 @@ export default function Assistant() {
     setUserInput('');
     setErrorMessage('');
     setIsGenerating(true);
+    logSync(`Copilot: Processing prompt "${promptText.substring(0, 60)}${promptText.length > 60 ? '...' : ''}"`, 'info');
 
     if (activeAbortControllerRef.current) {
       activeAbortControllerRef.current.abort();
@@ -582,11 +591,14 @@ Rules:
                 role: 'model',
                 content: `🔧 *System: Executing ${toolCalls.length} tool(s)...*`
               }]);
+              logSync(`Copilot: Invoking ${toolCalls.length} tools via Gemini`, 'info', toolCalls.map(tc => tc.name).join(', '));
 
               // Run all tool calls
               const toolResponses = [];
               for (const tc of toolCalls) {
+                logSync(`Copilot: Executing tool "${tc.name}"`, 'info', JSON.stringify(tc.args));
                 const toolResult = await runMcpTool(tc.name, tc.args);
+                logSync(`Copilot: Tool "${tc.name}" completed`, 'success');
                 toolResponses.push({
                   role: 'tool',
                   tool_call_id: tc.id,
@@ -605,7 +617,9 @@ Rules:
                 role: 'model',
                 content: `🔧 *System: Executing local tool ${inlineFuncCall.name}...*`
               }]);
+              logSync(`Copilot: Invoking local tool ${inlineFuncCall.name}`, 'info', JSON.stringify(inlineFuncCall.args));
               const toolResult = await runMcpTool(inlineFuncCall.name, inlineFuncCall.args);
+              logSync(`Copilot: Tool "${inlineFuncCall.name}" completed`, 'success');
               setChatLog(prev => prev.slice(0, -1));
               activeHistory.push({ role: 'model', tool_calls: [inlineFuncCall] });
               activeHistory.push({
@@ -616,6 +630,7 @@ Rules:
               });
             } else {
               const text = response.text();
+              logSync(`Copilot: Gemini generated text response (${text.length} chars)`, 'success');
               setChatLog(prev => [...prev, { role: 'model', content: text }]);
               finalResponseGenerated = true;
             }
@@ -633,6 +648,7 @@ Rules:
                 return next;
               });
             }
+            logSync(`Copilot: Gemini generated text response (${accumulatedText.length} chars)`, 'success');
             finalResponseGenerated = true;
           }
         } else {
@@ -914,10 +930,13 @@ Rules:
               role: 'model',
               content: `🔧 *System: Executing ${requestedToolCalls.length} tool(s)...*`
             }]);
+            logSync(`Copilot: Invoking ${requestedToolCalls.length} tools via proxy`, 'info', requestedToolCalls.map(tc => tc.name).join(', '));
 
             const toolResponses = [];
             for (const tc of requestedToolCalls) {
+              logSync(`Copilot: Executing tool "${tc.name}"`, 'info', JSON.stringify(tc.args));
               const toolResult = await runMcpTool(tc.name, tc.args);
+              logSync(`Copilot: Tool "${tc.name}" completed`, 'success');
               toolResponses.push({
                 role: 'tool',
                 tool_call_id: tc.id,
@@ -933,6 +952,7 @@ Rules:
             activeHistory.push({ role: 'model', tool_calls: requestedToolCalls });
             activeHistory.push(...toolResponses);
           } else {
+            logSync(`Copilot: Text response generation complete`, 'success');
             finalResponseGenerated = true;
           }
         }
@@ -940,6 +960,7 @@ Rules:
     } catch (err) {
       if (err.name === 'AbortError') {
         console.log('[Copilot] Generation cancelled by user.');
+        logSync('Copilot: Generation aborted by user', 'info');
         // Clean up any empty message from feed
         setChatLog(prev => prev.filter(m => m.content !== ''));
         return;
@@ -950,8 +971,18 @@ Rules:
         msg = 'Copilot rate limit exceeded. Please wait a moment before sending another message.';
       }
       setErrorMessage(msg);
-      // Clean up empty model bubble
-      setChatLog(prev => prev.filter(m => m.content !== ''));
+      logSync(`Copilot Error: ${msg}`, 'error');
+      
+      // Clean up empty bubbles and insert actual error message in conversation flow
+      setChatLog(prev => {
+        const filtered = prev.filter(m => m.content !== '');
+        // Check if last message is a system execution message
+        const last = filtered[filtered.length - 1];
+        if (last && last.content && last.content.includes('Executing')) {
+          filtered.pop();
+        }
+        return [...filtered, { role: 'model', content: `❌ **Copilot Error**: ${msg}`, isError: true }];
+      });
     } finally {
       setIsGenerating(false);
       setToolStatus('');
@@ -1188,6 +1219,8 @@ Rules:
                 <div className={`p-4 rounded-2xl border shadow-sm relative group/msg ${
                   message.role === 'user'
                     ? 'bg-neon-indigo/15 border-neon-indigo/25 text-slate-200'
+                    : message.isError
+                    ? 'bg-neon-crimson/10 border-neon-crimson/25 text-neon-crimson'
                     : 'bg-obsidian-800/40 border-obsidian-800/80 text-slate-350'
                 }`}>
                   <button
@@ -1375,13 +1408,20 @@ Rules:
           }}
           className="relative flex items-center"
         >
-          <input 
-            type="text"
+          <textarea 
+            ref={textareaRef}
+            rows={1}
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
             disabled={isGenerating}
             placeholder={isGenerating ? (toolStatus || "Processing models...") : "Ask Copilot e.g., 'Am I over budget on groceries?'"}
-            className="w-full bg-obsidian-800/90 border border-obsidian-750/90 focus:border-neon-indigo/60 text-white rounded-2xl pl-4 pr-12 py-3.5 text-xs focus:outline-none focus:ring-1 focus:ring-neon-indigo/30 transition-all placeholder-slate-500 shadow-xl"
+            className="w-full bg-obsidian-800/90 border border-obsidian-750/90 focus:border-neon-indigo/60 text-white rounded-2xl pl-4 pr-12 py-3.5 text-xs focus:outline-none focus:ring-1 focus:ring-neon-indigo/30 transition-all placeholder-slate-500 shadow-xl resize-none max-h-32 min-h-[44px] overflow-y-auto align-middle"
           />
           {isGenerating ? (
             <button

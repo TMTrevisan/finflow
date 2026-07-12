@@ -499,11 +499,35 @@ export default function Transactions() {
           <table className="w-full text-left border-collapse table-fixed">
             <thead>
               <tr className="border-b border-obsidian-700 bg-obsidian-800/80">
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-28">Date</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Merchant</th>
+                <th 
+                  onClick={() => setSortBy(sortBy === 'date_desc' ? 'date_asc' : 'date_desc')}
+                  className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-28 cursor-pointer hover:text-white select-none transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Date</span>
+                    <ArrowUpDown size={12} className={sortBy.startsWith('date') ? 'text-neon-indigo' : 'text-slate-650'} />
+                  </div>
+                </th>
+                <th 
+                  onClick={() => setSortBy(sortBy === 'merchant_asc' ? 'date_desc' : 'merchant_asc')}
+                  className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white select-none transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Merchant</span>
+                    <ArrowUpDown size={12} className={sortBy === 'merchant_asc' ? 'text-neon-indigo' : 'text-slate-650'} />
+                  </div>
+                </th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-40">Account</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-44">Category</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right w-32">Amount</th>
+                <th 
+                  onClick={() => setSortBy(sortBy === 'amount_desc' ? 'amount_asc' : 'amount_desc')}
+                  className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider text-right w-32 cursor-pointer hover:text-white select-none transition-colors"
+                >
+                  <div className="flex items-center gap-1 justify-end">
+                    <span>Amount</span>
+                    <ArrowUpDown size={12} className={sortBy.startsWith('amount') ? 'text-neon-indigo' : 'text-slate-650'} />
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-obsidian-700/50">

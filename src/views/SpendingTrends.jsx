@@ -6,8 +6,14 @@ import { Card, CardContent } from '../components/ui/Card';
 import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Info, HelpCircle } from 'lucide-react';
 
 export default function SpendingTrends() {
-  const { transactions = [], balances = [], isLoading } = useAppContext();
-  const [insightPeriod, setInsightPeriod] = useState('30_days');
+  const { 
+    transactions = [], 
+    balances = [], 
+    isLoading,
+    globalDateRange,
+    globalCustomStart,
+    globalCustomEnd
+  } = useAppContext();
   const [expandedCategories, setExpandedCategories] = useState({});
 
   const toggleCategoryExpanded = (name) => {
@@ -125,48 +131,43 @@ export default function SpendingTrends() {
     });
   }, [transactions, referenceDate]);
 
-  // Date range filters for active selection
+  // Date range filters based on active global selection
   const activeRange = useMemo(() => {
-    const now = new Date(referenceDate.getTime());
-    const start = new Date(referenceDate.getTime());
-    switch (insightPeriod) {
-      case '7_days':
-        start.setDate(now.getDate() - 7);
-        return { start, end: now, days: 7, label: 'Past 7 days' };
-      case '30_days':
-        start.setDate(now.getDate() - 30);
-        return { start, end: now, days: 30, label: 'Past 30 days' };
-      case 'this_month':
-        start.setDate(1);
-        start.setHours(0, 0, 0, 0);
-        return { start, end: now, days: now.getDate() || 1, label: 'This Month' };
-      case 'last_month': {
-        const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const last = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-        const diffTime = Math.abs(last - first);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return { start: first, end: last, days: diffDays || 30, label: 'Last Month' };
+    let start = null;
+    let end = null;
+
+    if (globalDateRange === 'custom' && globalCustomStart && globalCustomEnd) {
+      start = new Date(globalCustomStart);
+      end = new Date(globalCustomEnd);
+    } else {
+      if (!transactions || transactions.length === 0) {
+        return { start: new Date(), end: new Date(), days: 30, label: 'Selected Period' };
       }
-      case 'this_year':
-        start.setMonth(0);
-        start.setDate(1);
-        start.setHours(0, 0, 0, 0);
-        const yDiff = Math.abs(now - start);
-        const yDays = Math.ceil(yDiff / (1000 * 60 * 60 * 24)) || 1;
-        return { start, end: now, days: yDays, label: 'This Year' };
-      default:
-        start.setDate(now.getDate() - 30);
-        return { start, end: now, days: 30, label: 'Past 30 days' };
+      const dates = transactions.map(t => new Date(t.date)).filter(d => !isNaN(d.getTime()));
+      if (dates.length === 0) {
+        return { start: new Date(), end: new Date(), days: 30, label: 'Selected Period' };
+      }
+      start = new Date(Math.min(...dates));
+      end = new Date(Math.max(...dates));
     }
-  }, [insightPeriod, referenceDate]);
+
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+
+    let label = 'Selected Period';
+    if (globalDateRange === 'this_month') label = 'This Month';
+    else if (globalDateRange === 'last_month') label = 'Last Month';
+    else if (globalDateRange === 'last_3_months') label = 'Past 3 Months';
+    else if (globalDateRange === 'last_6_months') label = 'Past 6 Months';
+    else if (globalDateRange === 'this_year') label = 'This Year';
+    else if (globalDateRange === 'all') label = 'All Time';
+
+    return { start, end, days: diffDays, label };
+  }, [transactions, globalDateRange, globalCustomStart, globalCustomEnd]);
 
   // Calculations inside selected Insight Period
   const insightMetrics = useMemo(() => {
-    const inRangeTxns = transactions.filter(t => {
-      if (!t.date) return false;
-      const d = new Date(t.date);
-      return d >= activeRange.start && d <= activeRange.end;
-    });
+    const inRangeTxns = transactions;
 
     const income = inRangeTxns
       .filter(t => t.type === 'Income')
@@ -294,24 +295,14 @@ export default function SpendingTrends() {
         </Card>
       </div>
 
-      {/* 3. Period Insights Selector Header */}
+      {/* 3. Period Insights Selector Header (Unified with Global Date Range) */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-obsidian-800 p-4 rounded-3xl border border-obsidian-750">
         <div className="flex items-center space-x-2">
-          <span className="text-sm font-semibold text-slate-400">Insights for:</span>
-          <select
-            value={insightPeriod}
-            onChange={(e) => setInsightPeriod(e.target.value)}
-            className="bg-obsidian-800 border border-obsidian-700 text-white font-extrabold rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 cursor-pointer"
-          >
-            <option value="7_days">Past 7 days</option>
-            <option value="30_days">Past 30 days</option>
-            <option value="this_month">This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="this_year">This Year</option>
-          </select>
+          <span className="text-sm font-semibold text-slate-400">Insights Period:</span>
+          <span className="text-sm font-extrabold text-neon-indigo uppercase tracking-wider">{activeRange.label}</span>
         </div>
         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-          {activeRange.label} ({activeRange.start.toLocaleDateString('default', { month: 'short', day: 'numeric' })} - {activeRange.end.toLocaleDateString('default', { month: 'short', day: 'numeric', year: '2-digit' })})
+          ({activeRange.start.toLocaleDateString('default', { month: 'short', day: 'numeric' })} - {activeRange.end.toLocaleDateString('default', { month: 'short', day: 'numeric', year: '2-digit' })})
         </span>
       </div>
 
