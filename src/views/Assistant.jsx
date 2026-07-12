@@ -1,28 +1,14 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { Card, CardContent } from '../components/ui/Card';
-import { cleanMerchantName, formatCurrency } from '../utils/formatting';
 import { safeStorage } from '../utils/storage';
-import { 
-  Sparkles, 
-  Send, 
-  Brain, 
-  Key, 
-  HelpCircle,
-  TrendingDown,
-  ArrowRight,
-  RefreshCw,
-  AlertCircle,
-  Copy,
-  Check,
-  Server,
-  Settings as SettingsIcon,
-  CheckCircle,
-  Activity,
-  Square,
-  Download
-} from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { cleanMerchantName } from '../utils/formatting';
+import AssistantHeader from '../components/assistant/AssistantHeader';
+import MessageFeed from '../components/assistant/MessageFeed';
+import PrivacyControls from '../components/assistant/PrivacyControls';
+import ChatInput from '../components/assistant/ChatInput';
+import OnboardingKeyScreen from '../components/assistant/OnboardingKeyScreen';
+import SharedContextDrawer from '../components/assistant/SharedContextDrawer';
 
 export default function Assistant() {
   const { transactions = [], categories = [], balances = [], logSync = () => {} } = useAppContext();
@@ -74,15 +60,6 @@ export default function Assistant() {
   const [redactSensitiveData, setRedactSensitiveData] = useState(() => safeStorage.getItem('finflow_ai_redact') === 'true');
   const [aggregateOnlyMode, setAggregateOnlyMode] = useState(() => safeStorage.getItem('finflow_ai_aggregate_only') === 'true');
 
-  const [copiedIndex, setCopiedIndex] = useState(null);
-
-  const handleCopyText = (content, index) => {
-    const cleanContent = content.replace(/<suggestions>[\s\S]*?<\/suggestions>/gi, '').trim();
-    navigator.clipboard.writeText(cleanContent);
-    setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
-  };
-
   const [chatLog, setChatLog] = useState(() => {
     const saved = safeStorage.getItem('finflow_chat_history');
     if (saved) {
@@ -100,23 +77,15 @@ export default function Assistant() {
     ];
   });
 
-  useEffect(() => {
-    safeStorage.setItem('finflow_chat_history', JSON.stringify(chatLog));
-  }, [chatLog]);
-
   const [userInput, setUserInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  
   const chatEndRef = useRef(null);
-  const textareaRef = useRef(null);
 
+  // Save chat log history
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(128, textareaRef.current.scrollHeight)}px`;
-    }
-  }, [userInput]);
+    safeStorage.setItem('finflow_chat_history', JSON.stringify(chatLog));
+  }, [chatLog]);
 
   // Active Key resolver
   const activeApiKey = useMemo(() => {
@@ -176,7 +145,7 @@ export default function Assistant() {
         if (active) setMcpStatus('sleeping');
       }, 5000);
 
-       const requestUrl = mcpSecret 
+      const requestUrl = mcpSecret 
         ? (mcpUrl.endsWith(mcpSecret) ? `${mcpUrl}/tools` : `${mcpUrl}/${mcpSecret}/tools`)
         : `${mcpUrl}/tools`;
 
@@ -992,462 +961,72 @@ Rules:
     }
   };
 
-  // Helper to extract custom suggestion tags
-  const parseSuggestions = (content) => {
-    if (!content) return { text: '', suggestions: [] };
-    const match = content.match(/<suggestions>([\s\S]*?)<\/suggestions>/);
-    if (!match) return { text: content, suggestions: [] };
-    
-    const textWithoutSuggestions = content.replace(/<suggestions>([\s\S]*?)<\/suggestions>/, '').trim();
-    const suggestionsList = match[1]
-      .split('|')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-      
-    return { text: textWithoutSuggestions, suggestions: suggestionsList };
-  };
-
-  // Simple client-side markdown formatter
-  const renderMarkdown = (text) => {
-    if (!text) return null;
-    const paragraphs = text.split('\n');
-
-    return paragraphs.map((para, i) => {
-      let trimmed = para.trim();
-      if (!trimmed) return <div key={i} className="h-2" />;
-
-      if (trimmed.startsWith('### ')) {
-        return <h4 key={i} className="text-sm font-bold text-white mt-3 mb-1.5">{trimmed.replace('### ', '')}</h4>;
-      }
-      if (trimmed.startsWith('## ')) {
-        return <h3 key={i} className="text-base font-bold text-white mt-4 mb-2">{trimmed.replace('## ', '')}</h3>;
-      }
-      if (trimmed.startsWith('# ')) {
-        return <h2 key={i} className="text-lg font-black text-white mt-4 mb-2">{trimmed.replace('# ', '')}</h2>;
-      }
-
-      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-        if (trimmed.includes('---')) return null;
-        const cells = trimmed.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
-        return (
-          <div key={i} className="flex border-b border-obsidian-800/80 py-1.5 text-xs text-slate-350 hover:bg-obsidian-800/10">
-            {cells.map((cell, cellIdx) => (
-              <span key={cellIdx} className={`flex-1 min-w-0 truncate ${cellIdx === cells.length - 1 ? 'text-right font-semibold text-slate-200' : ''}`}>
-                {cell.replace(/\*\*/g, '')}
-              </span>
-            ))}
-          </div>
-        );
-      }
-
-      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-        const cleanBullet = trimmed.replace(/^[-*]\s+/, '');
-        return (
-          <li key={i} className="text-xs text-slate-350 list-disc ml-4 my-1">
-            {parseInlineMarkdown(cleanBullet)}
-          </li>
-        );
-      }
-
-      return (
-        <p key={i} className="text-xs leading-relaxed text-slate-300 my-1">
-          {parseInlineMarkdown(trimmed)}
-        </p>
-      );
-    });
-  };
-
-  const parseInlineMarkdown = (line) => {
-    const parts = line.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, idx) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <strong key={idx} className="font-extrabold text-white">{part.slice(2, -2)}</strong>;
-      }
-      return part;
-    });
-  };
-
-  // Onboarding API Key form if selected provider missing credentials
   if (!activeApiKey) {
     return (
-      <div className="flex flex-col items-center justify-center max-w-lg mx-auto min-h-[70vh] py-8 px-6 text-center space-y-6 animate-fade-in">
-        <div className="bg-obsidian-800 p-5 rounded-3xl border border-obsidian-750/80 shadow-2xl relative">
-          <div className="absolute -top-3 -right-3 bg-neon-indigo p-1.5 rounded-xl text-white shadow-glow">
-            <Sparkles size={16} />
-          </div>
-          <Brain size={48} className="text-neon-indigo animate-pulse" />
-        </div>
-
-        <div className="space-y-2">
-          <h1 className="text-2xl font-black text-white font-display">Configure FinFlow Copilot</h1>
-          <p className="text-xs text-slate-400">
-            Selected Provider: <span className="font-bold text-neon-indigo capitalize">{aiProvider}</span> (Model: {aiModel})
-          </p>
-          <p className="text-sm text-slate-400">
-            Please enter your API Key to authenticate the assistant model.
-          </p>
-        </div>
-
-        <Card className="bg-obsidian-800/40 border-obsidian-800/80 p-5 w-full space-y-4">
-          <div className="text-left space-y-2">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
-              <span>{aiProvider.toUpperCase()} API Key</span>
-            </label>
-            <input 
-              type="password" 
-              value={onboardingKeyInput}
-              onChange={(e) => setOnboardingKeyInput(e.target.value)}
-              placeholder={`Paste your ${aiProvider} key here...`}
-              className="w-full bg-obsidian-800 border border-obsidian-700 text-white rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50 transition-shadow"
-            />
-          </div>
-
-          <button
-            onClick={handleSaveOnboardingKey}
-            className="w-full py-2.5 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center justify-center space-x-2"
-          >
-            <Key size={14} />
-            <span>Connect Assistant</span>
-          </button>
-        </Card>
-      </div>
+      <OnboardingKeyScreen
+        aiProvider={aiProvider}
+        aiModel={aiModel}
+        onboardingKeyInput={onboardingKeyInput}
+        setOnboardingKeyInput={setOnboardingKeyInput}
+        handleSaveOnboardingKey={handleSaveOnboardingKey}
+      />
     );
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-140px)] max-w-4xl mx-auto pb-4">
       {/* Sticky Assistant Header */}
-      <div className="flex items-center justify-between border-b border-obsidian-800/85 pb-4 shrink-0">
-        <div className="flex items-center space-x-3">
-          <div className={`p-2.5 rounded-xl border transition-all duration-300 ${
-            fiduciaryMode 
-              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.15)]' 
-              : 'bg-neon-indigo/10 text-neon-indigo border-neon-indigo/15'
-          }`}>
-            <Brain size={20} className="animate-pulse" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white font-display flex items-center space-x-1.5">
-              <span>{fiduciaryMode ? 'Fiduciary Advisor' : 'FinFlow Copilot'}</span>
-              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full select-none capitalize border ${
-                fiduciaryMode
-                  ? 'bg-amber-500/10 border-amber-500/25 text-amber-400'
-                  : 'bg-neon-indigo/15 border-neon-indigo/25 text-neon-indigo'
-              }`}>{aiProvider}</span>
-            </h1>
-            <p className="text-[10px] text-slate-400">
-              {fiduciaryMode 
-                ? 'Legally bound to act in your sole best interest' 
-                : 'Contextual intelligence parsing local accounts & budgets'}
-            </p>
-          </div>
-        </div>
-
-        {/* Diagnostic active model & MCP indicator */}
-        <div className="flex items-center space-x-2 text-[10px] text-slate-450">
-          {/* Fiduciary Advisor Toggle */}
-          <button
-            onClick={() => handleToggleFiduciaryMode(!fiduciaryMode)}
-            className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all select-none cursor-pointer ${
-              fiduciaryMode 
-                ? 'bg-amber-500/10 border-amber-500/35 text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.15)] font-extrabold'
-                : 'bg-obsidian-850 hover:bg-obsidian-800 border-obsidian-750 text-slate-400 hover:text-slate-350'
-            }`}
-            title="Enable legally bound fiduciary financial advisor & planner mode"
-          >
-            <Sparkles size={10} className={fiduciaryMode ? "text-amber-400 animate-pulse" : ""} />
-            <span>Fiduciary Advisor</span>
-          </button>
-
-          <div className="flex items-center space-x-1 px-2 py-1 bg-obsidian-850 rounded-lg border border-obsidian-750">
-            <Activity size={10} className="text-neon-emerald" />
-            <span className="truncate max-w-[80px] md:max-w-none">{aiModel}</span>
-          </div>
-          {mcpEnabled && (
-            <div 
-              onClick={() => {
-                if (mcpStatus === 'offline' || mcpStatus === 'sleeping') {
-                  window.location.reload();
-                }
-              }}
-              title={mcpStatus === 'offline' || mcpStatus === 'sleeping' ? "Click to retry connection" : ""}
-              className={`flex items-center space-x-1 px-2 py-1 rounded-lg border text-[10px] font-bold select-none transition-all ${
-                mcpStatus === 'offline' || mcpStatus === 'sleeping' ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98]' : ''
-              } ${
-                mcpStatus === 'online'
-                  ? 'bg-neon-emerald/10 border-neon-emerald/25 text-neon-emerald'
-                  : mcpStatus === 'connecting'
-                  ? 'bg-neon-indigo/15 border-neon-indigo/25 text-neon-indigo animate-pulse'
-                  : mcpStatus === 'sleeping'
-                  ? 'bg-amber-500/10 border-amber-500/25 text-amber-500 animate-pulse'
-                  : 'bg-neon-crimson/10 border-neon-crimson/25 text-neon-crimson'
-              }`}
-            >
-              <Server size={10} className={mcpStatus === 'connecting' || mcpStatus === 'sleeping' ? 'animate-bounce' : ''} />
-              <span>
-                {mcpStatus === 'online' && `MCP Active (${mcpTools.length})`}
-                {mcpStatus === 'connecting' && 'Connecting...'}
-                {mcpStatus === 'sleeping' && 'Server Sleeping...'}
-                {mcpStatus === 'offline' && 'MCP Offline (Tap to Retry)'}
-                {mcpStatus === 'idle' && 'MCP Disabled'}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+      <AssistantHeader
+        fiduciaryMode={fiduciaryMode}
+        handleToggleFiduciaryMode={handleToggleFiduciaryMode}
+        aiProvider={aiProvider}
+        aiModel={aiModel}
+        mcpEnabled={mcpEnabled}
+        mcpStatus={mcpStatus}
+        mcpToolsLength={mcpTools.length}
+      />
 
       {/* Message Feed */}
-      <div className="flex-1 overflow-y-auto py-4 space-y-4 px-1 hide-scrollbar">
-        {chatLog.map((message, index) => {
-          const isModel = message.role === 'model';
-          const { text, suggestions } = isModel ? parseSuggestions(message.content) : { text: message.content, suggestions: [] };
+      <MessageFeed
+        chatLog={chatLog}
+        isGenerating={isGenerating}
+        fiduciaryMode={fiduciaryMode}
+        triggerFiduciaryAudit={triggerFiduciaryAudit}
+        activeSuggestions={activeSuggestions}
+        toolStatus={toolStatus}
+        chatEndRef={chatEndRef}
+        handleSendMessage={handleSendMessage}
+      />
 
-          return (
-            <div 
-              key={index}
-              className={`flex items-start gap-3 ${
-                message.role === 'user' ? 'justify-end' : 'justify-start'
-              }`}
-            >
-              {message.role === 'model' && (
-                <div className="p-1.5 bg-neon-indigo/15 rounded-lg border border-neon-indigo/25 text-neon-indigo shrink-0">
-                  <Brain size={14} />
-                </div>
-              )}
+      {/* Privacy & Trust Controls */}
+      <PrivacyControls
+        redactSensitiveData={redactSensitiveData}
+        handleToggleRedact={handleToggleRedact}
+        aggregateOnlyMode={aggregateOnlyMode}
+        handleToggleAggregateOnly={handleToggleAggregateOnly}
+        setChatLog={setChatLog}
+        showSharedContext={showSharedContext}
+        setShowSharedContext={setShowSharedContext}
+        financialContext={financialContext}
+      />
 
-              <div className="flex flex-col space-y-2 max-w-[85%]">
-                <div className={`p-4 rounded-2xl border shadow-sm relative group/msg ${
-                  message.role === 'user'
-                    ? 'bg-neon-indigo/15 border-neon-indigo/25 text-slate-200'
-                    : message.isError
-                    ? 'bg-neon-crimson/10 border-neon-crimson/25 text-neon-crimson'
-                    : 'bg-obsidian-800/40 border-obsidian-800/80 text-slate-350'
-                }`}>
-                  <button
-                    onClick={() => handleCopyText(message.content, index)}
-                    className="absolute top-2 right-2 p-1 rounded bg-obsidian-900/85 border border-obsidian-750 text-slate-400 hover:text-white opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 cursor-pointer flex items-center justify-center shadow-md"
-                    title="Copy message"
-                  >
-                    {copiedIndex === index ? <Check size={12} className="text-neon-emerald" /> : <Copy size={12} />}
-                  </button>
+      {/* Message Input Form */}
+      <ChatInput
+        userInput={userInput}
+        setUserInput={setUserInput}
+        isGenerating={isGenerating}
+        toolStatus={toolStatus}
+        errorMessage={errorMessage}
+        activeAbortControllerRef={activeAbortControllerRef}
+        handleSendMessage={handleSendMessage}
+      />
 
-                  <div className="space-y-2 pr-4">
-                    {text ? renderMarkdown(text) : (
-                      <div className="flex items-center space-x-2 text-xs text-slate-500">
-                        <RefreshCw size={12} className="animate-spin" />
-                        <span>Analyzing database variables...</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Render inline follow-up suggestion chips */}
-                {isModel && suggestions.length > 0 && !isGenerating && index === chatLog.length - 1 && (
-                  <div className="flex flex-wrap gap-2 pt-1 animate-fade-in">
-                    {suggestions.map((suggestionText, sugIdx) => (
-                      <button
-                        key={sugIdx}
-                        onClick={() => handleSendMessage(suggestionText)}
-                        className="text-left px-3.5 py-1.5 bg-obsidian-800/45 hover:bg-neon-indigo/15 border border-obsidian-750 hover:border-neon-indigo/40 text-[10px] font-semibold text-slate-350 hover:text-white rounded-full transition-all duration-150 active:scale-[0.98] shadow-sm"
-                      >
-                        {suggestionText}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-        
-        {/* Starter suggestion chips */}
-        {chatLog.length === 1 && (
-          <div className="space-y-4 pt-6 max-w-2xl">
-            {fiduciaryMode && (
-              <button
-                onClick={triggerFiduciaryAudit}
-                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent hover:from-amber-500/15 border border-amber-500/20 hover:border-amber-500/40 rounded-2xl transition-all duration-200 cursor-pointer text-left group active:scale-[0.99] shadow-[0_0_15px_rgba(245,158,11,0.05)]"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-amber-500/15 text-amber-400 border border-amber-500/20 rounded-xl">
-                    <Sparkles size={16} className="animate-pulse" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-white text-xs sm:text-sm">Run Fiduciary Financial Audit</h4>
-                    <p className="text-[10px] text-slate-400">Perform a comprehensive best-interest analysis of fees, cash drag, allocations, and emergency reserves.</p>
-                  </div>
-                </div>
-                <ArrowRight size={16} className="text-amber-500 group-hover:translate-x-1.5 transition-all shrink-0 ml-3 animate-pulse" />
-              </button>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {activeSuggestions.map((s, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSendMessage(s)}
-                  className={`text-left p-3.5 border rounded-2xl text-xs font-semibold transition-all duration-150 flex items-center justify-between group active:scale-[0.98] ${
-                    fiduciaryMode
-                      ? 'bg-obsidian-800/25 hover:bg-obsidian-800/55 border-amber-500/10 hover:border-amber-500/25 text-slate-350 hover:text-white'
-                      : 'bg-obsidian-800/35 hover:bg-obsidian-800/60 border-obsidian-800/80 text-slate-300 hover:text-white'
-                  }`}
-                >
-                  <span>{s}</span>
-                  <ArrowRight size={14} className={`text-slate-500 group-hover:translate-x-1 transition-all shrink-0 ml-3 ${
-                    fiduciaryMode ? 'group-hover:text-amber-500' : 'group-hover:text-neon-indigo'
-                  }`} />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        {/* Tool Call status details */}
-        {toolStatus && (
-          <div className="flex items-center space-x-2 text-xs text-slate-500 pl-8 py-1 animate-pulse">
-            <Activity size={12} className="animate-spin text-neon-indigo" />
-            <span>{toolStatus}</span>
-          </div>
-        )}
-
-        <div ref={chatEndRef} />
-      </div>
-
-      {/* Input bar */}
-      <div className="pt-2 shrink-0 space-y-3">
-        {/* Privacy & Trust Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-obsidian-850/60 p-3 rounded-2xl border border-obsidian-800/80 text-xs">
-          <div className="flex items-center gap-4 flex-wrap">
-            <label className="flex items-center space-x-2 text-slate-350 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={redactSensitiveData}
-                onChange={(e) => handleToggleRedact(e.target.checked)}
-                className="rounded border-slate-700 text-neon-indigo focus:ring-neon-indigo bg-obsidian-800 w-3.5 h-3.5"
-              />
-              <span>Redact Sensitive Details</span>
-            </label>
-            
-            <label className="flex items-center space-x-2 text-slate-350 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={aggregateOnlyMode}
-                onChange={(e) => handleToggleAggregateOnly(e.target.checked)}
-                className="rounded border-slate-700 text-neon-indigo focus:ring-neon-indigo bg-obsidian-800 w-3.5 h-3.5"
-              />
-              <span>Limit to Aggregates</span>
-            </label>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              onClick={() => {
-                setChatLog([
-                  {
-                    role: 'model',
-                    content: "Hello! I'm your FinFlow Copilot. I have access to your account balances, budgets, and transaction history. Ask me anything!"
-                  }
-                ]);
-              }}
-              className="text-[10px] font-bold text-slate-400 hover:text-white px-2.5 py-1.5 bg-obsidian-800 rounded-lg border border-obsidian-750 transition-all"
-            >
-              Clear Chat
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowSharedContext(!showSharedContext)}
-              className="flex items-center space-x-1.5 text-[10px] font-bold text-slate-400 hover:text-white px-2.5 py-1.5 bg-obsidian-800 rounded-lg border border-obsidian-750 transition-all"
-            >
-              <span>{showSharedContext ? 'Hide Payload' : 'Show Payload'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(financialContext, null, 2));
-                const downloadAnchor = document.createElement('a');
-                downloadAnchor.setAttribute("href", dataStr);
-                downloadAnchor.setAttribute("download", `finflow_agent_snapshot_${new Date().toISOString().split('T')[0]}.json`);
-                document.body.appendChild(downloadAnchor);
-                downloadAnchor.click();
-                downloadAnchor.remove();
-              }}
-              className="flex items-center space-x-1.5 text-[10px] font-bold text-amber-400 hover:text-amber-300 px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/30 rounded-lg transition-all cursor-pointer shadow-sm active:scale-[0.98]"
-              title="Download entire structured financial payload for separate AI agents"
-            >
-              <Download size={12} />
-              <span>Export AI Snapshot</span>
-            </button>
-          </div>
-        </div>
-
-        {showSharedContext && (
-          <div className="mt-2 p-3 bg-obsidian-900 border border-obsidian-750 rounded-xl max-h-48 overflow-y-auto text-[10px] text-slate-450 font-mono space-y-2 select-all">
-            <div className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1 border-b border-obsidian-800 pb-1">
-              Copilot Prompt Context (Anonymized &amp; Compressed Snapshot)
-            </div>
-            <pre className="whitespace-pre-wrap">
-              {JSON.stringify(financialContext, null, 2)}
-            </pre>
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="mb-2 p-3 rounded-xl border bg-neon-crimson/10 border-neon-crimson/20 text-neon-crimson text-xs flex items-center space-x-2 animate-bounce">
-            <AlertCircle size={14} className="shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-        
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendMessage();
-          }}
-          className="relative flex items-center"
-        >
-          <textarea 
-            ref={textareaRef}
-            rows={1}
-            value={userInput}
-            onChange={(e) => setUserInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-            disabled={isGenerating}
-            placeholder={isGenerating ? (toolStatus || "Processing models...") : "Ask Copilot e.g., 'Am I over budget on groceries?'"}
-            className="w-full bg-obsidian-800/90 border border-obsidian-750/90 focus:border-neon-indigo/60 text-white rounded-2xl pl-4 pr-12 py-3.5 text-xs focus:outline-none focus:ring-1 focus:ring-neon-indigo/30 transition-all placeholder-slate-500 shadow-xl resize-none max-h-32 min-h-[44px] overflow-y-auto align-middle"
-          />
-          {isGenerating ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (activeAbortControllerRef.current) {
-                  activeAbortControllerRef.current.abort();
-                }
-              }}
-              className="absolute right-2 p-2 bg-neon-crimson hover:bg-neon-crimson/80 text-white rounded-xl transition-all shadow-md"
-              title="Stop Generating"
-            >
-              <Square size={14} fill="currentColor" />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!userInput.trim()}
-              className="absolute right-2 p-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-md"
-            >
-              <Send size={14} />
-            </button>
-          )}
-        </form>
-      </div>
-
+      {/* Shared Prompt Context Inspector */}
+      <SharedContextDrawer
+        showSharedContext={showSharedContext}
+        setShowSharedContext={setShowSharedContext}
+        financialContext={financialContext}
+      />
     </div>
   );
 }
