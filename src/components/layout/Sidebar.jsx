@@ -13,6 +13,7 @@ const NAV_GROUPS = [
     title: 'Main',
     items: [
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'insights', label: 'Insights Hub', icon: Compass },
       { id: 'accounts', label: 'Accounts', icon: Landmark },
       { id: 'wealth', label: 'Wealth & Portfolio', icon: Briefcase },
       { id: 'transactions', label: 'Transactions', icon: ReceiptText },

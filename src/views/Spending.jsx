@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export default function Spending() {
-  const { transactions = [], balances = [], isLoading } = useAppContext();
+  const { allTransactions = [], balances = [], isLoading } = useAppContext();
   const [filterType, setFilterType] = useState('this_month');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -102,12 +102,12 @@ export default function Spending() {
       avgIncome,
       topJuneTxns
     };
-  }, [transactions, incExpTab, selectedAccount]);
+  }, [allTransactions, incExpTab, selectedAccount]);
 
   // Date filtered transactions
   const dateFilteredTransactions = useMemo(() => {
-    return filterTransactionsByDateRange(transactions, filterType, customStart, customEnd);
-  }, [transactions, filterType, customStart, customEnd]);
+    return filterTransactionsByDateRange(allTransactions, filterType, customStart, customEnd);
+  }, [allTransactions, filterType, customStart, customEnd]);
 
   // Filter transactions to only expenses (type === 'Expense')
   const expenseTransactions = useMemo(() => {
@@ -184,7 +184,7 @@ export default function Spending() {
     const isDaily = filterType === 'this_month' || filterType === 'last_month';
     const trendsMap = {};
 
-    const targetTxns = isDaily ? dateFilteredTransactions : transactions;
+    const targetTxns = isDaily ? dateFilteredTransactions : allTransactions;
 
     targetTxns
       .filter(t => t.type === 'Expense')
@@ -197,8 +197,8 @@ export default function Spending() {
         if (isDaily) {
           key = String(t.date).substring(0, 10); // Ensure YYYY-MM-DD format
         } else {
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = d.getUTCFullYear();
+          const month = String(d.getUTCMonth() + 1).padStart(2, '0');
           key = `${year}-${month}`; // YYYY-MM
         }
         trendsMap[key] = (trendsMap[key] || 0) - t.amount;
@@ -223,7 +223,7 @@ export default function Spending() {
         return { month: displayLabel, total, sortKey: label };
       })
       .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  }, [transactions, dateFilteredTransactions, filterType]);
+  }, [allTransactions, dateFilteredTransactions, filterType]);
 
   // CSV download function
   const downloadCSV = () => {

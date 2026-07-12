@@ -16,15 +16,15 @@ import {
 } from 'lucide-react';
 
 export default function Income() {
-  const { transactions = [], isLoading, enableCustomSplits } = useAppContext();
+  const { allTransactions = [], isLoading, enableCustomSplits } = useAppContext();
   const [filterType, setFilterType] = useState('last_3_months');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
   // Date filtered transactions
   const dateFilteredTransactions = useMemo(() => {
-    return filterTransactionsByDateRange(transactions, filterType, customStart, customEnd);
-  }, [transactions, filterType, customStart, customEnd]);
+    return filterTransactionsByDateRange(allTransactions, filterType, customStart, customEnd);
+  }, [allTransactions, filterType, customStart, customEnd]);
 
   // Filter transactions to only income (type === 'Income')
   const incomeTransactions = useMemo(() => {
@@ -101,7 +101,7 @@ export default function Income() {
     const isDaily = filterType === 'this_month' || filterType === 'last_month';
     const trendsMap = {};
 
-    const targetTxns = isDaily ? dateFilteredTransactions : transactions;
+    const targetTxns = isDaily ? dateFilteredTransactions : allTransactions;
 
     targetTxns
       .filter(t => t.type === 'Income')
@@ -114,8 +114,8 @@ export default function Income() {
         if (isDaily) {
           key = String(t.date).substring(0, 10); // Ensure YYYY-MM-DD format
         } else {
-          const year = d.getFullYear();
-          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const year = d.getUTCFullYear();
+          const month = String(d.getUTCMonth() + 1).padStart(2, '0');
           key = `${year}-${month}`; // YYYY-MM
         }
         trendsMap[key] = (trendsMap[key] || 0) + t.amount;
@@ -140,7 +140,7 @@ export default function Income() {
         return { month: displayLabel, total, sortKey: label };
       })
       .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  }, [transactions, dateFilteredTransactions, filterType]);
+  }, [allTransactions, dateFilteredTransactions, filterType]);
 
   // CSV download function
   const downloadCSV = () => {

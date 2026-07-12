@@ -112,6 +112,53 @@ export default function ContributionsSurplus() {
     };
   }, [transactions, resolvedPartnerAName, resolvedPartnerBName, resolvedPartnerAEmployer, resolvedPartnerBEmployer]);
 
+  // Actual Joint & Personal rates calculated from active transaction history
+  const actualToddTransferAvg = useMemo(() => {
+    const transfers = transactions.filter(t => {
+      const desc = (t.description || '').toLowerCase();
+      const isTransfer = t.category?.toLowerCase() === 'transfer' || desc.includes('transfer') || desc.includes('pymt');
+      const isToddAccount = (t.account || '').toLowerCase().includes('checking') || (t.account || '').toLowerCase().includes('bofa');
+      return isTransfer && isToddAccount && t.amount < 0 && Math.abs(t.amount) >= 500 && Math.abs(t.amount) <= 1500;
+    });
+    if (transfers.length === 0) return 940;
+    const sum = transfers.reduce((s, t) => s + Math.abs(t.amount), 0);
+    return sum / transfers.length;
+  }, [transactions]);
+
+  const actualKaitlynTransferAvg = useMemo(() => {
+    const transfers = transactions.filter(t => {
+      const desc = (t.description || '').toLowerCase();
+      const isTransfer = t.category?.toLowerCase() === 'transfer' || desc.includes('transfer') || desc.includes('wells') || desc.includes('wf');
+      const isKaitlynAccount = (t.account || '').toLowerCase().includes('wells') || (t.account || '').toLowerCase().includes('wf');
+      return isTransfer && isKaitlynAccount && t.amount < 0 && Math.abs(t.amount) >= 1000;
+    });
+    if (transfers.length === 0) return 2793;
+    const sum = transfers.reduce((s, t) => s + Math.abs(t.amount), 0);
+    return sum / transfers.length;
+  }, [transactions]);
+
+  const actualJointSpendingAvg = useMemo(() => {
+    const jointExpenses = transactions.filter(t => {
+      if (t.type !== 'Expense') return false;
+      const acc = (t.account || '').toLowerCase();
+      return acc.includes('joint') || acc.includes('sofi') || acc.includes('chase');
+    });
+    if (jointExpenses.length === 0) return 3800;
+    const total = jointExpenses.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    return total / 6; // monthly average
+  }, [transactions]);
+
+  const actualPersonalSpendingAvg = useMemo(() => {
+    const personalExpenses = transactions.filter(t => {
+      if (t.type !== 'Expense') return false;
+      const acc = (t.account || '').toLowerCase();
+      return acc.includes('bofa') || acc.includes('personal') || acc.includes('todd') || acc.includes('becton');
+    });
+    if (personalExpenses.length === 0) return 1500;
+    const total = personalExpenses.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    return total / 6; // monthly average
+  }, [transactions]);
+
   // Sync slider defaults with the dynamically calculated averages from the database
   useEffect(() => {
     if (dynamicAverages.toddIncome) {
@@ -121,6 +168,14 @@ export default function ContributionsSurplus() {
       setKaitlynGrossIncome(Math.round(dynamicAverages.kaitlynIncome));
     }
   }, [dynamicAverages.toddIncome, dynamicAverages.kaitlynIncome]);
+
+  const handleApplyAllActuals = () => {
+    if (dynamicAverages.toddIncome) setToddGrossIncome(Math.round(dynamicAverages.toddIncome));
+    if (dynamicAverages.kaitlynIncome) setKaitlynGrossIncome(Math.round(dynamicAverages.kaitlynIncome));
+    setToddJointTransferAmt(Math.round(actualToddTransferAvg));
+    setJointSpendingSettings(Math.round(actualJointSpendingAvg));
+    setPersonalSpendingSettings(Math.round(actualPersonalSpendingAvg));
+  };
 
   // Balance extraction for SoFi/Chase (Joint) and BoFA/Vanguard (Personal) using latest unique balances
   const accountBalances = useMemo(() => {
@@ -234,26 +289,26 @@ export default function ContributionsSurplus() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-amber-500/10 border border-amber-500/35 p-5 rounded-3xl flex items-start gap-4 shadow-xl"
+          className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/35 p-5 rounded-3xl flex items-start gap-4 shadow-xl"
         >
-          <div className="p-3 bg-amber-500/20 text-amber-400 rounded-2xl shrink-0">
+          <div className="p-3 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-2xl shrink-0">
             <AlertTriangle size={24} />
           </div>
           <div className="space-y-1.5 min-w-0 flex-1">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <h4 className="text-sm font-black text-amber-200 uppercase tracking-wider">
+              <h4 className="text-sm font-black text-amber-800 dark:text-amber-200 uppercase tracking-wider">
                 Cash Sweep Alert: Idle Cash Target Exceeded
               </h4>
-              <span className="text-[10px] font-black text-amber-400 bg-amber-500/20 px-2.5 py-0.5 rounded-full uppercase tracking-widest">
+              <span className="text-[10px] font-black text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-0.5 rounded-full uppercase tracking-widest">
                 Action Recommended
               </span>
             </div>
-            <p className="text-xs text-amber-300/90 leading-relaxed">
-              Your combined cash in checking/savings accounts is <strong className="text-white">{formatCurrency(accountBalances.combinedCash)}</strong>, which is <strong className="text-white">{formatCurrency(accountBalances.combinedCash - 25000)}</strong> above your recommended <strong className="text-white">$25,000</strong> safety threshold. Sweep this excess cash to avoid inflation drag!
+            <p className="text-xs text-amber-700 dark:text-amber-300/90 leading-relaxed">
+              Your combined cash in checking/savings accounts is <strong className="text-amber-900 dark:text-white">{formatCurrency(accountBalances.combinedCash)}</strong>, which is <strong className="text-amber-900 dark:text-white">{formatCurrency(accountBalances.combinedCash - 25000)}</strong> above your recommended <strong className="text-amber-900 dark:text-white">$25,000</strong> safety threshold. Sweep this excess cash to avoid inflation drag!
             </p>
-            <div className="flex items-center gap-4 text-[11px] text-amber-200/80 font-semibold pt-1">
+            <div className="flex items-center gap-4 text-[11px] text-amber-850/80 dark:text-amber-200/80 font-semibold pt-1">
               <span>💡 Target: Sweep {formatCurrency(accountBalances.combinedCash - 25000)} to brokerage</span>
-              <span className="text-amber-500">•</span>
+              <span className="text-amber-400 dark:text-amber-500">•</span>
               <span>🏦 Recommended Source: SoFi Savings / Chase Joint</span>
             </div>
           </div>
@@ -261,6 +316,16 @@ export default function ContributionsSurplus() {
       )}
 
       {/* Side by Side Comparison Grid */}
+      <div className="flex justify-between items-center mb-1">
+        <span className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wider">Interactive Allocator Settings</span>
+        <button
+          onClick={handleApplyAllActuals}
+          className="px-3.5 py-1.5 bg-neon-indigo/10 hover:bg-neon-indigo/20 border border-neon-indigo/35 text-neon-indigo rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02]"
+        >
+          <Zap size={12} className="text-neon-indigo" />
+          Auto-fill Database Actuals
+        </button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Partner A Income Card */}
         <Card className="bg-[#0B0E14] border border-[#161B26] p-6 rounded-3xl relative overflow-hidden">
@@ -299,6 +364,15 @@ export default function ContributionsSurplus() {
                 onChange={(e) => setKaitlynGrossIncome(Number(e.target.value))}
                 className="w-full h-1.5 bg-obsidian-900 rounded-lg appearance-none cursor-pointer accent-neon-indigo"
               />
+              <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1 font-bold">
+                <span>Database Actual: {formatCurrency(dynamicAverages.kaitlynIncome)}/mo</span>
+                <button
+                  onClick={() => setKaitlynGrossIncome(Math.round(dynamicAverages.kaitlynIncome))}
+                  className="text-neon-indigo hover:underline font-extrabold cursor-pointer"
+                >
+                  Apply Actual
+                </button>
+              </div>
             </div>
 
             <div className="bg-obsidian-850 p-3.5 rounded-2xl border border-obsidian-800 text-[11px] text-slate-350 flex flex-col gap-1.5">
@@ -351,6 +425,15 @@ export default function ContributionsSurplus() {
                 onChange={(e) => setToddGrossIncome(Number(e.target.value))}
                 className="w-full h-1.5 bg-obsidian-900 rounded-lg appearance-none cursor-pointer accent-neon-indigo"
               />
+              <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1 font-bold">
+                <span>Database Actual: {formatCurrency(dynamicAverages.toddIncome)}/mo</span>
+                <button
+                  onClick={() => setToddGrossIncome(Math.round(dynamicAverages.toddIncome))}
+                  className="text-neon-indigo hover:underline font-extrabold cursor-pointer"
+                >
+                  Apply Actual
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -367,6 +450,15 @@ export default function ContributionsSurplus() {
                 onChange={(e) => setToddJointTransferAmt(Number(e.target.value))}
                 className="w-full h-1.5 bg-obsidian-900 rounded-lg appearance-none cursor-pointer accent-neon-emerald"
               />
+              <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1 font-bold">
+                <span>Database Actual: {formatCurrency(actualToddTransferAvg)}/paycheck</span>
+                <button
+                  onClick={() => setToddJointTransferAmt(Math.round(actualToddTransferAvg))}
+                  className="text-neon-emerald hover:underline font-extrabold cursor-pointer"
+                >
+                  Apply Actual
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -674,6 +766,15 @@ export default function ContributionsSurplus() {
                 onChange={(e) => setJointSpendingSettings(Number(e.target.value))}
                 className="w-full h-1.5 bg-obsidian-900 rounded-lg appearance-none cursor-pointer accent-neon-indigo"
               />
+              <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1 font-bold">
+                <span>Database Actual (6mo): {formatCurrency(actualJointSpendingAvg)}/mo</span>
+                <button
+                  onClick={() => setJointSpendingSettings(Math.round(actualJointSpendingAvg))}
+                  className="text-neon-indigo hover:underline font-extrabold cursor-pointer"
+                >
+                  Apply Actual
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -690,6 +791,15 @@ export default function ContributionsSurplus() {
                 onChange={(e) => setPersonalSpendingSettings(Number(e.target.value))}
                 className="w-full h-1.5 bg-obsidian-900 rounded-lg appearance-none cursor-pointer accent-neon-emerald"
               />
+              <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1 font-bold">
+                <span>Database Actual (6mo): {formatCurrency(actualPersonalSpendingAvg)}/mo</span>
+                <button
+                  onClick={() => setPersonalSpendingSettings(Math.round(actualPersonalSpendingAvg))}
+                  className="text-neon-emerald hover:underline font-extrabold cursor-pointer"
+                >
+                  Apply Actual
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
