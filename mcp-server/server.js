@@ -14,6 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Snaptrade } from 'snaptrade-typescript-sdk';
+import dns from 'dns';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,7 +49,7 @@ function saveSnapTradeConfig(config) {
       snaptradeClientId,
       snaptradeConsumerKey
     };
-    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(updated, null, 2));
+    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(updated, null, 2), { mode: 0o600 });
     console.log(`[SnapTrade] Config saved.`);
   } catch (err) {
     console.error(`[SnapTrade] Error saving config:`, err.message);
@@ -113,7 +114,7 @@ function saveHoldingsCache(data) {
     fs.writeFileSync(HOLDINGS_CACHE_FILE, JSON.stringify({
       timestamp: Date.now(),
       data
-    }, null, 2));
+    }, null, 2), { mode: 0o600 });
   } catch (err) {
     console.error(`[SnapTrade Cache] Error saving holdings cache:`, err.message);
   }
@@ -139,7 +140,7 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
       fs.writeFileSync(userCacheFile, JSON.stringify({
         timestamp: Date.now(),
         data
-      }, null, 2));
+      }, null, 2), { mode: 0o600 });
     } catch (err) {
       console.error(`[SnapTrade Cache] Error saving holdings cache:`, err.message);
     }
@@ -575,7 +576,23 @@ async function getSnapTradeHoldings(forceRefresh = false) {
   return fetchNormalizedSnapTradeHoldings(client, config, forceRefresh);
 }
 
-app.use(cors());
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  'https://finflow-mu-nine.vercel.app'
+];
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+}));
 app.use(express.json());
 
 // Active Server-Sent Events (SSE) connections mapping session IDs to response objects
@@ -1991,7 +2008,7 @@ async function handleSnapTradeStatus(req, res) {
       fs.writeFileSync(statusCacheFile, JSON.stringify({
         timestamp: Date.now(),
         data: statusResult
-      }, null, 2));
+      }, null, 2), { mode: 0o600 });
     } catch (err) {
       console.error(`[SnapTrade Cache] Error saving status cache:`, err.message);
     }
@@ -2247,6 +2264,47 @@ app.get('/:secretPrefix/sse', handleSseConnection);
 app.post('/message', handlePostMessage);
 app.post('/:secretPrefix/message', handlePostMessage);
 
+// Check if an IP address is private/local (RFC1918, loopbacks, etc.)
+function isPrivateIp(ip) {
+  if (!ip) return true;
+  if (ip.startsWith('127.')) return true;
+  if (ip.startsWith('10.')) return true;
+  if (ip.startsWith('169.254.')) return true;
+  if (ip.startsWith('192.168.')) return true;
+  if (ip.startsWith('172.')) {
+    const parts = ip.split('.');
+    if (parts.length >= 2) {
+      const second = parseInt(parts[1], 10);
+      if (second >= 16 && second <= 31) return true;
+    }
+  }
+  const ipv6Lower = ip.toLowerCase();
+  if (ipv6Lower === '::1' || ipv6Lower === '0:0:0:0:0:0:0:1') return true;
+  if (ipv6Lower.startsWith('fc00:') || ipv6Lower.startsWith('fd00:')) return true;
+  if (ipv6Lower.startsWith('fe80:')) return true;
+  return false;
+}
+
+// Perform safe DNS lookup check
+async function resolveHostAndCheck(hostname) {
+  const ipv4Regex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+  const ipv6Regex = /^[:0-9a-fA-F]+$/;
+  if (ipv4Regex.test(hostname) || ipv6Regex.test(hostname)) {
+    return isPrivateIp(hostname);
+  }
+  try {
+    const addresses = await dns.promises.lookup(hostname, { all: true });
+    for (const addr of addresses) {
+      if (isPrivateIp(addr.address)) {
+        return true;
+      }
+    }
+  } catch (err) {
+    return true; // Treat failures as unsafe
+  }
+  return false;
+}
+
 // Generic Proxy endpoint to bypass browser CORS (e.g. OpenAI/Anthropic/DeepSeek)
 async function handleProxyCall(req, res) {
   const { secretPrefix } = req.params;
@@ -2259,21 +2317,9 @@ async function handleProxyCall(req, res) {
   try {
     const parsedUrl = new URL(url);
     const host = parsedUrl.hostname.toLowerCase();
-    const isLocalOrPrivate = 
-      host === 'localhost' || 
-      host === '127.0.0.1' || 
-      host === '[::1]' || 
-      host === '::1' || 
-      host.startsWith('127.') || 
-      host.startsWith('10.') || 
-      host.startsWith('192.168.') || 
-      (host.startsWith('172.') && (() => {
-        const parts = host.split('.');
-        const second = parseInt(parts[1], 10);
-        return second >= 16 && second <= 31;
-      })());
-
-    if (isLocalOrPrivate) {
+    
+    const isUnsafe = await resolveHostAndCheck(host);
+    if (isUnsafe) {
       return res.status(403).json({ error: 'Forbidden: Proxy call to local or private addresses is blocked for security reasons.' });
     }
   } catch (err) {
@@ -2299,19 +2345,22 @@ async function handleProxyCall(req, res) {
     const response = await fetch(url, {
       method: method || 'POST',
       headers: headers || {},
-      body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined
+      body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
+      redirect: 'manual'
     });
 
-    // Copy original status and headers
+    // Copy original status
     res.status(response.status);
     
-    // Set headers appropriate for streaming if target is SSE
+    // Copy headers back to client, filtering safety headers
+    for (const [key, val] of response.headers.entries()) {
+      if (key.toLowerCase() !== 'content-encoding' && key.toLowerCase() !== 'transfer-encoding') {
+        res.setHeader(key, val);
+      }
+    }
+
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('event-stream')) {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      
       response.body.on('data', (chunk) => {
         res.write(chunk);
       });
@@ -2323,7 +2372,6 @@ async function handleProxyCall(req, res) {
         res.end();
       });
     } else {
-      res.setHeader('Content-Type', contentType);
       const text = await response.text();
       res.send(text);
     }

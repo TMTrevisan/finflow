@@ -10,9 +10,16 @@ import OnboardingModal from './components/ui/OnboardingModal';
 const safeLazy = (importFn) => {
   return lazy(() => 
     importFn().catch(err => {
-      console.warn("Dynamic import failed, reloading page to get latest version...", err);
-      window.location.reload();
-      return new Promise(() => {}); // Suspend while page reloads
+      const isChunkError = err.name === 'ChunkLoadError' || /chunk/i.test(err.message);
+      const hasRetried = sessionStorage.getItem('finflow_chunk_retried') === 'true';
+      
+      if (isChunkError && !hasRetried) {
+        sessionStorage.setItem('finflow_chunk_retried', 'true');
+        console.warn("ChunkLoadError detected. Reloading page to fetch latest deployment files...", err);
+        window.location.reload();
+        return new Promise(() => {}); // Suspend while page reloads
+      }
+      throw err;
     })
   );
 };
@@ -37,6 +44,12 @@ const PLReport = safeLazy(() => import('./views/PLReport'));
 const YearlyInsights = safeLazy(() => import('./views/YearlyInsights'));
 const Subscriptions = safeLazy(() => import('./views/Subscriptions'));
 
+const VALID_VIEWS = [
+  'dashboard', 'wealth', 'transactions', 'cashflow', 'reports', 
+  'assistant', 'insights', 'settings', 'accounts', 'spending',
+  'income', 'budgets', 'subscriptions', 'sankey', 'plreport', 'yearly'
+];
+
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-full w-full min-h-[300px]">
     <div className="flex flex-col items-center space-y-3">
@@ -49,15 +62,15 @@ const LoadingFallback = () => (
 function App() {
   const getInitialView = () => {
     const hash = window.location.hash.replace('#', '');
-    const validViews = [
-      'dashboard', 'wealth', 'transactions', 'cashflow', 'reports', 
-      'assistant', 'insights', 'settings', 'accounts', 'spending',
-      'income', 'budgets', 'subscriptions', 'sankey', 'plreport', 'yearly'
-    ];
-    return validViews.includes(hash) ? hash : 'dashboard';
+    return VALID_VIEWS.includes(hash) ? hash : 'dashboard';
   };
 
   const [currentView, setCurrentView] = useState(getInitialView);
+
+  // Clear chunk reload indicator on successful render
+  useEffect(() => {
+    sessionStorage.removeItem('finflow_chunk_retried');
+  }, []);
 
   // Sync hash with currentView
   useEffect(() => {
@@ -68,12 +81,7 @@ function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
-      const validViews = [
-        'dashboard', 'wealth', 'transactions', 'cashflow', 'reports', 
-        'assistant', 'insights', 'settings', 'accounts', 'spending',
-        'income', 'budgets', 'subscriptions', 'sankey', 'plreport', 'yearly'
-      ];
-      if (validViews.includes(hash) && hash !== currentView) {
+      if (VALID_VIEWS.includes(hash) && hash !== currentView) {
         setCurrentView(hash);
       }
     };

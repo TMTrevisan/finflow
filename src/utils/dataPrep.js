@@ -1,3 +1,5 @@
+import { safeStorage } from './storage';
+
 // Helper to resolve budget from category object dynamically
 export const resolveBudget = (categoryObj, targetMonth, targetYear) => {
   if (!categoryObj || typeof categoryObj !== 'object') return 0;
@@ -100,40 +102,43 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
   let positiveIncomes = 0;
   let negativeIncomes = 0;
   
+  // Group statistics by account to determine sign convention per-account
+  const accountStats = {};
   txnsList.forEach(t => {
+    if (!t) return;
+    const acc = t.account || 'default';
+    if (!accountStats[acc]) {
+      accountStats[acc] = { positiveExpenses: 0, negativeExpenses: 0, positiveIncomes: 0, negativeIncomes: 0 };
+    }
     const amt = Number(t.amount) || 0;
     const cat = String(t.category || '').trim().toLowerCase();
     const catMeta = catMap[cat];
     const type = catMeta?.type || t.type || '';
     
+    const stats = accountStats[acc];
     if (type === 'Expense') {
-      if (amt > 0) positiveExpenses++;
-      if (amt < 0) negativeExpenses++;
+      if (amt > 0) stats.positiveExpenses++;
+      if (amt < 0) stats.negativeExpenses++;
     } else if (type === 'Income') {
-      if (amt > 0) positiveIncomes++;
-      if (amt < 0) negativeIncomes++;
+      if (amt > 0) stats.positiveIncomes++;
+      if (amt < 0) stats.negativeIncomes++;
     } else if (!type) {
       const isExpenseCat = cat.includes('grocer') || cat.includes('rent') || cat.includes('dining') || 
                            cat.includes('shopping') || cat.includes('utilit') || cat.includes('travel') || 
                            cat.includes('auto');
       if (isExpenseCat) {
-        if (amt > 0) positiveExpenses++;
-        if (amt < 0) negativeExpenses++;
+        if (amt > 0) stats.positiveExpenses++;
+        if (amt < 0) stats.negativeExpenses++;
       } else {
         const isIncomeCat = cat.includes('paycheck') || cat.includes('salary') || cat.includes('deposit') || 
                             cat.includes('bonus') || cat.includes('wages') || cat.includes('dividend');
         if (isIncomeCat) {
-          if (amt > 0) positiveIncomes++;
-          if (amt < 0) negativeIncomes++;
+          if (amt > 0) stats.positiveIncomes++;
+          if (amt < 0) stats.negativeIncomes++;
         }
       }
     }
   });
-
-  const hasExpenses = (positiveExpenses + negativeExpenses) > 0;
-  const isTillerConvention = hasExpenses 
-    ? (positiveExpenses > negativeExpenses)
-    : (negativeIncomes > positiveIncomes);
 
   const txns = txnsList.map(t => {
     const catName = String(t.category || '').trim().toLowerCase();
@@ -165,6 +170,16 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
       normalizedDate = `${y}-${m}-${dayStr}`;
     }
 
+    // Determine Tiller sign convention per account
+    const acc = t.account || 'default';
+    const stats = accountStats[acc];
+    const hasExpenses = stats ? (stats.positiveExpenses + stats.negativeExpenses) > 0 : false;
+    const isAccountTillerConvention = hasExpenses 
+      ? (stats.positiveExpenses > stats.negativeExpenses)
+      : stats 
+        ? (stats.negativeIncomes > stats.positiveIncomes)
+        : false;
+
     // Normalize Tiller's sign convention
     let rawAmt = Number(t.amount) || 0;
 
@@ -182,7 +197,7 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
       } else if (isIncomeCat) {
         type = 'Income';
       } else {
-        if (isTillerConvention) {
+        if (isAccountTillerConvention) {
           type = rawAmt < 0 ? 'Income' : 'Expense';
         } else {
           type = rawAmt > 0 ? 'Income' : 'Expense';
@@ -221,7 +236,7 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
     }
 
     let normalizedAmt = rawAmt;
-    if (isTillerConvention) {
+    if (isAccountTillerConvention) {
       normalizedAmt = -rawAmt;
     } else {
       normalizedAmt = rawAmt;
@@ -293,6 +308,17 @@ export const compressBalances = (balances) => {
 export const injectMortgage = (rawBalances, enableCustomSplits = false, partnerBName = "Todd") => {
   if (!rawBalances || rawBalances.length === 0) return rawBalances;
   
+  const hasConfiguredMortgage = safeStorage.getItem('finflow_mortgage_enabled') === 'true';
+
+  // If custom splits are disabled and there's no custom mortgage configured, don't inject anything
+  if (!enableCustomSplits && !hasConfiguredMortgage) {
+    return rawBalances.filter(b => 
+      !b.id?.startsWith('manual_mortgage_') && 
+      b.account !== "Mortgage Account" && 
+      b.account !== "Mortgage Escrow"
+    );
+  }
+
   // Find all unique dates in the balances
   const uniqueDates = Array.from(new Set(rawBalances.map(b => b.date)));
   
@@ -300,18 +326,31 @@ export const injectMortgage = (rawBalances, enableCustomSplits = false, partnerB
   const escrowAccountName = enableCustomSplits ? `${partnerBName}'s Mortgage Escrow` : "Mortgage Escrow";
   const institutionName = enableCustomSplits ? `${partnerBName} Mortgage Account` : "Mortgage Account";
 
+  // Parse configurations with fallbacks
+  const storedBalance = parseFloat(safeStorage.getItem('finflow_mortgage_balance') || '');
+  const storedEscrow = parseFloat(safeStorage.getItem('finflow_mortgage_escrow') || '');
+  const storedAnchor = safeStorage.getItem('finflow_mortgage_anchor_date') || '2026-06-19';
+  const storedDrawdown = parseFloat(safeStorage.getItem('finflow_mortgage_drawdown_rate') || '15');
+
+  const defaultBalance = enableCustomSplits ? 150462.74 : 0;
+  const defaultEscrow = enableCustomSplits ? 4219.34 : 0;
+
+  const baseBalance = !isNaN(storedBalance) ? storedBalance : defaultBalance;
+  const baseEscrow = !isNaN(storedEscrow) ? storedEscrow : defaultEscrow;
+  const anchorDateStr = storedAnchor;
+  const drawdownRate = !isNaN(storedDrawdown) ? storedDrawdown : 0;
+
   const mortgageEntries = [];
   
   uniqueDates.forEach(dateStr => {
-    const anchorDate = new Date('2026-06-19');
+    const anchorDate = new Date(anchorDateStr);
     const currentDate = new Date(dateStr);
     const diffTime = currentDate - anchorDate;
     const diffDays = diffTime / (1000 * 60 * 60 * 24);
     
-    const principalDrawdown = diffDays * 15;
-    const mortgageBalance = Math.min(194000, Math.max(0, 150462.74 - principalDrawdown));
-    
-    const escrowBalance = 4219.34;
+    const principalDrawdown = diffDays * drawdownRate;
+    const mortgageBalance = Math.max(0, baseBalance - principalDrawdown);
+    const escrowBalance = baseEscrow;
     
     mortgageEntries.push({
       id: `manual_mortgage_${dateStr}`,

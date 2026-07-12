@@ -6,7 +6,20 @@
 
 const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
 
+const ACCESS_SECRET = "replace-with-your-mcp-secret-or-custom-token"; // User can configure this to secure endpoint
+
+function isAuthorized(e) {
+  if (!ACCESS_SECRET || ACCESS_SECRET === "replace-with-your-mcp-secret-or-custom-token") {
+    return true; // Default behavior: unauthenticated for easy initial setup
+  }
+  const token = e.parameter.secret || e.parameter.token;
+  return token === ACCESS_SECRET;
+}
+
 function doGet(e) {
+  if (!isAuthorized(e)) {
+    return createJsonResponse({ error: 'Unauthorized' }, 401);
+  }
   const action = e.parameter.action;
   
   if (action === 'getData') {
@@ -17,6 +30,9 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  if (!isAuthorized(e)) {
+    return createJsonResponse({ error: 'Unauthorized' }, 401);
+  }
   const action = e.parameter.action;
   
   if (action === 'updateCategory') {

@@ -477,7 +477,7 @@ export default function Settings() {
     }
   };
 
-  const handleTogglePasscode = () => {
+  const handleTogglePasscode = async () => {
     const isCurrentlyEnabled = !!safeStorage.getItem('finflow_passcode');
     if (isCurrentlyEnabled) {
       safeStorage.removeItem('finflow_passcode');
@@ -489,9 +489,18 @@ export default function Settings() {
         setPasscodeMessage({ type: 'error', text: 'Please enter a valid 4-digit numeric PIN.' });
         return;
       }
-      safeStorage.setItem('finflow_passcode', pinInput);
-      setPasscodeEnabled(true);
-      setPasscodeMessage({ type: 'success', text: `PIN Passcode configured! Next time you open the app, you will need this PIN.` });
+      try {
+        const msgBuffer = new TextEncoder().encode(pinInput);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashedPIN = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        
+        safeStorage.setItem('finflow_passcode', hashedPIN);
+        setPasscodeEnabled(true);
+        setPasscodeMessage({ type: 'success', text: `PIN Passcode configured securely! Next time you open the app, you will need this PIN.` });
+      } catch (err) {
+        setPasscodeMessage({ type: 'error', text: `Passcode configuration failed: ${err.message}` });
+      }
     }
   };
 
@@ -679,6 +688,7 @@ export default function Settings() {
   const handleToggleBiometrics = async () => {
     if (biometricsEnabled) {
       safeStorage.removeItem('finflow_biometrics_enabled');
+      safeStorage.removeItem('finflow_biometric_cred_id');
       setBiometricsEnabled(false);
       setBiometricsMessage({ type: 'success', text: 'Biometric unlock disabled.' });
       return;
@@ -689,7 +699,7 @@ export default function Settings() {
       const id = Uint8Array.from("finflow-user", c => c.charCodeAt(0));
       const challenge = crypto.getRandomValues(new Uint8Array(32));
       
-      await navigator.credentials.create({
+      const credential = await navigator.credentials.create({
         publicKey: {
           challenge,
           rp: { name: "FinFlow" },
@@ -707,9 +717,14 @@ export default function Settings() {
         }
       });
 
-      safeStorage.setItem('finflow_biometrics_enabled', 'true');
-      setBiometricsEnabled(true);
-      setBiometricsMessage({ type: 'success', text: 'Biometrics registered! You can now unlock with TouchID/FaceID.' });
+      if (credential) {
+        const bin = String.fromCharCode(...new Uint8Array(credential.rawId));
+        const credIdBase64 = window.btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        safeStorage.setItem('finflow_biometric_cred_id', credIdBase64);
+        safeStorage.setItem('finflow_biometrics_enabled', 'true');
+        setBiometricsEnabled(true);
+        setBiometricsMessage({ type: 'success', text: 'Biometrics registered securely! You can now unlock with TouchID/FaceID.' });
+      }
     } catch (err) {
       console.error(err);
       setBiometricsMessage({ type: 'error', text: `Registration failed: ${err.message}` });

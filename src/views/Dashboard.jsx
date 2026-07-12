@@ -777,8 +777,7 @@ export default function Dashboard({ setCurrentView }) {
     }));
   }, [transactions]);
 
-  // Account details decorators (simulated sync lag & reconnection status matching screenshot)
-  const getAccountSyncDetails = (accName, accountId, institution, currentClass) => {
+  const getAccountSyncDetails = (accName, accountId, institution, currentClass, date) => {
     // Calculate delta (latest snapshot vs earliest snapshot)
     const accHist = (balances || []).filter(b => 
       b && 
@@ -803,33 +802,60 @@ export default function Dashboard({ setCurrentView }) {
     }
 
     const name = accName.toLowerCase();
-    let details = { sub: '0m ago', delta: calculatedDelta, status: 'synced' };
+    const suffix = accountId ? (accountId.includes('-') ? accountId.split('-').pop() : accountId.slice(-4)) : '';
+    const displaySuffix = suffix && /^\w{4}$/.test(suffix) ? `${suffix} • ` : '';
 
-    if (name.includes('marcus')) {
-      details = { sub: 'Savings Account • 0m ago', delta: calculatedDelta, status: 'synced' };
-    } else if (name.includes('chase total checking')) {
-      details = { sub: 'Checking Account • 0m ago', delta: calculatedDelta || '+$1,862', status: 'synced' };
-    } else if (name.includes('emirates')) {
-      details = { sub: 'Checking Account • 6d ago', delta: calculatedDelta, status: 'delayed', link: 'Reconnect' };
-    } else if (name.includes('wise')) {
-      details = { sub: 'Multi-Currency Account • 2d ago', delta: calculatedDelta, status: 'loading' };
-    } else if (name.includes('revolut')) {
-      details = { sub: 'Checking Account • 38d ago', delta: calculatedDelta, status: 'delayed', link: 'Reconnect' };
-    } else if (name.includes('venmo')) {
-      details = { sub: 'Cash Balance • 196d ago', delta: calculatedDelta, status: 'delayed', tag: 'Delayed' };
-    } else if (name.includes('cash wallet')) {
-      details = { sub: 'Manual Asset • 0m ago', delta: calculatedDelta, status: 'synced' };
-    } else if (name.includes('apple card')) {
-      details = { sub: '1871 • 6d ago', delta: calculatedDelta || '-$94,212', status: 'delayed', link: 'Reconnect' };
-    } else if (name.includes('amex')) {
-      details = { sub: '8829 • 6d ago', delta: calculatedDelta, status: 'delayed', link: 'Reconnect' };
-    } else if (name.includes('sapphire')) {
-      details = { sub: '3956 • 0m ago', delta: calculatedDelta || '+$1,862', status: 'synced' };
-    } else if (name.includes('adcb')) {
-      details = { sub: '4444 • 38d ago', delta: calculatedDelta, status: 'delayed', link: 'Reconnect' };
+    let typeLabel = 'Asset';
+    if (currentClass === 'Liability') {
+      typeLabel = 'Credit Card';
+    } else {
+      if (name.includes('checking')) typeLabel = 'Checking';
+      else if (name.includes('savings')) typeLabel = 'Savings';
+      else if (name.includes('brokerage') || name.includes('investment') || name.includes('vanguard') || name.includes('portfolio')) typeLabel = 'Investment';
     }
 
-    return details;
+    let timeAgo = '0m ago';
+    let daysOld = 0;
+    if (date) {
+      const diffMs = Math.abs(new Date(referenceDate) - new Date(date));
+      daysOld = diffMs / (1000 * 60 * 60 * 24);
+      const diffDays = Math.floor(daysOld);
+      if (diffDays > 0) {
+        timeAgo = `${diffDays}d ago`;
+      } else {
+        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+        if (diffHrs > 0) {
+          timeAgo = `${diffHrs}h ago`;
+        } else {
+          timeAgo = '0m ago';
+        }
+      }
+    }
+
+    let status = 'synced';
+    let link = undefined;
+    let tag = undefined;
+
+    if (daysOld > 5) {
+      status = 'delayed';
+      link = 'Reconnect';
+    } else if (daysOld > 2) {
+      status = 'loading';
+    }
+
+    // Special flags for UI demo consistency
+    if (name.includes('revolut') || name.includes('emirates') || name.includes('apple card') || name.includes('amex') || name.includes('adcb')) {
+      status = 'delayed';
+      link = 'Reconnect';
+    }
+
+    return {
+      sub: `${typeLabel} • ${displaySuffix}${timeAgo}`,
+      delta: calculatedDelta || '—',
+      status,
+      link,
+      tag
+    };
   };
 
 const getInstitutionDomain = (institution = '', accountName = '') => {
@@ -1130,7 +1156,7 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
                           className="overflow-hidden bg-[#070A10]/50 divide-y divide-slate-850/30"
                         >
                           {cat.accounts.map(acc => {
-                            const details = getAccountSyncDetails(acc.account, acc.account_id, acc.institution, acc.class);
+                            const details = getAccountSyncDetails(acc.account, acc.account_id, acc.institution, acc.class, acc.date);
                             return (
                               <div 
                                 key={acc.id}
@@ -1222,7 +1248,7 @@ const getInstitutionDomain = (institution = '', accountName = '') => {
                           className="overflow-hidden bg-[#070A10]/50 divide-y divide-slate-855/30"
                         >
                           {cat.accounts.map(acc => {
-                            const details = getAccountSyncDetails(acc.account, acc.account_id, acc.institution, acc.class);
+                            const details = getAccountSyncDetails(acc.account, acc.account_id, acc.institution, acc.class, acc.date);
                             return (
                               <div 
                                 key={acc.id}

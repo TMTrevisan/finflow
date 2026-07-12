@@ -8,34 +8,86 @@ export default function PasscodeLock({ children }) {
   const [isLocked, setIsLocked] = useState(true);
   const [isError, setIsError] = useState(false);
   const [hasPasscode, setHasPasscode] = useState(false);
+  const [lockoutTimeLeft, setLockoutTimeLeft] = useState(0);
 
-  // Check if passcode is configured in safeStorage
+  // Check if passcode is configured in safeStorage & Auto-migrate
   useEffect(() => {
     const configuredPIN = safeStorage.getItem('finflow_passcode');
     if (configuredPIN) {
       setHasPasscode(true);
       setIsLocked(true);
+      
+      // Auto-migrate plaintext 4-digit PINs to SHA-256 hashes
+      if (/^\d{4}$/.test(configuredPIN)) {
+        const migratePIN = async () => {
+          const msgBuffer = new TextEncoder().encode(configuredPIN);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hashed = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          safeStorage.setItem('finflow_passcode', hashed);
+        };
+        migratePIN().catch(console.error);
+      }
     } else {
       setHasPasscode(false);
       setIsLocked(false);
     }
   }, []);
 
+  // Lockout backoff check loop
+  useEffect(() => {
+    const checkLockout = () => {
+      const lockoutUntil = parseInt(safeStorage.getItem('finflow_lockout_until') || '0', 10);
+      const now = Date.now();
+      if (lockoutUntil > now) {
+        setLockoutTimeLeft(Math.ceil((lockoutUntil - now) / 1000));
+      } else {
+        setLockoutTimeLeft(0);
+      }
+    };
+    checkLockout();
+    const interval = setInterval(checkLockout, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleBiometricAuth = async () => {
     if (safeStorage.getItem('finflow_biometrics_enabled') !== 'true') return;
     
+    // Check if currently locked out
+    const lockoutUntil = parseInt(safeStorage.getItem('finflow_lockout_until') || '0', 10);
+    if (lockoutUntil > Date.now()) return;
+
     try {
       const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const storedCredId = safeStorage.getItem('finflow_biometric_cred_id');
       
+      const allowCredentials = [];
+      if (storedCredId) {
+        const padded = storedCredId.replace(/-/g, '+').replace(/_/g, '/');
+        const bin = window.atob(padded);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) {
+          buf[i] = bin.charCodeAt(i);
+        }
+        allowCredentials.push({
+          type: "public-key",
+          id: buf.buffer
+        });
+      }
+
       const assertion = await navigator.credentials.get({
         publicKey: {
           challenge,
           rpId: window.location.hostname,
-          userVerification: "required"
+          userVerification: "required",
+          ...(allowCredentials.length > 0 ? { allowCredentials } : {})
         }
       });
       
       if (assertion) {
+        // Reset attempts
+        safeStorage.removeItem('finflow_lockout_attempts');
+        safeStorage.removeItem('finflow_lockout_until');
         setIsLocked(false);
       }
     } catch (err) {
@@ -45,43 +97,61 @@ export default function PasscodeLock({ children }) {
 
   // Trigger biometric unlock automatically when PIN screen is displayed
   useEffect(() => {
-    if (hasPasscode && isLocked) {
-      // Small timeout to allow component mounting before prompt appears
+    if (hasPasscode && isLocked && lockoutTimeLeft === 0) {
       const timer = setTimeout(() => {
         handleBiometricAuth();
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [hasPasscode, isLocked]);
+  }, [hasPasscode, isLocked, lockoutTimeLeft]);
 
   const handleKeyPress = (num) => {
-    if (passcode.length >= 4) return;
+    if (passcode.length >= 4 || lockoutTimeLeft > 0) return;
     setIsError(false);
     
     const newPasscode = passcode + num;
     setPasscode(newPasscode);
 
     if (newPasscode.length === 4) {
-      // Validate
       const storedPIN = safeStorage.getItem('finflow_passcode');
-      if (newPasscode === storedPIN) {
-        // Correct PIN
-        setTimeout(() => {
-          setIsLocked(false);
-        }, 300);
-      } else {
-        // Incorrect PIN
-        setTimeout(() => {
-          setIsError(true);
-          setPasscode('');
-          if (navigator.vibrate) navigator.vibrate(200);
-        }, 300);
-      }
+      
+      const validatePIN = async () => {
+        const msgBuffer = new TextEncoder().encode(newPasscode);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const enteredHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        if (enteredHash === storedPIN) {
+          safeStorage.removeItem('finflow_lockout_attempts');
+          safeStorage.removeItem('finflow_lockout_until');
+          setTimeout(() => {
+            setIsLocked(false);
+          }, 300);
+        } else {
+          const attempts = parseInt(safeStorage.getItem('finflow_lockout_attempts') || '0', 10) + 1;
+          safeStorage.setItem('finflow_lockout_attempts', String(attempts));
+
+          if (attempts >= 5) {
+            const backoffSec = Math.min(1800, 30 * Math.pow(2, attempts - 5));
+            const lockoutUntil = Date.now() + backoffSec * 1000;
+            safeStorage.setItem('finflow_lockout_until', String(lockoutUntil));
+            setLockoutTimeLeft(backoffSec);
+          }
+
+          setTimeout(() => {
+            setIsError(true);
+            setPasscode('');
+            if (navigator.vibrate) navigator.vibrate(200);
+          }, 300);
+        }
+      };
+
+      validatePIN().catch(console.error);
     }
   };
 
   const handleDelete = () => {
-    if (passcode.length > 0) {
+    if (passcode.length > 0 && lockoutTimeLeft === 0) {
       setPasscode(passcode.slice(0, -1));
     }
   };
@@ -133,10 +203,19 @@ export default function PasscodeLock({ children }) {
           ))}
         </motion.div>
 
-        {/* Incorrect warning message */}
+        {/* Incorrect warning / Lockout message */}
         <div className="h-6 mb-4 flex justify-center items-center">
           <AnimatePresence>
-            {isError && (
+            {lockoutTimeLeft > 0 ? (
+              <motion.span 
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="text-xs font-bold text-neon-crimson uppercase tracking-wider animate-pulse"
+              >
+                Too many attempts. Lockout: {lockoutTimeLeft}s
+              </motion.span>
+            ) : isError ? (
               <motion.span 
                 initial={{ opacity: 0, y: -5 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -145,7 +224,7 @@ export default function PasscodeLock({ children }) {
               >
                 Incorrect PIN. Try again.
               </motion.span>
-            )}
+            ) : null}
           </AnimatePresence>
         </div>
 
@@ -155,7 +234,10 @@ export default function PasscodeLock({ children }) {
             <button
               key={num}
               onClick={() => handleKeyPress(num)}
-              className="aspect-square flex items-center justify-center bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-800/80 active:border-neon-indigo/50 text-xl font-bold rounded-2xl transition-all active:scale-95 shadow-md text-slate-200"
+              disabled={lockoutTimeLeft > 0}
+              className={`aspect-square flex items-center justify-center bg-obsidian-850 border border-obsidian-800/80 active:border-neon-indigo/50 text-xl font-bold rounded-2xl transition-all shadow-md text-slate-200 ${
+                lockoutTimeLeft > 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-obsidian-800 active:scale-95'
+              }`}
             >
               {num}
             </button>
@@ -165,7 +247,10 @@ export default function PasscodeLock({ children }) {
           {safeStorage.getItem('finflow_biometrics_enabled') === 'true' ? (
             <button
               onClick={handleBiometricAuth}
-              className="aspect-square flex items-center justify-center bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-800/80 active:border-neon-indigo/50 text-neon-indigo rounded-2xl transition-all active:scale-95 shadow-md"
+              disabled={lockoutTimeLeft > 0}
+              className={`aspect-square flex items-center justify-center bg-obsidian-850 border border-obsidian-800/80 active:border-neon-indigo/50 text-neon-indigo rounded-2xl transition-all shadow-md ${
+                lockoutTimeLeft > 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-obsidian-800 active:scale-95'
+              }`}
             >
               <Fingerprint size={24} />
             </button>
@@ -175,14 +260,20 @@ export default function PasscodeLock({ children }) {
 
           <button
             onClick={() => handleKeyPress(0)}
-            className="aspect-square flex items-center justify-center bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-800/80 active:border-neon-indigo/50 text-xl font-bold rounded-2xl transition-all active:scale-95 shadow-md text-slate-200"
+            disabled={lockoutTimeLeft > 0}
+            className={`aspect-square flex items-center justify-center bg-obsidian-850 border border-obsidian-800/80 active:border-neon-indigo/50 text-xl font-bold rounded-2xl transition-all shadow-md text-slate-200 ${
+              lockoutTimeLeft > 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-obsidian-800 active:scale-95'
+            }`}
           >
             0
           </button>
 
           <button
             onClick={handleDelete}
-            className="aspect-square flex items-center justify-center bg-obsidian-850/50 hover:bg-obsidian-800 border border-transparent text-slate-400 hover:text-white rounded-2xl transition-all active:scale-95"
+            disabled={lockoutTimeLeft > 0}
+            className={`aspect-square flex items-center justify-center bg-obsidian-850/50 border border-transparent text-slate-400 rounded-2xl transition-all ${
+              lockoutTimeLeft > 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-obsidian-800 hover:text-white active:scale-95'
+            }`}
           >
             <Delete size={22} />
           </button>
