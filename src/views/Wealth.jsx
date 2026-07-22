@@ -568,6 +568,42 @@ export default function Wealth({ setCurrentView }) {
                   ))}
                 </div>
               )}
+              <details className="mt-4 border-t border-white/10 pt-3 group">
+                <summary className="cursor-pointer list-none text-[11px] font-bold text-slate-300 hover:text-white">
+                  <span className="group-open:hidden">Review {reconciliation.accounts.length} account checks</span>
+                  <span className="hidden group-open:inline">Hide account checks</span>
+                </summary>
+                <div className="mt-3 divide-y divide-white/5 overflow-hidden rounded-xl border border-white/5 bg-black/10">
+                  {reconciliation.accounts.map(account => {
+                    const statusStyles = {
+                      reconciled: 'bg-neon-emerald/10 text-neon-emerald',
+                      partial: 'bg-amber-300/10 text-amber-300',
+                      discrepancy: 'bg-neon-crimson/10 text-neon-crimson',
+                      unreconciled: 'bg-slate-500/15 text-slate-300'
+                    };
+                    return (
+                      <div key={account.id} className="grid grid-cols-1 gap-2 px-3 py-3 sm:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))] sm:items-center sm:gap-4">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-white">{account.name}</p>
+                          <p className="truncate text-[10px] text-slate-500">{account.institution_name} · {account.position_count} positions</p>
+                        </div>
+                        <div className="text-[10px] text-slate-500 sm:text-right">
+                          <span className="block uppercase tracking-wide">Reported</span>
+                          <span className="text-xs font-semibold text-slate-200">{account.reported_balance === null ? 'Unavailable' : formatCurrency(account.reported_balance)}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 sm:text-right">
+                          <span className="block uppercase tracking-wide">Holdings + cash</span>
+                          <span className="text-xs font-semibold text-slate-200">{formatCurrency(account.calculated_value)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-end">
+                          <span className="text-[10px] font-semibold text-slate-500">{account.status === 'discrepancy' ? `${formatCurrency(account.difference)} difference` : account.missing_cost_basis_count > 0 ? `${account.missing_cost_basis_count} missing cost basis` : 'Within tolerance'}</span>
+                          <span className={`rounded-full px-2 py-1 text-[10px] font-bold capitalize ${statusStyles[account.status]}`}>{account.status}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
             </Card>
           )}
 
