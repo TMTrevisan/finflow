@@ -5,10 +5,11 @@ import Accounts from './Accounts';
 import DonutChart from '../components/ui/DonutChart';
 import { formatCurrency } from '../utils/formatting';
 import { safeStorage } from '../utils/storage';
+import { reconcilePortfolioAccounts } from '../utils/portfolioReconciliation';
 import { 
   TrendingUp, TrendingDown, Download, Search, Briefcase, 
   PieChart as ChartIcon, DollarSign, ArrowUpDown, Landmark,
-  LineChart as LineChartIcon, LayoutGrid, BarChart3, PlusCircle, RefreshCw, Wifi, WifiOff
+  LineChart as LineChartIcon, LayoutGrid, BarChart3, PlusCircle, RefreshCw, Wifi, WifiOff, AlertTriangle, CheckCircle2
 } from 'lucide-react';
 
 const COLORS = [
@@ -65,24 +66,35 @@ export default function Wealth({ setCurrentView }) {
     return new Map(accounts.map(a => [a.id, a]));
   }, [accounts]);
 
+  const reconciliation = useMemo(() => reconcilePortfolioAccounts({
+    accounts,
+    positions,
+    syncSummary: snapTradeHoldings?.sync_summary
+  }), [accounts, positions, snapTradeHoldings]);
+
   // Aggregate stats
   const stats = useMemo(() => {
     let totalValue = 0;
     let totalCost = 0;
     let totalPnl = 0;
     let totalDayPnl = 0;
+    let missingCostBasisCount = 0;
 
     positions.forEach(pos => {
       totalValue += pos.value || 0;
-      totalCost += pos.total_cost || 0;
-      totalPnl += pos.open_pnl || 0;
+      if (pos.cost_basis_available !== false) {
+        totalCost += pos.total_cost || 0;
+        totalPnl += pos.open_pnl || 0;
+      } else {
+        missingCostBasisCount += 1;
+      }
       totalDayPnl += pos.day_pnl || 0;
     });
 
     const pnlPercent = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
     const dayPnlPercent = totalValue > 0 ? (totalDayPnl / totalValue) * 100 : 0;
 
-    return { totalValue, totalCost, totalPnl, pnlPercent, totalDayPnl, dayPnlPercent };
+    return { totalValue, totalCost, totalPnl, pnlPercent, totalDayPnl, dayPnlPercent, missingCostBasisCount };
   }, [positions]);
 
   // 1-day and 90-day change computations for accounts list from actual balance ledger history
@@ -530,6 +542,35 @@ export default function Wealth({ setCurrentView }) {
             </div>
           </div>
 
+          {snapTradeHoldings && (
+            <Card className={`border p-4 ${reconciliation.attention_count > 0 ? 'bg-amber-400/5 border-amber-400/30' : 'bg-neon-emerald/5 border-neon-emerald/25'}`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2.5">
+                  {reconciliation.attention_count > 0 ? <AlertTriangle size={18} className="text-amber-300" /> : <CheckCircle2 size={18} className="text-neon-emerald" />}
+                  <div>
+                    <p className="text-xs font-bold text-white">Portfolio reconciliation</p>
+                    <p className="text-[11px] text-slate-400">Reported brokerage balances compared with holdings and cash.</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-bold">
+                  <span className="text-neon-emerald">{reconciliation.counts.reconciled} reconciled</span>
+                  {reconciliation.counts.partial > 0 && <span className="text-amber-300">{reconciliation.counts.partial} partial</span>}
+                  {reconciliation.counts.discrepancy > 0 && <span className="text-neon-crimson">{reconciliation.counts.discrepancy} discrepancy</span>}
+                  {reconciliation.counts.unreconciled > 0 && <span className="text-slate-400">{reconciliation.counts.unreconciled} unavailable</span>}
+                </div>
+              </div>
+              {reconciliation.attention_count > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {reconciliation.accounts.filter(account => account.status !== 'reconciled').map(account => (
+                    <span key={account.id} className="rounded-lg bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-300">
+                      {account.name}: {account.status === 'discrepancy' ? `${formatCurrency(account.difference)} difference` : account.status}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+
           {/* Stacked Balance History Area Chart */}
           <Card className="bg-obsidian-900 border border-obsidian-750 p-6 space-y-4">
             <div className="flex justify-between items-center">
@@ -761,6 +802,7 @@ export default function Wealth({ setCurrentView }) {
               <CardContent className="p-0">
                 <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Total Cost Basis</span>
                 <p className="text-xl font-extrabold text-white mt-1">{formatCurrency(stats.totalCost)}</p>
+                {stats.missingCostBasisCount > 0 && <p className="mt-1 text-[10px] font-semibold text-amber-300">{stats.missingCostBasisCount} positions excluded</p>}
               </CardContent>
             </Card>
           </div>

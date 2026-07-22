@@ -208,7 +208,7 @@ export default function CacheDiagnosticsCard({
         <div className="space-y-4">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Google Sheets Cache Database</span>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Transactions</span>
                 <span className="text-xl font-bold text-white">{transactionCount} rows</span>
@@ -242,6 +242,12 @@ export default function CacheDiagnosticsCard({
               <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Sync Accounts</span>
                 <span className="text-xl font-bold text-white">{snapTradeHoldings.accounts?.length || 0} accounts</span>
+              </div>
+              <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Holdings Coverage</span>
+                <span className="text-xl font-bold text-white">
+                  {snapTradeHoldings.sync_summary ? `${snapTradeHoldings.sync_summary.accounts_with_holdings_response}/${snapTradeHoldings.sync_summary.expected_accounts}` : '—'}
+                </span>
               </div>
               <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Equity Positions</span>

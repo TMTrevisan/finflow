@@ -98,6 +98,7 @@ async function ensureSnapTradeUser() {
 // Holdings Caching to prevent extra Investments charges
 const HOLDINGS_CACHE_FILE = path.join(__dirname, 'snaptrade_holdings_cache.json');
 const CACHE_HOLDINGS_TTL_MS = 24 * 60 * 60 * 1000; // 24 Hours
+const HOLDINGS_CACHE_VERSION = 2;
 
 function loadHoldingsCache() {
   try {
@@ -114,6 +115,7 @@ function saveHoldingsCache(data) {
   try {
     fs.writeFileSync(HOLDINGS_CACHE_FILE, JSON.stringify({
       timestamp: Date.now(),
+      version: HOLDINGS_CACHE_VERSION,
       data
     }, null, 2), { mode: 0o600 });
   } catch (err) {
@@ -128,7 +130,12 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
   function loadHoldingsCache() {
     try {
       if (fs.existsSync(userCacheFile)) {
-        return JSON.parse(fs.readFileSync(userCacheFile, 'utf8'));
+        const cache = JSON.parse(fs.readFileSync(userCacheFile, 'utf8'));
+        if (cache.version !== HOLDINGS_CACHE_VERSION) {
+          console.log(`[SnapTrade Cache] Ignoring cache with an outdated holdings schema.`);
+          return null;
+        }
+        return cache;
       }
     } catch (err) {
       console.error(`[SnapTrade Cache] Error loading holdings cache:`, err.message);
@@ -140,6 +147,7 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
     try {
       fs.writeFileSync(userCacheFile, JSON.stringify({
         timestamp: Date.now(),
+        version: HOLDINGS_CACHE_VERSION,
         data
       }, null, 2), { mode: 0o600 });
     } catch (err) {
@@ -421,24 +429,25 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
         let price = pos.price || 0;
         let value = pos.value || (units * price) || 0;
         
-        let average_buy_price = pos.average_buy_price || pos.average_purchase_price || pos.cost || 0;
-        let open_pnl = pos.open_pnl !== undefined && pos.open_pnl !== null ? Number(pos.open_pnl) : 0;
+        let average_buy_price = pos.average_buy_price || pos.average_purchase_price || pos.cost || null;
+        let open_pnl = pos.open_pnl !== undefined && pos.open_pnl !== null ? Number(pos.open_pnl) : null;
+        let cost_basis_available = false;
         
         let total_cost;
         if (average_buy_price > 0) {
           total_cost = average_buy_price * units;
+          cost_basis_available = true;
           if (pos.open_pnl === undefined || pos.open_pnl === null) {
             open_pnl = value - total_cost;
           }
-        } else if (open_pnl !== 0 && units > 0) {
+        } else if (open_pnl !== null && units > 0) {
           // Back-calculate cost basis from open_pnl if average purchase price is missing
           total_cost = value - open_pnl;
           average_buy_price = total_cost / units;
+          cost_basis_available = true;
         } else {
-          // Fallback if we have absolutely no cost/PnL info
-          average_buy_price = price;
-          total_cost = price * units;
-          open_pnl = 0;
+          // Do not fabricate cost basis or return data when SnapTrade did not provide it.
+          total_cost = null;
         }
         
         let day_pnl = pos.day_pnl || 0;
@@ -469,16 +478,16 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
             console.log(`[SnapTrade Currency] Converting position ${ticker} from ${posCurrencyCode} to USD using rate ${rate}`);
             price = price * rate;
             value = value * rate;
-            average_buy_price = average_buy_price * rate;
-            total_cost = total_cost * rate;
-            open_pnl = open_pnl * rate;
+            if (average_buy_price !== null) average_buy_price = average_buy_price * rate;
+            if (total_cost !== null) total_cost = total_cost * rate;
+            if (open_pnl !== null) open_pnl = open_pnl * rate;
             day_pnl = day_pnl * rate;
           } else {
             console.warn(`[SnapTrade Currency] Exchange rate for ${posCurrencyCode} not found, using original values.`);
           }
         }
 
-        const total_pnl_percent = total_cost > 0 ? (open_pnl / total_cost) * 100 : 0;
+        const total_pnl_percent = total_cost > 0 && open_pnl !== null ? (open_pnl / total_cost) * 100 : null;
         const day_pnl_percent = value > 0 ? (day_pnl / value) * 100 : 0;
 
         let { assetClass, sector, geography } = categorizeSecurity(name, acc.name || '');
@@ -504,7 +513,10 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
           day_pnl_percent,
           assetClass,
           sector,
-          geography
+          geography,
+          market_value_available: Number.isFinite(Number(pos.value))
+            || (Number.isFinite(Number(pos.units)) && Number.isFinite(Number(pos.price)) && Number(pos.price) > 0),
+          cost_basis_available
         };
       });
 
@@ -531,7 +543,9 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
           assetClass: 'Cash & Equivalents',
           sector: 'Cash',
           geography: 'United States',
-          is_cash: true
+          is_cash: true,
+          market_value_available: true,
+          cost_basis_available: true
         });
       }
 
