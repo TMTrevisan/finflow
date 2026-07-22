@@ -13,6 +13,7 @@ import {
 import { filterTransactionsByDateRange } from '../utils/dateFilters';
 
 const AppContext = createContext();
+const SNAPTRADE_REUSE_WINDOW_MS = 15 * 1000;
 
 export { resolveBudget, decorateData };
 
@@ -177,10 +178,21 @@ export const AppProvider = ({ children, setCurrentView }) => {
     return `${cleanUrl}/${path}`;
   }, []);
 
-  const loadSnapTradeData = useCallback(async (force = false) => {
+  const loadSnapTradeData = useCallback(async (options = {}) => {
+    // Accept the former boolean API as well as explicit options used by controls.
+    const { force = false, refreshStatus = false } = typeof options === 'boolean'
+      ? { force: options }
+      : options;
+
     if (snapTradeLoadPromiseRef.current) {
       logSync('SnapTrade sync already in progress; joining existing request', 'info');
       return snapTradeLoadPromiseRef.current;
+    }
+
+    if (!force && lastSnapTradeLoadResultRef.current
+      && Date.now() - lastSnapTradeLoadAtRef.current < SNAPTRADE_REUSE_WINDOW_MS) {
+      logSync('Reusing recent SnapTrade result to avoid duplicate brokerage requests', 'info');
+      return lastSnapTradeLoadResultRef.current;
     }
 
     const loadPromise = (async () => {
@@ -199,7 +211,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
         'x-snaptrade-user-secret': localUserSecret
       };
 
-      const statusUrl = force
+      const statusUrl = refreshStatus
         ? `${getSnapTradeUrl('api/snaptrade/status')}?force=true`
         : getSnapTradeUrl('api/snaptrade/status');
       let statusData = { connected: false, configured: false };
@@ -274,8 +286,21 @@ export const AppProvider = ({ children, setCurrentView }) => {
         const holdingsData = await holdingsRes.json();
         const accountsCount = holdingsData.accounts ? holdingsData.accounts.length : 0;
         const positionsCount = holdingsData.positions ? holdingsData.positions.length : 0;
-        const connectionsCount = statusData.connections ? statusData.connections.length : 0;
+        const connections = holdingsData.connections || statusData.connections || [];
+        const connectionsCount = connections.length;
+        if (holdingsData.connections) {
+          setSnapTradeStatus(prev => ({
+            ...prev,
+            connected: connectionsCount > 0,
+            connections,
+            account_count: accountsCount
+          }));
+        }
         logSync('Brokerage holdings sync complete', 'success', `connections: ${connectionsCount}, accounts: ${accountsCount}, positions: ${positionsCount}`);
+        const missingAccounts = holdingsData.sync_summary?.accounts_without_holdings_response || [];
+        if (missingAccounts.length > 0) {
+          logSync('Some accounts were absent from the SnapTrade holdings response', 'error', missingAccounts.map(account => account.name).join(', '));
+        }
         
         if (accountsCount === 0 && !shouldFetchMock) {
           logSync('No connected brokerage accounts found. Go to Settings > SnapTrade to link your brokerage account.', 'info');

@@ -15,6 +15,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Snaptrade } from 'snaptrade-typescript-sdk';
 import dns from 'dns';
+import { buildConnectionSummaries, buildHoldingsSyncSummary } from './snaptrade-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -423,7 +424,7 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
         let average_buy_price = pos.average_buy_price || pos.average_purchase_price || pos.cost || 0;
         let open_pnl = pos.open_pnl !== undefined && pos.open_pnl !== null ? Number(pos.open_pnl) : 0;
         
-        let total_cost = 0;
+        let total_cost;
         if (average_buy_price > 0) {
           total_cost = average_buy_price * units;
           if (pos.open_pnl === undefined || pos.open_pnl === null) {
@@ -552,10 +553,13 @@ async function fetchNormalizedSnapTradeHoldings(client, config, forceRefresh = f
       aggregatedPositions.push(...positions);
     }
     
+    const syncSummary = buildHoldingsSyncSummary(accounts, holdings);
     const result = {
       is_mock: false,
       accounts: aggregatedBalances,
-      positions: aggregatedPositions
+      positions: aggregatedPositions,
+      connections: buildConnectionSummaries(accounts),
+      sync_summary: syncSummary
     };
     
     saveHoldingsCache(result);
@@ -1975,30 +1979,13 @@ async function handleSnapTradeStatus(req, res) {
     });
 
     const accounts = response.data || [];
-    const connectionsMap = new Map();
-    accounts.forEach(acc => {
-      const instName = acc.institution_name || acc.brokerage?.name || acc.meta?.institution_name || 'Brokerage';
-      const authId = acc.brokerage_authorization || acc.brokerageAuthorization?.id || acc.brokerageAuthorization || acc.id;
-      if (!connectionsMap.has(instName)) {
-        connectionsMap.set(instName, {
-          institution_name: instName,
-          item_id: authId,
-          account_count: 0,
-          last_sync: acc.sync_status?.holdings?.last_successful_sync || new Date().toISOString()
-        });
-      }
-      const connection = connectionsMap.get(instName);
-      connection.account_count += 1;
-      const holdingsSync = acc.sync_status?.holdings?.last_successful_sync;
-      if (holdingsSync && (!connection.last_sync || new Date(holdingsSync) > new Date(connection.last_sync))) {
-        connection.last_sync = holdingsSync;
-      }
-    });
+    const connections = buildConnectionSummaries(accounts);
 
     const statusResult = {
       configured,
-      connected: connectionsMap.size > 0,
-      connections: Array.from(connectionsMap.values()),
+      connected: connections.length > 0,
+      connections,
+      account_count: accounts.length,
       userId: finalConfig.userId,
       userSecret: finalConfig.userSecret
     };

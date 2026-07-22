@@ -59,7 +59,7 @@ export default function SnapTradeConnectionCard({
         window.open(data.redirectURI, '_blank');
         
         setTimeout(async () => {
-          await loadSnapTradeData();
+          await loadSnapTradeData({ force: true, refreshStatus: true });
           setSnapTradeMessage({ type: 'success', text: 'Brokerage authentication portal opened. Click "Sync Now" if your account does not sync automatically.' });
         }, 3000);
       } else {

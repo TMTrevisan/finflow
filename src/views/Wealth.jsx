@@ -198,7 +198,7 @@ export default function Wealth({ setCurrentView }) {
       recommendationColor = 'text-neon-crimson';
     } else if (cashDragRatio < 3 && totalValue > 1000) {
       recommendation = 'Low cash reserves. Ensure you have adequate emergency liquidity.';
-      recommendColor = 'text-neon-indigo';
+      recommendationColor = 'text-neon-indigo';
     }
 
     return {
