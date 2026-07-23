@@ -7,7 +7,7 @@ import { formatCurrency } from '../utils/formatting';
 import { safeStorage } from '../utils/storage';
 import { reconcilePortfolioAccounts } from '../utils/portfolioReconciliation';
 import { 
-  TrendingUp, TrendingDown, Download, Search, Briefcase, 
+  Download, Search, Briefcase,
   PieChart as ChartIcon, DollarSign, ArrowUpDown, Landmark,
   LineChart as LineChartIcon, LayoutGrid, BarChart3, PlusCircle, RefreshCw, Wifi, WifiOff, AlertTriangle, CheckCircle2
 } from 'lucide-react';
@@ -48,9 +48,6 @@ export default function Wealth({ setCurrentView }) {
   const [allocTab, setAllocTab] = useState('assetClass');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Performance tab states
-  const [perfBenchmark, setPerfBenchmark] = useState('portfolio');
-
   const [sortField, setSortField] = useState(() => safeStorage.getItem('finflow_holdings_sort_field') || 'value');
   const [sortDirection, setSortDirection] = useState(() => safeStorage.getItem('finflow_holdings_sort_direction') || 'desc');
 
@@ -124,28 +121,17 @@ export default function Wealth({ setCurrentView }) {
       const ninetyDaysLimit = new Date();
       ninetyDaysLimit.setDate(ninetyDaysLimit.getDate() - 90);
 
-      const oneDayMatch = history.find(h => new Date(h.date) <= oneDayLimit) || history[0];
-      const ninetyDayMatch = history.find(h => new Date(h.date) <= ninetyDaysLimit) || history[0];
-
-      const val1d = oneDayMatch ? Number(oneDayMatch.balance) || 0 : curVal;
-      const val90d = ninetyDayMatch ? Number(ninetyDayMatch.balance) || 0 : curVal;
-
-      let change1d = curVal - val1d;
-      let change90d = curVal - val90d;
-
-      // Fallbacks to simulate high fidelity data if sheet doesn't contain history
-      if (Math.abs(change1d) < 0.01 && curVal > 100) {
-        // Deterministic pseudo-randomness based on key string
-        const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        change1d = curVal * ((hash % 200 - 100) / 10000); // between -1% and +1%
-      }
-      if (Math.abs(change90d) < 0.01 && curVal > 100) {
-        const hash = key.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        change90d = curVal * ((hash % 300) / 2000); // positive return up to 15%
-      }
-
-      const pct1d = val1d > 0 ? (change1d / val1d) * 100 : (curVal > 0 ? 0.25 : 0);
-      const pct90d = val90d > 0 ? (change90d / val90d) * 100 : (curVal > 0 ? 8.4 : 0);
+      const latestTimestamp = new Date(latest.date).getTime();
+      const oneDayMatch = history.filter(h => new Date(h.date) <= oneDayLimit).at(-1);
+      const ninetyDayMatch = history.filter(h => new Date(h.date) <= ninetyDaysLimit).at(-1);
+      const has1dHistory = oneDayMatch && new Date(oneDayMatch.date).getTime() < latestTimestamp;
+      const has90dHistory = ninetyDayMatch && new Date(ninetyDayMatch.date).getTime() < latestTimestamp;
+      const val1d = has1dHistory ? Number(oneDayMatch.balance) || 0 : null;
+      const val90d = has90dHistory ? Number(ninetyDayMatch.balance) || 0 : null;
+      const change1d = val1d === null ? null : curVal - val1d;
+      const change90d = val90d === null ? null : curVal - val90d;
+      const pct1d = val1d && val1d > 0 ? (change1d / val1d) * 100 : null;
+      const pct90d = val90d && val90d > 0 ? (change90d / val90d) * 100 : null;
 
       list.push({
         id: latest.id,
@@ -222,79 +208,6 @@ export default function Wealth({ setCurrentView }) {
     };
   }, [positions, accountMetrics]);
 
-  // Aggregate balance history for Stacked Area Chart (balances tab)
-  const stackedChartData = useMemo(() => {
-    // Generate dates representing the last 90 days
-    const dates = [];
-    const now = new Date();
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      dates.push(d.toISOString().split('T')[0]);
-    }
-
-    // Build timeline mapping account balances
-    const timeline = dates.map((dateStr, idx) => {
-      const point = { date: dateStr, displayDate: new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) };
-      let accum = 0;
-      
-      accountMetrics.forEach((acc, aIdx) => {
-        // Calculate a simulated historical balance point that matches current balance
-        // with some smooth fluctuations over 90 days to draw a rich stacked area chart
-        const base = acc.balance;
-        const hash = acc.accountName.split('').reduce((accVal, char) => accVal + char.charCodeAt(0), 0);
-        const wave = Math.sin((idx + hash) / 10) * (base * 0.05) + (idx / 90) * (base * 0.08);
-        const histVal = Math.max(0, base - (base * 0.12) + wave);
-        
-        point[`acc_${aIdx}`] = histVal;
-        accum += histVal;
-      });
-      point.total = accum;
-      return point;
-    });
-
-    return timeline;
-  }, [accountMetrics]);
-
-  // Mock performance benchmark history
-  const performanceHistory = useMemo(() => {
-    const dates = [];
-    const now = new Date();
-    for (let i = 89; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      dates.push(d.toISOString().split('T')[0]);
-    }
-
-    return dates.map((dateStr, idx) => {
-      // Simulate performance growth trends matching the mockup screenshot
-      const progress = idx / 89;
-      
-      // Portfolio line: smooth climb with a slight dip towards the end
-      const portfolio = -0.5 + Math.sin(progress * 5) * 4 + progress * 3 - (progress > 0.8 ? (progress - 0.8) * 10 : 0);
-      // S&P 500 / US stock line: higher climb
-      const usStock = -0.8 + Math.sin(progress * 4.8) * 6 + progress * 8 + Math.cos(idx / 5) * 0.5;
-      // Blended line: average
-      const blended = -0.6 + Math.sin(progress * 4.9) * 5 + progress * 5.5;
-      // Foreign stock: moderate growth
-      const foreignStock = -0.2 + Math.sin(progress * 4.5) * 4 + progress * 4.2;
-      // US Bond: slow steady climb
-      const usBond = 0 + progress * 1.2 + Math.sin(idx / 8) * 0.15;
-      // Alternatives: volatile
-      const alternatives = -1.5 + Math.cos(progress * 6) * 3 + progress * 2 + Math.sin(idx / 3) * 0.8;
-
-      return {
-        date: dateStr,
-        displayDate: new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-        portfolio,
-        blended,
-        usStock,
-        foreignStock,
-        usBond,
-        alternatives
-      };
-    });
-  }, []);
 
   // Filter & Sort positions
   const sortedPositions = useMemo(() => {
@@ -435,41 +348,6 @@ export default function Wealth({ setCurrentView }) {
     }).sort((a, b) => b.value - a.value);
   };
 
-  // Interactive line coordinates calculations for Performance chart
-  const performanceLinePoints = useMemo(() => {
-    const width = 800;
-    const height = 280;
-    const padding = 20;
-
-    const key = perfBenchmark === 'portfolio' ? 'portfolio' 
-              : perfBenchmark === 'blended' ? 'blended' 
-              : perfBenchmark === 'usStock' ? 'usStock' 
-              : perfBenchmark === 'foreignStock' ? 'foreignStock' 
-              : perfBenchmark === 'usBond' ? 'usBond' : 'alternatives';
-
-    const portValues = performanceHistory.map(d => d.portfolio);
-    const benchValues = performanceHistory.map(d => d[key]);
-    const allValues = [...portValues, ...benchValues];
-
-    const minVal = Math.min(...allValues) - 0.5;
-    const maxVal = Math.max(...allValues) + 0.5;
-    const valRange = maxVal - minVal || 1;
-
-    const portfolioPoints = performanceHistory.map((d, i) => {
-      const x = padding + (i / 89) * (width - padding * 2);
-      const y = height - padding - ((d.portfolio - minVal) / valRange) * (height - padding * 2);
-      return `${x},${y}`;
-    }).join(' ');
-
-    const benchmarkPoints = performanceHistory.map((d, i) => {
-      const x = padding + (i / 89) * (width - padding * 2);
-      const y = height - padding - ((d[key] - minVal) / valRange) * (height - padding * 2);
-      return `${x},${y}`;
-    }).join(' ');
-
-    return { portfolioPoints, benchmarkPoints, minVal, maxVal };
-  }, [performanceHistory, perfBenchmark]);
-
   return (
     <div className="space-y-6">
       {/* Tab Navigation + Status Bar */}
@@ -524,11 +402,7 @@ export default function Wealth({ setCurrentView }) {
               <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Portfolio Balance Overview</span>
               <div className="flex items-baseline space-x-3 mt-1">
                 <h2 className="text-3xl font-black text-white tracking-tight font-display">{formatCurrency(stats.totalValue)}</h2>
-                <span className="text-xs font-bold text-neon-emerald flex items-center space-x-0.5">
-                  <TrendingUp size={12} />
-                  <span>+$123,498 (90d)</span>
-                </span>
-                <span className="text-[10px] text-neon-crimson font-semibold">-$416 (1d)</span>
+                <span className="text-[10px] text-slate-500 font-semibold">Performance begins after snapshot history is collected</span>
               </div>
             </div>
             <div className="flex space-x-3">
@@ -607,73 +481,9 @@ export default function Wealth({ setCurrentView }) {
             </Card>
           )}
 
-          {/* Stacked Balance History Area Chart */}
-          <Card className="bg-obsidian-900 border border-obsidian-750 p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="font-bold text-white text-sm">Portfolio Balances Over Time</h3>
-              <div className="flex items-center space-x-2 text-[10px] text-slate-500 font-bold">
-                <span className="w-2 h-2 rounded bg-neon-indigo" />
-                <span>All Connected Brokerages</span>
-              </div>
-            </div>
-            
-            <div className="relative h-64 w-full">
-              {/* SVG Area Chart */}
-              <svg className="w-full h-full" viewBox="0 0 800 240" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10B981" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="#10B981" stopOpacity="0.0" />
-                  </linearGradient>
-                  <linearGradient id="areaGrad2" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366F1" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-                
-                {/* Simulated Stacked Area Paths */}
-                {(() => {
-                  const points1 = [];
-                  const points2 = [];
-                  const len = stackedChartData.length;
-                  const maxTotal = Math.max(...stackedChartData.map(p => p.total || 0), 100000) * 1.15; // 15% top margin
-                  
-                  stackedChartData.forEach((p, idx) => {
-                    const x = (idx / (len - 1)) * 800;
-                    // Lower layer
-                    const y1 = 200 - ((p.total * 0.4) / maxTotal) * 180;
-                    // Upper layer
-                    const y2 = 200 - (p.total / maxTotal) * 180;
-                    points1.push(`${x},${y1}`);
-                    points2.push(`${x},${y2}`);
-                  });
-
-                  const path1Str = `M0,200 L${points1.join(' L')} L800,200 Z`;
-                  const path2Str = `M0,200 L${points2.join(' L')} L800,200 Z`;
-
-                  return (
-                    <>
-                      {/* Grid lines */}
-                      <line x1="0" y1="20" x2="800" y2="20" stroke="#1e293b" strokeDasharray="3 3" />
-                      <line x1="0" y1="80" x2="800" y2="80" stroke="#1e293b" strokeDasharray="3 3" />
-                      <line x1="0" y1="140" x2="800" y2="140" stroke="#1e293b" strokeDasharray="3 3" />
-                      <line x1="0" y1="200" x2="800" y2="200" stroke="#334155" />
-                      
-                      <path d={path2Str} fill="url(#areaGrad2)" />
-                      <path d={path1Str} fill="url(#areaGrad)" />
-                      
-                      <path d={`M${points2.join(' L')}`} fill="none" stroke="#6366F1" strokeWidth="2" />
-                      <path d={`M${points1.join(' L')}`} fill="none" stroke="#10B981" strokeWidth="1.5" />
-                    </>
-                  );
-                })()}
-              </svg>
-              <div className="flex justify-between text-[9px] text-slate-500 font-bold uppercase mt-1">
-                <span>90 days ago</span>
-                <span>45 days ago</span>
-                <span>Today</span>
-              </div>
-            </div>
+          <Card className="bg-obsidian-900 border border-obsidian-750 p-6">
+            <h3 className="font-bold text-white text-sm">Portfolio Balances Over Time</h3>
+            <p className="mt-2 text-xs text-slate-500">No verified portfolio snapshots are available yet. FinFlow will show this chart once it has collected daily reconciled balances.</p>
           </Card>
 
           {/* Accounts List Table */}
@@ -693,8 +503,8 @@ export default function Wealth({ setCurrentView }) {
                 </thead>
                 <tbody className="divide-y divide-obsidian-850">
                   {accountMetrics.map((item, idx) => {
-                    const is1dPos = item.change1d >= 0;
-                    const is90dPos = item.change90d >= 0;
+                    const is1dPos = item.change1d !== null && item.change1d >= 0;
+                    const is90dPos = item.change90d !== null && item.change90d >= 0;
                     const barColor = COLORS[idx % COLORS.length];
 
                     return (
@@ -706,17 +516,17 @@ export default function Wealth({ setCurrentView }) {
                             <span className="text-[10px] text-slate-500 font-semibold">{item.institution}</span>
                           </div>
                         </td>
-                        <td className={`py-3.5 text-right font-semibold font-mono ${is1dPos ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
-                          {is1dPos ? '+' : ''}{item.pct1d.toFixed(2)}%
+                        <td className={`py-3.5 text-right font-semibold font-mono ${item.pct1d === null ? 'text-slate-600' : is1dPos ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
+                          {item.pct1d === null ? '—' : `${is1dPos ? '+' : ''}${item.pct1d.toFixed(2)}%`}
                         </td>
-                        <td className={`py-3.5 text-right font-semibold font-mono ${is90dPos ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
-                          {is90dPos ? '+' : ''}{item.pct90d.toFixed(2)}%
+                        <td className={`py-3.5 text-right font-semibold font-mono ${item.pct90d === null ? 'text-slate-600' : is90dPos ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
+                          {item.pct90d === null ? '—' : `${is90dPos ? '+' : ''}${item.pct90d.toFixed(2)}%`}
                         </td>
-                        <td className={`py-3.5 text-right font-mono ${is1dPos ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
-                          {is1dPos ? '+' : '-'}{formatCurrency(Math.abs(item.change1d))}
+                        <td className={`py-3.5 text-right font-mono ${item.change1d === null ? 'text-slate-600' : is1dPos ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
+                          {item.change1d === null ? '—' : `${is1dPos ? '+' : '-'}${formatCurrency(Math.abs(item.change1d))}`}
                         </td>
-                        <td className={`py-3.5 text-right font-mono ${is90dPos ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
-                          {is90dPos ? '+' : '-'}{formatCurrency(Math.abs(item.change90d))}
+                        <td className={`py-3.5 text-right font-mono ${item.change90d === null ? 'text-slate-600' : is90dPos ? 'text-neon-emerald' : 'text-neon-crimson'}`}>
+                          {item.change90d === null ? '—' : `${is90dPos ? '+' : '-'}${formatCurrency(Math.abs(item.change90d))}`}
                         </td>
                         <td className="py-3.5 text-right font-mono font-bold text-white">
                           {formatCurrency(item.balance)}
@@ -1011,85 +821,9 @@ export default function Wealth({ setCurrentView }) {
               </div>
             </Card>
 
-            {/* Performance Graph Card (Screenshot 2) */}
-            <Card className="bg-obsidian-900 border border-obsidian-750 p-6 md:col-span-2 space-y-4">
-              <div className="flex justify-between items-center pb-2 border-b border-obsidian-850">
-                <h3 className="font-bold text-white text-base">Performance Over Time</h3>
-                <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">90 Day Growth Comparison</span>
-              </div>
-
-              {/* Selection Tab Cards */}
-              <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5 pb-2">
-                {[
-                  { id: 'portfolio', label: 'My portfolio', val: '+5.67%', color: 'border-neon-indigo' },
-                  { id: 'blended', label: 'Blended', val: '+10.42%', color: 'border-slate-500' },
-                  { id: 'usStock', label: 'US stock', val: '+14.17%', color: 'border-amber-500' },
-                  { id: 'foreignStock', label: 'Foreign stock', val: '+13.12%', color: 'border-yellow-500' },
-                  { id: 'usBond', label: 'US bond', val: '+1.18%', color: 'border-cyan-500' },
-                  { id: 'foreignBond', label: 'Foreign bond', val: '+0.54%', color: 'border-teal-500' },
-                  { id: 'alternatives', label: 'Alternatives', val: '+0.37%', color: 'border-fuchsia-600' }
-                ].map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => setPerfBenchmark(item.id)}
-                    className={`p-2 border rounded-xl text-left transition-all duration-200 cursor-pointer ${
-                      perfBenchmark === item.id 
-                        ? `${item.color} bg-obsidian-800/40 text-white scale-[1.02] shadow-glow` 
-                        : 'border-obsidian-800 hover:border-obsidian-700 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <span className="text-[8px] font-bold uppercase tracking-wider block opacity-70 truncate">{item.label}</span>
-                    <span className="text-[10px] font-bold block mt-0.5 font-mono">{item.val}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Line graph canvas */}
-              <div className="relative h-56 w-full">
-                <svg className="w-full h-full" viewBox="0 0 800 280" preserveAspectRatio="none">
-                  {/* Grid lines */}
-                  <line x1="0" y1="20" x2="800" y2="20" stroke="#1e293b" strokeDasharray="3 3" />
-                  <line x1="0" y1="90" x2="800" y2="90" stroke="#1e293b" strokeDasharray="3 3" />
-                  <line x1="0" y1="160" x2="800" y2="160" stroke="#1e293b" strokeDasharray="3 3" />
-                  <line x1="0" y1="230" x2="800" y2="230" stroke="#1e293b" strokeDasharray="3 3" />
-                  <line x1="0" y1="260" x2="800" y2="260" stroke="#334155" />
-
-                  {/* Draw My Portfolio curve */}
-                  <polyline
-                    fill="none"
-                    stroke="#6366F1"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    points={performanceLinePoints.portfolioPoints}
-                    className="transition-all duration-300"
-                  />
-
-                  {/* Draw Benchmark index overlay curve if not portfolio */}
-                  {perfBenchmark !== 'portfolio' && (
-                    <polyline
-                      fill="none"
-                      stroke={
-                        perfBenchmark === 'blended' ? '#94A3B8' :
-                        perfBenchmark === 'usStock' ? '#F59E0B' :
-                        perfBenchmark === 'foreignStock' ? '#FBBF24' :
-                        perfBenchmark === 'usBond' ? '#06B6D4' :
-                        perfBenchmark === 'foreignBond' ? '#14B8A6' :
-                        perfBenchmark === 'alternatives' ? '#D946EF' : '#38BDF8'
-                      }
-                      strokeWidth="2"
-                      strokeDasharray="5,5"
-                      strokeLinecap="round"
-                      points={performanceLinePoints.benchmarkPoints}
-                      className="transition-all duration-300"
-                    />
-                  )}
-                </svg>
-                <div className="flex justify-between text-[9px] text-slate-500 font-bold uppercase mt-1">
-                  <span>90 days ago</span>
-                  <span>45 days ago</span>
-                  <span>Today</span>
-                </div>
-              </div>
+            <Card className="bg-obsidian-900 border border-obsidian-750 p-6 md:col-span-2">
+              <h3 className="font-bold text-white text-base">Performance Over Time</h3>
+              <p className="mt-2 text-xs text-slate-500">No verified performance series is available. FinFlow will calculate returns and benchmark comparisons only after daily reconciled snapshots are stored.</p>
             </Card>
           </div>
         </div>
