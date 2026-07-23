@@ -375,7 +375,7 @@ export default function Header({ title, currentView, setCurrentView }) {
             value={globalAccount}
             onChange={(e) => setGlobalAccount(e.target.value)}
             aria-label="Select Account"
-            className="flex-1 sm:flex-initial bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-700 text-xs font-bold rounded-xl px-2.5 py-2.5 sm:px-3 sm:py-2 text-slate-200 cursor-pointer focus:border-neon-indigo focus:ring-1 focus:ring-neon-indigo outline-none w-full sm:max-w-[180px] truncate transition-colors duration-200 shadow-sm"
+            className="h-11 flex-1 sm:flex-initial bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-700 text-xs font-bold rounded-xl px-2.5 sm:px-3 text-slate-200 cursor-pointer focus:border-neon-indigo focus:ring-1 focus:ring-neon-indigo outline-none w-full sm:max-w-[180px] truncate transition-colors duration-200 shadow-sm"
           >
             <option value="All Accounts">All Accounts</option>
             {uniqueAccounts.map(acc => (
@@ -389,7 +389,7 @@ export default function Header({ title, currentView, setCurrentView }) {
           {/* Dynamic Connection/Sync Status Indicator */}
           <div 
             title={getTooltipText()}
-            className={`flex items-center space-x-1 sm:space-x-1.5 px-2 py-1 rounded-full text-[10px] sm:text-xs font-bold border transition-colors duration-300 cursor-help ${getStatusStyles()}`}
+            className={`h-11 flex items-center space-x-1 sm:space-x-1.5 px-3 rounded-xl text-[10px] sm:text-xs font-bold border transition-colors duration-300 cursor-help ${getStatusStyles()}`}
           >
             <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${getDotStyles()}`}></span>
@@ -402,7 +402,7 @@ export default function Header({ title, currentView, setCurrentView }) {
           <button 
             onClick={() => setCurrentView('settings')}
             aria-label="Settings"
-            className={`p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 transition-colors duration-200 relative ${
+            className={`h-11 w-11 flex items-center justify-center rounded-xl hover:bg-obsidian-700 transition-colors duration-200 relative ${
               currentView === 'settings' ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
             }`}
             title="Settings"
@@ -413,7 +413,7 @@ export default function Header({ title, currentView, setCurrentView }) {
           <button 
             onClick={toggleTheme}
             aria-label="Toggle Theme"
-            className="p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors duration-200 relative"
+            className="h-11 w-11 flex items-center justify-center rounded-xl hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors duration-200 relative"
             title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
           >
             {theme === 'light' ? <Moon size={18} className="sm:w-5 sm:h-5" /> : <Sun size={18} className="sm:w-5 sm:h-5" />}
@@ -422,7 +422,7 @@ export default function Header({ title, currentView, setCurrentView }) {
           <button 
             onClick={() => setGlobalSearchOpen(true)}
             aria-label="Search Transactions"
-            className="p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors duration-200 relative"
+            className="h-11 w-11 flex items-center justify-center rounded-xl hover:bg-obsidian-700 text-slate-400 hover:text-white transition-colors duration-200 relative"
             title="Search (Cmd+K)"
           >
             <Search size={18} className="sm:w-5 sm:h-5" />
@@ -435,7 +435,7 @@ export default function Header({ title, currentView, setCurrentView }) {
                 setIsAlertsOpen(prev => !prev);
               }}
               aria-label="Notifications"
-              className={`p-1.5 sm:p-2 rounded-full hover:bg-obsidian-700 transition-colors duration-200 relative ${
+              className={`h-11 w-11 flex items-center justify-center rounded-xl hover:bg-obsidian-700 transition-colors duration-200 relative ${
                 isAlertsOpen ? 'text-neon-indigo bg-obsidian-800' : 'text-slate-400 hover:text-white'
               }`}
               title="Notifications"
@@ -522,7 +522,7 @@ export default function Header({ title, currentView, setCurrentView }) {
           <button 
             onClick={handleSync}
             disabled={isSyncing}
-            className="flex items-center justify-center px-3 py-1.5 sm:px-4 sm:py-2 bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-750 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-colors duration-200 disabled:opacity-50 cursor-pointer shadow-sm"
+            className="h-11 flex items-center justify-center px-3 sm:px-4 bg-obsidian-850 hover:bg-obsidian-800 border border-obsidian-750 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-colors duration-200 disabled:opacity-50 cursor-pointer shadow-sm"
           >
             <RefreshCw size={14} className={isSyncing ? "animate-spin text-neon-emerald" : ""} />
             <span className="hidden sm:inline sm:ml-1.5">{isSyncing ? 'Syncing…' : 'Sync Data'}</span>
