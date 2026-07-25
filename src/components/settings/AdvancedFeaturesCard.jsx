@@ -52,7 +52,7 @@ export default function AdvancedFeaturesCard({
                 <input
                   type="text"
                   value={partnerAName}
-                  placeholder={enableCustomSplits ? 'Kaitlyn' : 'Wife'}
+                  placeholder={enableCustomSplits ? 'Partner A' : 'Primary User'}
                   onChange={(e) => setPartnerAName(e.target.value)}
                   className="w-full bg-obsidian-850 border border-obsidian-750 text-white rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50"
                 />
@@ -62,7 +62,7 @@ export default function AdvancedFeaturesCard({
                 <input
                   type="text"
                   value={partnerBName}
-                  placeholder={enableCustomSplits ? 'Todd' : 'Husband'}
+                  placeholder={enableCustomSplits ? 'Partner B' : 'Household'}
                   onChange={(e) => setPartnerBName(e.target.value)}
                   className="w-full bg-obsidian-850 border border-obsidian-750 text-white rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-neon-indigo/50"
                 />

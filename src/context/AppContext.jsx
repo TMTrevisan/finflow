@@ -120,13 +120,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
     safeStorage.setItem('finflow_partner_b_employer', val);
   };
 
-  const resolvedPartnerAName = useMemo(() => {
-    return partnerAName || (enableCustomSplits ? 'Kaitlyn' : 'Wife');
-  }, [partnerAName, enableCustomSplits]);
-
-  const resolvedPartnerBName = useMemo(() => {
-    return partnerBName || (enableCustomSplits ? 'Todd' : 'Husband');
-  }, [partnerBName, enableCustomSplits]);
+  const isDemoMode = safeStorage.getItem('finflow_force_mock') === 'true';
+  const resolvedPartnerAName = partnerAName || (isDemoMode ? 'Demo User' : enableCustomSplits ? 'Partner A' : 'Primary User');
+  const resolvedPartnerBName = partnerBName || (isDemoMode ? 'Demo Household' : enableCustomSplits ? 'Partner B' : 'Household');
 
   const resolvedPartnerAEmployer = useMemo(() => {
     return partnerAEmployer || (enableCustomSplits ? 'Havas' : 'Employer A');
@@ -521,14 +517,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     }
   };
 
-  const [isLoading, setIsLoading] = useState(() => {
-    try {
-      const cached = safeStorage.getItem('finflow_cache_transactions');
-      return cached ? false : true;
-    } catch {
-      return true;
-    }
-  });
+  const [isLoading, setIsLoading] = useState(false);
 
   const [isMockData, setIsMockData] = useState(() => {
     try {

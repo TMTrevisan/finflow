@@ -46,15 +46,18 @@ const NAV_GROUPS = [
 
 export default function Sidebar({ currentView, setCurrentView }) {
   const { 
-    resolvedPartnerAName = "Wife",
-    resolvedPartnerBName = "Husband"
+    resolvedPartnerAName = "Primary User",
+    resolvedPartnerBName = "Household",
+    isMockData = false,
   } = useAppContext() || {};
 
   const initials = resolvedPartnerBName && resolvedPartnerAName 
     ? `${resolvedPartnerBName[0]}${resolvedPartnerAName[0]}`
     : "U";
 
-  const displayName = resolvedPartnerBName && resolvedPartnerAName
+  const displayName = isMockData
+    ? "Demo User"
+    : resolvedPartnerBName && resolvedPartnerAName
     ? `${resolvedPartnerBName} & ${resolvedPartnerAName}`
     : "User Profile";
 
