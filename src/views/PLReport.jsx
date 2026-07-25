@@ -188,7 +188,7 @@ export default function PLReport() {
         <div className="flex flex-wrap items-center gap-3">
           {/* Timeframe Selector */}
           <div className="flex bg-obsidian-850 p-1 rounded-xl border border-obsidian-750 text-xs">
-            {['3M', '6M', '12M', 'YTD', 'All'].map((tf) => (
+            {['3M', '6M', '12M', 'YTD', 'ALL'].map((tf) => (
               <button
                 key={tf}
                 onClick={() => setTimeframe(tf)}

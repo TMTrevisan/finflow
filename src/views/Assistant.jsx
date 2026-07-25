@@ -10,6 +10,12 @@ import ChatInput from '../components/assistant/ChatInput';
 import OnboardingKeyScreen from '../components/assistant/OnboardingKeyScreen';
 import SharedContextDrawer from '../components/assistant/SharedContextDrawer';
 
+const normalizeAiModel = (provider, model) => (
+  provider === 'deepseek' && !['deepseek-v4-flash', 'deepseek-v4-pro'].includes(model)
+    ? 'deepseek-v4-flash'
+    : model
+);
+
 export default function Assistant() {
   const { transactions = [], categories = [], balances = [], logSync = () => {} } = useAppContext();
 
@@ -33,7 +39,10 @@ export default function Assistant() {
 
   // Unified Config States
   const [aiProvider, setAiProvider] = useState(() => safeStorage.getItem('finflow_ai_provider') || 'gemini');
-  const [aiModel, setAiModel] = useState(() => safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite');
+  const [aiModel, setAiModel] = useState(() => normalizeAiModel(
+    safeStorage.getItem('finflow_ai_provider') || 'gemini',
+    safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite'
+  ));
   
   // API Keys
   const [geminiKey, setGeminiKey] = useState(() => safeStorage.getItem('finflow_gemini_key') || '');
@@ -103,7 +112,10 @@ export default function Assistant() {
   useEffect(() => {
     const handleStorageChange = () => {
       setAiProvider(safeStorage.getItem('finflow_ai_provider') || 'gemini');
-      setAiModel(safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite');
+      setAiModel(normalizeAiModel(
+        safeStorage.getItem('finflow_ai_provider') || 'gemini',
+        safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite'
+      ));
       setGeminiKey(safeStorage.getItem('finflow_gemini_key') || '');
       setOpenaiKey(safeStorage.getItem('finflow_openai_key') || '');
       setClaudeKey(safeStorage.getItem('finflow_claude_key') || '');
@@ -663,7 +675,7 @@ Rules:
             ];
 
             fetchBody = {
-              model: aiModel,
+              model: normalizeAiModel(aiProvider, aiModel),
               messages: openaiMessages,
               stream: true,
               tools: openaiTools
@@ -704,7 +716,7 @@ Rules:
             ];
 
             fetchBody = {
-              model: aiModel,
+              model: normalizeAiModel(aiProvider, aiModel),
               messages: deepseekMessages,
               stream: true,
               tools: deepseekTools

@@ -3,13 +3,22 @@ import { Card } from '../ui/Card';
 import { Brain, Link, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { safeStorage } from '../../utils/storage';
 
+const normalizeAiModel = (provider, model) => (
+  provider === 'deepseek' && !['deepseek-v4-flash', 'deepseek-v4-pro'].includes(model)
+    ? 'deepseek-v4-flash'
+    : model
+);
+
 export default function CopilotSettingsCard() {
   // Provider and Keys state
   const [aiProvider, setAiProvider] = useState(() => {
     return safeStorage.getItem('finflow_ai_provider') || 'gemini';
   });
   const [aiModel, setAiModel] = useState(() => {
-    return safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite';
+    return normalizeAiModel(
+      safeStorage.getItem('finflow_ai_provider') || 'gemini',
+      safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite'
+    );
   });
   const [geminiKeyInput, setGeminiKeyInput] = useState(() => {
     return safeStorage.getItem('finflow_gemini_key') || '';
@@ -69,7 +78,7 @@ export default function CopilotSettingsCard() {
     setAiMessage({ type: 'info', text: 'Validating API key connection...' });
     
     const provider = aiProvider;
-    const model = aiModel;
+    const model = normalizeAiModel(provider, aiModel);
     const geminiKey = geminiKeyInput.trim();
     const openaiKey = openaiKeyInput.trim();
     const claudeKey = claudeKeyInput.trim();
@@ -322,8 +331,6 @@ export default function CopilotSettingsCard() {
                 <>
                   <option value="deepseek-v4-flash">deepseek-v4-flash (Recommended - Fast & Cost-Efficient)</option>
                   <option value="deepseek-v4-pro">deepseek-v4-pro (High Intelligence)</option>
-                  <option value="deepseek-chat">deepseek-chat (DeepSeek-V3 Legacy)</option>
-                  <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek-R1)</option>
                 </>
               )}
             </select>

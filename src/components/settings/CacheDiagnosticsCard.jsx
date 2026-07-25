@@ -31,6 +31,7 @@ export default function CacheDiagnosticsCard({
   snapTradeStatus = {},
   snapTradeHoldings = {}
 }) {
+  const holdings = snapTradeHoldings || {};
   // Sync Diagnostics state
   const [syncLogs, setSyncLogs] = useState([]);
   const [logsCopied, setLogsCopied] = useState(false);
@@ -131,7 +132,7 @@ export default function CacheDiagnosticsCard({
     return Array.from(latestMap.values()).length;
   }, [balances]);
 
-  const cacheSizeEstimate = useMemo(() => {
+  const cacheSizeEstimate = (() => {
     let charCount = 0;
     try {
       charCount += (safeStorage.getItem('finflow_cache_transactions') || '').length;
@@ -140,7 +141,7 @@ export default function CacheDiagnosticsCard({
     } catch (e) {}
     const kb = (charCount * 2) / 1024;
     return kb.toFixed(1);
-  }, [transactions, categories, balances]);
+  })();
 
   const handleExecuteClearCache = () => {
     clearCache();
@@ -241,30 +242,30 @@ export default function CacheDiagnosticsCard({
               </div>
               <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Sync Accounts</span>
-                <span className="text-xl font-bold text-white">{snapTradeHoldings.accounts?.length || 0} accounts</span>
+                <span className="text-xl font-bold text-white">{holdings.accounts?.length || 0} accounts</span>
               </div>
               <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Holdings Coverage</span>
                 <span className="text-xl font-bold text-white">
-                  {snapTradeHoldings.sync_summary ? `${snapTradeHoldings.sync_summary.accounts_with_holdings_response}/${snapTradeHoldings.sync_summary.expected_accounts}` : '—'}
+                  {holdings.sync_summary ? `${holdings.sync_summary.accounts_with_holdings_response}/${holdings.sync_summary.expected_accounts}` : '—'}
                 </span>
               </div>
               <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Equity Positions</span>
                 <span className="text-xl font-bold text-white">
-                  {snapTradeHoldings.positions?.filter(p => p.symbol?.symbol !== 'CASH' && p.assetClass !== 'Alternatives (Options)')?.length || 0} items
+                  {holdings.positions?.filter(p => p.symbol?.symbol !== 'CASH' && p.assetClass !== 'Alternatives (Options)')?.length || 0} items
                 </span>
               </div>
               <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Option Positions</span>
                 <span className="text-xl font-bold text-white">
-                  {snapTradeHoldings.positions?.filter(p => p.assetClass === 'Alternatives (Options)')?.length || 0} items
+                  {holdings.positions?.filter(p => p.assetClass === 'Alternatives (Options)')?.length || 0} items
                 </span>
               </div>
               <div className="bg-obsidian-800/30 border border-obsidian-800/80 p-4 rounded-2xl flex flex-col justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Cash Entries</span>
                 <span className="text-xl font-bold text-white">
-                  {snapTradeHoldings.positions?.filter(p => p.symbol?.symbol === 'CASH')?.length || 0} items
+                  {holdings.positions?.filter(p => p.symbol?.symbol === 'CASH')?.length || 0} items
                 </span>
               </div>
             </div>
