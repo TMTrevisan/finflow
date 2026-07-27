@@ -16,7 +16,9 @@ export default function Header({ title, currentView, setCurrentView }) {
   } = useAppContext();
   
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('finflow_theme') || 'dark';
+    const savedTheme = localStorage.getItem('finflow_theme');
+    const hasSeenLightRefresh = localStorage.getItem('finflow_theme_refresh_v1') === 'true';
+    return hasSeenLightRefresh && savedTheme ? savedTheme : 'light';
   });
 
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
@@ -203,6 +205,7 @@ export default function Header({ title, currentView, setCurrentView }) {
       document.body.classList.remove('light');
     }
     localStorage.setItem('finflow_theme', theme);
+    localStorage.setItem('finflow_theme_refresh_v1', 'true');
   }, [theme]);
 
   const toggleTheme = () => {
@@ -347,12 +350,12 @@ export default function Header({ title, currentView, setCurrentView }) {
   };
 
   return (
-    <header className="flex flex-col md:flex-row md:items-center md:justify-between p-4 sm:p-6 border-b border-obsidian-750 bg-obsidian-900/80 backdrop-blur-md md:sticky md:top-0 z-40 gap-4">
+    <header className="flex flex-col md:flex-row md:items-center md:justify-between p-4 sm:p-5 border-b border-obsidian-750 bg-obsidian-900/80 backdrop-blur-md md:sticky md:top-0 z-40 gap-4">
       {/* Title */}
       <div className="flex items-center justify-between w-full md:w-auto">
         <h2 className="text-lg font-bold md:hidden text-white truncate max-w-[150px] capitalize">{title}</h2>
         <div className="hidden md:block">
-          <h2 className="text-2xl font-bold text-white capitalize">{title}</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-white capitalize">{title}</h2>
         </div>
       </div>
       
@@ -375,7 +378,7 @@ export default function Header({ title, currentView, setCurrentView }) {
             value={globalAccount}
             onChange={(e) => setGlobalAccount(e.target.value)}
             aria-label="Select Account"
-            className="h-11 flex-1 sm:flex-initial bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-700 text-xs font-bold rounded-xl px-2.5 sm:px-3 text-slate-200 cursor-pointer focus:border-neon-indigo focus:ring-1 focus:ring-neon-indigo outline-none w-full sm:max-w-[180px] truncate transition-colors duration-200 shadow-sm"
+            className="h-11 flex-1 sm:flex-initial bg-obsidian-800 border border-obsidian-750 hover:border-obsidian-700 text-xs font-semibold rounded-xl px-2.5 sm:px-3 text-slate-200 cursor-pointer focus:border-neon-indigo focus:ring-1 focus:ring-neon-indigo outline-none w-full sm:max-w-[180px] truncate transition-colors duration-200 shadow-none"
           >
             <option value="All Accounts">All Accounts</option>
             {uniqueAccounts.map(acc => (

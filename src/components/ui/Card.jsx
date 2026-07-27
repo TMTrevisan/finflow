@@ -9,7 +9,7 @@ export function cn(...inputs) {
 export function Card({ className, children, ...props }) {
   return (
     <div 
-      className={cn("bg-obsidian-800 border border-obsidian-700 rounded-2xl shadow-xl shadow-black/40 overflow-hidden", className)} 
+      className={cn("bg-obsidian-900 border border-obsidian-750 rounded-2xl shadow-sm overflow-hidden", className)}
       {...props}
     >
       {children}

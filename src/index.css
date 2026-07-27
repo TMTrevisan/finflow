@@ -12,6 +12,7 @@
   
   --color-neon-emerald: #10B981;
   --color-neon-indigo: var(--neon-indigo);
+  --color-neon-indigo-hover: var(--neon-indigo-hover);
   --color-neon-violet: var(--neon-violet);
   --color-neon-crimson: #EF4444;
 
@@ -29,6 +30,7 @@
   --obsidian-700: #1A2234;
 
   --neon-indigo: #6366F1;
+  --neon-indigo-hover: #4F46E5;
   --neon-violet: #8B5CF6;
 
   --slate-400: #94A3B8;
@@ -43,26 +45,28 @@
 }
 
 .light {
-  /* Premium, harmonized Light Mode Variables based on Sierra.ai & Monarch Money */
-  --obsidian-950: #F4F6FA;      /* Page main background: soft, cool slate-blue-gray */
-  --obsidian-900: #FFFFFF;      /* Primary container/card/sidebar background: crisp white */
-  --obsidian-850: #F4F6FA;      /* Outer sections background */
-  --obsidian-800: #F8FAFC;      /* Inactive button / secondary area background */
-  --obsidian-750: #E2E8F0;      /* Thin divider / soft border */
-  --obsidian-700: #CBD5E1;      /* Interactive element border */
+  /* Editorial light mode: quiet paper surfaces with one violet interaction color. */
+  color-scheme: light;
+  --obsidian-950: #F7F7F4;
+  --obsidian-900: #FFFFFF;
+  --obsidian-850: #F1F1EE;
+  --obsidian-800: #F8F8F6;
+  --obsidian-750: #E8E8E3;
+  --obsidian-700: #DCDDD7;
 
-  --neon-indigo: #FF6B00;       /* Monarch Orange active state */
-  --neon-violet: #FF8533;       /* Accents and highlight gradients */
+  --neon-indigo: #6F63F6;
+  --neon-indigo-hover: #5E52E8;
+  --neon-violet: #9388FF;
 
-  --slate-400: #475569;
-  --slate-500: #64748B;
+  --slate-400: #667085;
+  --slate-500: #89909D;
 
-  --background: #F4F6FA;
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
+  --background: #F7F7F4;
+  --text-primary: #202124;
+  --text-secondary: #667085;
   --card-bg: #FFFFFF;
-  --card-border: #E2E8F0;
-  --bg-nested: #F8FAFC;
+  --card-border: #E8E8E3;
+  --bg-nested: #F8F8F6;
 }
 
 @layer base {
@@ -84,7 +88,9 @@
   }
 
   /* Override all hardcoded background/border color utility classes dynamically in Light Mode */
-  .light .bg-\[\#0B0E14\] {
+  .light .bg-\[\#0B0E14\],
+  .light .bg-\[\#0B0E14\]\/80,
+  .light .bg-\[\#0B0E14\]\/60 {
     background-color: var(--card-bg) !important;
   }
   .light .border-\[\#161B26\],
@@ -117,6 +123,21 @@
   .light .bg-slate-800\/15 {
     background-color: var(--obsidian-750) !important;
   }
+  .light .bg-obsidian-900\/80,
+  .light .bg-obsidian-900\/60,
+  .light .bg-obsidian-900\/95 {
+    background-color: color-mix(in srgb, var(--obsidian-900) 92%, transparent) !important;
+  }
+  .light .bg-black\/10,
+  .light .bg-black\/20,
+  .light .bg-black\/25,
+  .light .bg-black\/40 {
+    background-color: var(--bg-nested) !important;
+  }
+  .light .text-slate-400,
+  .light .text-slate-500 {
+    color: var(--text-secondary) !important;
+  }
   .light .text-white {
     color: var(--text-primary) !important;
   }
@@ -128,6 +149,18 @@
   }
   .light .text-slate-300 {
     color: var(--text-primary) !important;
+  }
+  .light .bg-neon-indigo.text-white,
+  .light .bg-neon-violet.text-white,
+  .light .bg-neon-crimson.text-white,
+  .light .bg-neon-emerald.text-white {
+    color: #FFFFFF !important;
+  }
+  .light .shadow-xl,
+  .light .shadow-2xl,
+  .light .shadow-lg,
+  .light .shadow-md {
+    --tw-shadow-color: rgb(32 33 36 / 0.06);
   }
 }
 
