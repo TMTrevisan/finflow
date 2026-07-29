@@ -36,17 +36,29 @@ Exposes your Google Sheets financial data as **MCP tools** callable by Claude De
 
 1. Open Claude Desktop
 2. Go to **Settings → MCP Servers → Add Server**
-3. Enter:
+3. For a legacy SSE-capable client, enter:
    ```json
    {
      "name": "FinFlow",
-     "url": "https://your-service.onrender.com",
+     "url": "https://your-service.onrender.com/sse",
      "headers": {
        "Authorization": "Bearer YOUR_MCP_SECRET"
      }
    }
    ```
 4. Save and restart Claude Desktop
+
+### URL-only remote clients
+
+Modern remote clients that accept a single MCP URL should use the Streamable HTTP endpoint:
+
+```
+https://your-service.onrender.com/YOUR_MCP_SECRET/mcp
+```
+
+The URL-prefixed secret is a compatibility fallback for clients that cannot send an
+`Authorization` header. Treat it as sensitive: it can appear in client history and
+provider logs. Prefer Bearer or OAuth authentication whenever the client supports it.
 
 Now you can ask Claude:
 > *"How much did I spend on dining last month?"*  

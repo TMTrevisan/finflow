@@ -1711,7 +1711,7 @@ async function handleJsonRpc(payload) {
           jsonrpc: '2.0',
           id,
           result: {
-            protocolVersion: '2024-11-05',
+            protocolVersion: '2025-03-26',
             capabilities: {
               tools: {}
             },
@@ -2189,6 +2189,36 @@ async function handleToolCall(req, res) {
 
 app.post('/tools/:toolName', authenticate, handleToolCall);
 app.post('/:secretPrefix/tools/:toolName', authenticate, handleToolCall);
+
+// ─── Streamable HTTP MCP transport ───────────────────────────────────────────
+// Modern remote clients (including Gemini's URL-only MCP connector) use one
+// JSON-RPC endpoint instead of the legacy SSE /sse -> /message handshake.
+async function handleStreamableMcp(req, res) {
+  const accept = req.headers.accept || '';
+  if (!accept.includes('application/json') && !accept.includes('text/event-stream') && accept !== '*/*') {
+    return res.status(406).json({ error: 'MCP clients must accept application/json or text/event-stream.' });
+  }
+
+  const responsePayload = await handleJsonRpc(req.body);
+  if (!responsePayload) {
+    return res.status(202).end();
+  }
+
+  res.set('Content-Type', 'application/json');
+  return res.status(200).json(responsePayload);
+}
+
+function methodNotAllowedForMcp(req, res) {
+  res.set('Allow', 'POST');
+  return res.status(405).json({ error: 'Use POST with a JSON-RPC MCP request.' });
+}
+
+app.post('/mcp', authenticate, handleStreamableMcp);
+app.post('/:secretPrefix/mcp', authenticate, handleStreamableMcp);
+app.get('/mcp', authenticate, methodNotAllowedForMcp);
+app.get('/:secretPrefix/mcp', authenticate, methodNotAllowedForMcp);
+app.delete('/mcp', authenticate, methodNotAllowedForMcp);
+app.delete('/:secretPrefix/mcp', authenticate, methodNotAllowedForMcp);
 
 // ─── Standard MCP SSE (Server-Sent Events) Transport Endpoints ────────────────
 
