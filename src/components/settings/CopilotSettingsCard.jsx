@@ -100,7 +100,7 @@ export default function CopilotSettingsCard() {
 
     try {
       if (provider === 'gemini') {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:countTokens?key=${keyToTest}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:countTokens?key=${keyToTest}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: 'test' }] }] })
@@ -307,6 +307,7 @@ export default function CopilotSettingsCard() {
             >
               {aiProvider === 'gemini' && (
                 <>
+                  <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash Lite (Latest)</option>
                   <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Recommended)</option>
                   <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                   <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
