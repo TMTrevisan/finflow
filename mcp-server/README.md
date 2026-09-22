@@ -106,5 +106,48 @@ curl -X POST -H "Authorization: Bearer test123" -H "Content-Type: application/js
 
 - The `MCP_SECRET` Bearer token protects all tool endpoints
 - Only you have the token, so only you can query your data
-- The server does NOT store any financial data — it fetches live from your Google Sheet on every request
+- The server caches sheet data in memory and SnapTrade holdings/status on disk. Protect the server filesystem.
 - Your Google Apps Script URL is protected on the server via environment variable (not exposed to clients)
+
+## SnapTrade credentials and administration
+
+Provision the identity entirely on the server using `SNAPTRADE_CLIENT_ID`,
+`SNAPTRADE_CONSUMER_KEY`, `SNAPTRADE_USER_ID`, and `SNAPTRADE_USER_SECRET`.
+Each environment variable overrides its corresponding value in
+`mcp-server/snaptrade_config.json` (**env > file**), including an explicitly empty
+variable. File fields are `snaptradeClientId`, `snaptradeConsumerKey`, `userId`, and
+`userSecret`. Request headers and read-request bodies cannot override this identity.
+Missing user credentials leave SnapTrade unconfigured; status and portal reads
+never list users, register users, or reset secrets.
+
+Set `FINFLOW_ADMIN_SECRET` to a separate random secret, distinct from `MCP_SECRET`.
+Startup rejects equal secrets and logs whether administration is enabled without
+logging either value. If the admin secret is unset, destructive operations are
+disabled, including in development open mode.
+
+These POST routes require `Authorization: Bearer <FINFLOW_ADMIN_SECRET>`:
+
+- `/api/snaptrade/config`: atomically replaces the file with `clientId`,
+  `consumerKey`, and optional `userId` / `userSecret` from the JSON body. Omitted
+  user credentials are cleared. Environment overrides still apply. This does not
+  register a user automatically.
+- `/api/snaptrade/register`: explicitly registers the effective server user ID
+  (or a generated ID if absent) and saves the returned secret. An existing secret
+  or an environment-managed user secret prevents registration. Existing users
+  are never discovered or reset automatically.
+- `/api/snaptrade/disconnect`: removes the specified `authorizationId`, or deletes
+  the user and local configuration when omitted. Full deletion refuses an
+  environment-managed user identity; remove the user environment variables first.
+
+The `/:secretPrefix` variants require the same admin Bearer header; a URL secret
+or the read-only MCP token cannot authorize these operations. Keep the admin
+secret out of MCP client configurations.
+
+Config reads do not create or modify files. Config and cache writes use a new
+same-directory temporary file with mode `0600`, followed by an atomic rename.
+SnapTrade caches use a SHA-256 hash of the server MCP credential and effective
+SnapTrade identity, so credential changes select a different cache namespace.
+This single-tenant server uses the same server identity for REST and MCP sessions.
+Legacy user-ID/global caches are not reused. Reused cache payloads are recursively
+scrubbed of credential fields and rewritten when needed; new cache writes are
+scrubbed before persistence.
