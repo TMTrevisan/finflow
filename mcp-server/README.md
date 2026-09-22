@@ -27,6 +27,7 @@ Exposes your Google Sheets financial data as **MCP tools** callable by Claude De
    - **Environment:** Node 18+
 5. Add **Environment Variables:**
    - `SHEETS_API_URL` = your Google Apps Script URL (e.g. `https://script.google.com/macros/s/.../exec`)
+   - `SHEETS_API_SECRET` = the real `ACCESS_SECRET` configured in `tiller-apps-script.js`. Unset or placeholder Apps Script secrets deny all requests. Existing URL query parameters are preserved; this variable overrides a `secret` already in `SHEETS_API_URL`.
    - `MCP_SECRET` = a random secret token you choose (e.g. `finflow_abc123xyz`)
 6. Deploy! Your MCP server will be at `https://your-service.onrender.com`
 
@@ -73,7 +74,7 @@ Now you can ask Claude:
 ```bash
 cd mcp-server
 npm install
-SHEETS_API_URL="https://script.google.com/macros/s/.../exec" MCP_SECRET="test123" npm start
+SHEETS_API_URL="https://script.google.com/macros/s/.../exec" SHEETS_API_SECRET="your-configured-access-secret" MCP_SECRET="test123" npm start
 ```
 
 Then test the tools:

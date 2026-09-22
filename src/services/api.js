@@ -17,6 +17,13 @@ const getApiUrl = (action) => {
   }
 };
 
+function validateGatewayResponse(result) {
+  if (!result || result.success !== true || Object.hasOwn(result, 'error')) {
+    throw new Error(String(result?.error || 'Invalid Apps Script response'));
+  }
+  return result;
+}
+
 const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
 export const fetchFinData = async () => {
@@ -31,10 +38,11 @@ export const fetchFinData = async () => {
         throw new Error(`Failed to fetch live data (HTTP ${response.status}). Check Google Apps Script permissions.`);
       }
       const result = await response.json();
-      if (result.error) {
-        throw new Error(`Apps Script Error: ${result.error}`);
+      validateGatewayResponse(result);
+      if (!result.data || typeof result.data !== 'object' || Array.isArray(result.data)) {
+        throw new Error('Invalid Apps Script data payload');
       }
-      return result;
+      return result.data;
     } catch (err) {
       clearTimeout(timeoutId);
       if (err.name === 'AbortError') {
@@ -65,7 +73,7 @@ export const updateTransactionCategory = async (transactionId, newCategory) => {
     if (!response.ok) {
       throw new Error(`Failed to update category (HTTP ${response.status})`);
     }
-    return await response.json();
+    return validateGatewayResponse(await response.json());
   }
 
   // Simulate network delay
@@ -84,7 +92,7 @@ export const updateAccountBalance = async ({ accountName, institution, balance, 
     if (!response.ok) {
       throw new Error(`Failed to update balance (HTTP ${response.status})`);
     }
-    return await response.json();
+    return validateGatewayResponse(await response.json());
   }
 
   // Simulate network delay

@@ -2,57 +2,58 @@
 // TILLER MONEY - GOOGLE APPS SCRIPT BACKEND
 // ==========================================
 // Deploy this as a "Web App" in your Tiller Google Sheet.
-// Ensure it is executed as "Me" and access is set to "Anyone" (or CORS will block it).
+// Execute as "Me" and set a real ACCESS_SECRET before deploying.
+// Requests must supply the matching secret (or token) query parameter.
 
 const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
 
-const ACCESS_SECRET = "replace-with-your-mcp-secret-or-custom-token"; // User can configure this to secure endpoint
+const ACCESS_SECRET = "replace-with-your-mcp-secret-or-custom-token"; // Required: configure a real secret to enable the endpoint
 
 function isAuthorized(e) {
   if (!ACCESS_SECRET || ACCESS_SECRET === "replace-with-your-mcp-secret-or-custom-token") {
-    return true; // Default behavior: unauthenticated for easy initial setup
+    return false; // Fail closed until a real secret is configured
   }
-  const token = e.parameter.secret || e.parameter.token;
+  const parameters = (e && e.parameter) || {};
+  const token = parameters.secret || parameters.token;
   return token === ACCESS_SECRET;
 }
 
 function doGet(e) {
   if (!isAuthorized(e)) {
-    return createJsonResponse({ error: 'Unauthorized' }, 401);
+    return createJsonResponse({ success: false, error: 'Unauthorized' });
   }
-  const action = e.parameter.action;
-  
-  if (action === 'getData') {
-    return createJsonResponse(getTillerData());
+  try {
+    if (e.parameter.action === 'getData') {
+      return createJsonResponse({ success: true, data: getTillerData() });
+    }
+    return createJsonResponse({ success: false, error: 'Invalid action' });
+  } catch (error) {
+    return createJsonResponse({ success: false, error: error.message });
   }
-  
-  return createJsonResponse({ error: 'Invalid action' }, 400);
 }
 
 function doPost(e) {
   if (!isAuthorized(e)) {
-    return createJsonResponse({ error: 'Unauthorized' }, 401);
+    return createJsonResponse({ success: false, error: 'Unauthorized' });
   }
-  const action = e.parameter.action;
-  
-  if (action === 'updateCategory') {
-    const postData = JSON.parse(e.postData.contents);
-    const { transactionId, category } = postData;
-    const success = updateTransactionCategory(transactionId, category);
-    return createJsonResponse({ success, transactionId, category });
+  try {
+    const action = e.parameter.action;
+    if (action === 'updateCategory') {
+      const { transactionId, category } = JSON.parse(e.postData.contents);
+      return createJsonResponse(updateTransactionCategory(transactionId, category));
+    }
+    if (action === 'updateBalance') {
+      const { accountName, institution, balance, accountId, accountClass, accountType } = JSON.parse(e.postData.contents);
+      return createJsonResponse(addBalanceHistoryEntry(accountName, institution, balance, accountId, accountClass, accountType));
+    }
+    return createJsonResponse({ success: false, error: 'Invalid action' });
+  } catch (error) {
+    return createJsonResponse({ success: false, error: error.message });
   }
-  
-  if (action === 'updateBalance') {
-    const postData = JSON.parse(e.postData.contents);
-    const { accountName, institution, balance, accountId, accountClass, accountType } = postData;
-    const success = addBalanceHistoryEntry(accountName, institution, balance, accountId, accountClass, accountType);
-    return createJsonResponse({ success, accountName, balance });
-  }
-  
-  return createJsonResponse({ error: 'Invalid action' }, 400);
 }
 
-function createJsonResponse(data, statusCode = 200) {
+// Apps Script cannot set HTTP status codes; callers must check success.
+function createJsonResponse(data) {
   const output = ContentService.createTextOutput(JSON.stringify(data));
   output.setMimeType(ContentService.MimeType.JSON);
   return output;
@@ -265,65 +266,105 @@ function getBalancesData(ss) {
 // ------------------------------------------
 // Mutations
 // ------------------------------------------
-function updateTransactionCategory(transactionId, newCategory) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  
-  let sheet = ss.getSheetByName('Transactions');
-  if (!sheet) {
-    const sheets = ss.getSheets();
-    sheet = sheets.find(s => s.getName().toLowerCase().trim() === 'transactions');
+function sanitizeSheetString(value) {
+  const text = String(value == null ? '' : value);
+  if (/^[=+\-@]/.test(text.trimStart()) || /[\t\r\n]/.test(text)) {
+    throw new Error('Unsafe spreadsheet string');
   }
-  if (!sheet) return false;
-  
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0];
-  const categoryColumnIndex = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'category');
-  
-  if (categoryColumnIndex === -1) return false;
-  
-  // Example transactionId format: "transactions_4"
-  const rowIndex = parseInt(transactionId.split('_')[1], 10) + 2; // +1 for header, +1 for 1-based index
-  
-  if (rowIndex > data.length) return false;
-  
-  // Update the cell
-  sheet.getRange(rowIndex, categoryColumnIndex + 1).setValue(newCategory);
-  return true;
+  return text;
+}
+
+function updateTransactionCategory(transactionId, newCategory) {
+  try {
+    if (typeof newCategory !== 'string' || !newCategory.trim()) {
+      throw new Error('Category must be a non-empty string');
+    }
+    newCategory = sanitizeSheetString(newCategory);
+    if (typeof transactionId !== 'string' || !/^transactions_(0|[1-9]\d*)$/.test(transactionId)) {
+      throw new Error('Invalid transaction ID');
+    }
+    const targetIndex = Number(transactionId.slice('transactions_'.length));
+    if (!Number.isSafeInteger(targetIndex)) throw new Error('Invalid transaction ID');
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('Transactions') ||
+      ss.getSheets().find(s => s.getName().toLowerCase().trim() === 'transactions');
+    if (!sheet) throw new Error('Transactions sheet not found');
+    const data = sheet.getDataRange().getValues();
+    const headerIndex = findHeaderRowIndex(data, 'Transactions');
+    if (headerIndex === -1) throw new Error('Transaction headers not found');
+    const headers = data[headerIndex].map(h => String(h || '').toLowerCase().trim());
+    const categoryCol = headers.indexOf('category');
+    const dateCol = headers.indexOf('date');
+    const amountCol = headers.indexOf('amount');
+    if ([categoryCol, dateCol, amountCol].some(col => col === -1)) {
+      throw new Error('Required transaction columns not found');
+    }
+    let index = 0;
+    let targetRow = -1;
+    for (let row = headerIndex + 1; row < data.length; row++) {
+      // Match getSheetData's ID enumeration exactly, including its blank-row predicate.
+      if (!data[row].some(value => value !== null && value !== '')) continue;
+      if (index === targetIndex) { targetRow = row; break; }
+      index++;
+    }
+    if (targetRow <= headerIndex) throw new Error('Transaction not found');
+    const date = data[targetRow][dateCol];
+    const amount = data[targetRow][amountCol];
+    if (!date || !Number.isFinite(new Date(date).getTime()) ||
+        amount == null || String(amount).trim() === '' || !Number.isFinite(Number(amount))) {
+      throw new Error('Target row is not a transaction');
+    }
+    sheet.getRange(targetRow + 1, categoryCol + 1).setValue(newCategory);
+    return { success: true, transactionId, category: newCategory };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 }
 
 function addBalanceHistoryEntry(accountName, institution, balance, accountId, accountClass, accountType) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  let sheet = ss.getSheetByName('Balance History');
-  if (!sheet) {
-    const sheets = ss.getSheets();
-    sheet = sheets.find(s => s.getName().toLowerCase().trim() === 'balance history');
+  try {
+    accountName = sanitizeSheetString(accountName);
+    institution = sanitizeSheetString(institution);
+    accountId = sanitizeSheetString(accountId);
+    accountClass = sanitizeSheetString(accountClass || 'Asset');
+    accountType = sanitizeSheetString(accountType || 'Investment');
+    balance = Number(balance);
+    if (!Number.isFinite(balance)) throw new Error('Balance must be a finite number');
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let sheet = ss.getSheetByName('Balance History');
+    if (!sheet) {
+      const sheets = ss.getSheets();
+      sheet = sheets.find(s => s.getName().toLowerCase().trim() === 'balance history');
+    }
+    if (!sheet) throw new Error('Balance History sheet not found');
+
+    const data = sheet.getDataRange().getValues();
+    const headerIndex = findHeaderRowIndex(data, 'Balance History');
+    if (headerIndex === -1) throw new Error('Balance History headers not found');
+
+    const headers = data[headerIndex];
+    const dateCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'date');
+    const institutionCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'institution');
+    const accountCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'account');
+    const balanceCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'balance');
+    const accountIdCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'account_id' || String(h || '').toLowerCase().trim() === 'account id');
+    const classCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'class');
+    const typeCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'type');
+
+    const newRow = new Array(headers.length).fill('');
+    const now = new Date();
+
+    if (dateCol !== -1) newRow[dateCol] = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+    if (institutionCol !== -1) newRow[institutionCol] = institution;
+    if (accountCol !== -1) newRow[accountCol] = accountName;
+    if (balanceCol !== -1) newRow[balanceCol] = balance;
+    if (accountIdCol !== -1) newRow[accountIdCol] = accountId;
+    if (classCol !== -1) newRow[classCol] = accountClass || 'Asset';
+    if (typeCol !== -1) newRow[typeCol] = accountType || 'Investment';
+
+    sheet.appendRow(newRow);
+    return { success: true, accountName, balance };
+  } catch (error) {
+    return { success: false, error: error.message };
   }
-  if (!sheet) return false;
-
-  const data = sheet.getDataRange().getValues();
-  const headerIndex = findHeaderRowIndex(data, 'Balance History');
-  if (headerIndex === -1) return false;
-
-  const headers = data[headerIndex];
-  const dateCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'date');
-  const institutionCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'institution');
-  const accountCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'account');
-  const balanceCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'balance');
-  const accountIdCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'account_id' || String(h || '').toLowerCase().trim() === 'account id');
-  const classCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'class');
-  const typeCol = headers.findIndex(h => String(h || '').toLowerCase().trim() === 'type');
-
-  const newRow = new Array(headers.length).fill('');
-  const now = new Date();
-
-  if (dateCol !== -1) newRow[dateCol] = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-  if (institutionCol !== -1) newRow[institutionCol] = institution;
-  if (accountCol !== -1) newRow[accountCol] = accountName;
-  if (balanceCol !== -1) newRow[balanceCol] = balance;
-  if (accountIdCol !== -1) newRow[accountIdCol] = accountId;
-  if (classCol !== -1) newRow[classCol] = accountClass || 'Asset';
-  if (typeCol !== -1) newRow[typeCol] = accountType || 'Investment';
-
-  sheet.appendRow(newRow);
-  return true;
 }

@@ -46,6 +46,7 @@ Use only for local development. Never expose via a proxy/tunnel.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 `);
 }
+const SHEETS_API_SECRET = process.env.SHEETS_API_SECRET || '';
 const SHEETS_API_URL = process.env.SHEETS_API_URL || ''; // Your Google Apps Script URL
 
 let snaptradeClientId = process.env.SNAPTRADE_CLIENT_ID || '';
@@ -658,7 +659,10 @@ async function fetchSheetData(forceRefresh = false) {
   }
 
   console.log(`[Cache] Fetching fresh financial data from Google Apps Script...`);
-  const response = await fetch(`${SHEETS_API_URL}?action=getData`);
+  const url = new URL(SHEETS_API_URL);
+  url.searchParams.set('action', 'getData');
+  if (SHEETS_API_SECRET) url.searchParams.set('secret', SHEETS_API_SECRET);
+  const response = await fetch(url);
   if (!response.ok) {
     if (cachedSheetData) {
       console.warn(`[Cache] Fresh fetch failed, returning stale cache.`);
@@ -667,7 +671,16 @@ async function fetchSheetData(forceRefresh = false) {
     throw new Error(`Failed to fetch sheet data: ${response.status} ${response.statusText}`);
   }
 
-  cachedSheetData = await response.json();
+  const envelope = await response.json();
+  if (envelope && typeof envelope === 'object' &&
+      (envelope.success === false || Object.hasOwn(envelope, 'error'))) {
+    throw new Error(String(envelope.error || 'Sheets gateway request failed'));
+  }
+  if (!envelope || envelope.success !== true || !envelope.data ||
+      typeof envelope.data !== 'object' || Array.isArray(envelope.data)) {
+    throw new Error('Invalid Sheets gateway response envelope');
+  }
+  cachedSheetData = envelope.data;
   lastCacheFetchTime = Date.now();
   return cachedSheetData;
 }
