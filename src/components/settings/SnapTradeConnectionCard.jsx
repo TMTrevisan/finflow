@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { CreditCard, KeyRound, Trash2, CheckCircle2, AlertTriangle, RefreshCw, Link } from 'lucide-react';
-import { safeStorage } from '../../utils/storage';
+import { safeStorage, sessionStore } from '../../utils/storage';
 
 export default function SnapTradeConnectionCard({
   snapTradeStatus = {},
@@ -12,9 +12,7 @@ export default function SnapTradeConnectionCard({
   const [snapTradeSyncing, setSnapTradeSyncing] = useState(false);
   const [snapTradeMessage, setSnapTradeMessage] = useState(null);
   const [clientId, setClientId] = useState(() => safeStorage.getItem('finflow_snaptrade_client_id') || '');
-  const [consumerKey, setConsumerKey] = useState(() => safeStorage.getItem('finflow_snaptrade_consumer_key') || '');
-  const [userIdInput, setUserIdInput] = useState(() => safeStorage.getItem('finflow_snaptrade_user_id') || '');
-  const [showAdvancedSnapTrade, setShowAdvancedSnapTrade] = useState(false);
+  const [consumerKey, setConsumerKey] = useState(() => sessionStore.getItem('finflow_snaptrade_consumer_key') || '');
   const [isSavingKeys, setIsSavingKeys] = useState(false);
 
   useEffect(() => {
@@ -26,10 +24,6 @@ export default function SnapTradeConnectionCard({
   const getSnapTradeHeaders = () => {
     return {
       'Content-Type': 'application/json',
-      'x-snaptrade-client-id': safeStorage.getItem('finflow_snaptrade_client_id') || '',
-      'x-snaptrade-consumer-key': safeStorage.getItem('finflow_snaptrade_consumer_key') || '',
-      'x-snaptrade-user-id': safeStorage.getItem('finflow_snaptrade_user_id') || '',
-      'x-snaptrade-user-secret': safeStorage.getItem('finflow_snaptrade_user_secret') || ''
     };
   };
 
@@ -45,13 +39,6 @@ export default function SnapTradeConnectionCard({
       });
       if (!response.ok) throw new Error('Failed to generate connection portal URL');
       const data = await response.json();
-      
-      if (data.userId) {
-        safeStorage.setItem('finflow_snaptrade_user_id', data.userId);
-      }
-      if (data.userSecret) {
-        safeStorage.setItem('finflow_snaptrade_user_secret', data.userSecret);
-      }
 
       if (data.redirectURI) {
         setSnapTradeMessage({ type: 'info', text: 'Opening SnapTrade Connection Portal. Please complete the login in the new tab.' });
@@ -105,22 +92,14 @@ export default function SnapTradeConnectionCard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           clientId: clientId.trim(), 
-          consumerKey: consumerKey.trim(),
-          userId: userIdInput.trim()
+          consumerKey: consumerKey.trim()
         })
       });
       const data = await response.json();
       if (response.ok && data.success) {
         safeStorage.setItem('finflow_snaptrade_client_id', clientId.trim());
-        safeStorage.setItem('finflow_snaptrade_consumer_key', consumerKey.trim());
-        if (data.userId) {
-          safeStorage.setItem('finflow_snaptrade_user_id', data.userId);
-          setUserIdInput(data.userId);
-        }
-        if (data.userSecret) {
-          safeStorage.setItem('finflow_snaptrade_user_secret', data.userSecret);
-        }
-        if (logSync) logSync('SnapTrade keys registered and user initialized successfully', 'success', `userId: ${data.userId}`);
+        sessionStore.setItem('finflow_snaptrade_consumer_key', consumerKey.trim());
+        if (logSync) logSync('SnapTrade keys registered and user initialized successfully', 'success');
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade credentials saved and initialized successfully!' });
         await loadSnapTradeData();
       } else {
@@ -132,14 +111,6 @@ export default function SnapTradeConnectionCard({
     } finally {
       setIsSavingKeys(false);
     }
-  };
-
-  const handleResetUserSession = () => {
-    safeStorage.removeItem('finflow_snaptrade_user_id');
-    safeStorage.removeItem('finflow_snaptrade_user_secret');
-    setUserIdInput('');
-    setSnapTradeMessage({ type: 'success', text: 'User session reset. Click "Save & Initialize Keys" to register a new user ID.' });
-    loadSnapTradeData().catch(() => {});
   };
 
   const handleSnapTradeDisconnect = async () => {
@@ -155,9 +126,8 @@ export default function SnapTradeConnectionCard({
       const result = await response.json();
       if (result.success) {
         safeStorage.removeItem('finflow_snaptrade_client_id');
-        safeStorage.removeItem('finflow_snaptrade_consumer_key');
+        sessionStore.removeItem('finflow_snaptrade_consumer_key');
         safeStorage.removeItem('finflow_snaptrade_user_id');
-        safeStorage.removeItem('finflow_snaptrade_user_secret');
         setClientId('');
         setConsumerKey('');
         setSnapTradeMessage({ type: 'success', text: 'SnapTrade connection removed successfully.' });
@@ -235,38 +205,6 @@ export default function SnapTradeConnectionCard({
                 />
               </div>
 
-              {/* Advanced settings toggle */}
-              <div className="pt-1 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvancedSnapTrade(!showAdvancedSnapTrade)}
-                  className="text-[9px] font-bold text-slate-500 hover:text-slate-350 transition-colors uppercase tracking-wider cursor-pointer focus:outline-none"
-                >
-                  {showAdvancedSnapTrade ? 'Hide Advanced' : 'Show Advanced (User ID)'}
-                </button>
-              </div>
-
-              {showAdvancedSnapTrade && (
-                <div className="space-y-2 pt-2 border-t border-obsidian-800/40">
-                  <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">SnapTrade User ID (Optional)</label>
-                    <input
-                      type="text"
-                      value={userIdInput}
-                      onChange={(e) => setUserIdInput(e.target.value)}
-                      placeholder="Paste existing User ID to reuse connection"
-                      className="w-full bg-obsidian-950/80 border border-obsidian-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-neon-indigo/50 font-mono"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleResetUserSession}
-                    className="w-full mt-1 py-1 bg-neon-crimson/10 hover:bg-neon-crimson/20 border border-neon-crimson/25 text-neon-crimson text-[10px] font-bold rounded-lg transition-colors cursor-pointer focus:outline-none"
-                  >
-                    Reset / Clear Local User Session
-                  </button>
-                </div>
-              )}
               <button
                 onClick={handleSaveKeys}
                 disabled={isSavingKeys || snapTradeSyncing}

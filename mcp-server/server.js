@@ -23,6 +23,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+// Defense in depth for nested SDK payloads and legacy caches.
+app.set('json replacer', (key, value) =>
+  ['userSecret', 'consumerKey', 'clientId', 'snaptradeConsumerKey', 'snaptradeClientId'].includes(key)
+    ? undefined : value);
 const PORT = process.env.PORT || 3001;
 const MCP_SECRET = process.env.MCP_SECRET || '';
 const HOST = process.env.HOST || undefined;
@@ -62,7 +66,11 @@ function getUserStatusCacheFilePath(userId) {
 
 function saveSnapTradeConfig(config) {
   try {
+    const currentClientId = snaptradeClientId;
+    const currentConsumerKey = snaptradeConsumerKey;
     const existing = loadSnapTradeConfig() || {};
+    snaptradeClientId = currentClientId;
+    snaptradeConsumerKey = currentConsumerKey;
     const updated = {
       ...existing,
       ...config,
@@ -109,8 +117,7 @@ function getSnapTradeClient() {
 
 // Automatically register a user on startup if not present
 async function ensureSnapTradeUser() {
-  const config = loadSnapTradeConfig();
-  const client = getSnapTradeClient();
+  const { client, config } = getSnapTradeClientAndConfig();
   return ensureSnapTradeUserForClient(client, config);
 }
 
@@ -1778,72 +1785,24 @@ async function handleJsonRpc(payload) {
   }
 }
 
-function getSnapTradeErrorMessage(err) {
-  const body = err.responseBody || err.response?.data;
-  if (body) {
-    if (typeof body === 'object') {
-      return body.detail || body.error || body.message || JSON.stringify(body);
-    }
-    try {
-      const parsed = JSON.parse(body);
-      return parsed.detail || parsed.error || parsed.message || body;
-    } catch {
-      return body;
-    }
-  }
-  return err.message;
+function getSnapTradeErrorMessage() {
+  return 'SnapTrade request failed. Check the server configuration and try again.';
 }
 
-// ─── SnapTrade Stateless Credential Resolvers ───────────────────────────────
-function getSnapTradeClientAndConfig(req) {
-  let cId = (req?.headers?.['x-snaptrade-client-id'] || '').trim();
-  let cKey = (req?.headers?.['x-snaptrade-consumer-key'] || '').trim();
-  let uId = (req?.headers?.['x-snaptrade-user-id'] || '').trim();
-  let uSec = (req?.headers?.['x-snaptrade-user-secret'] || '').trim();
+// SnapTrade identity is owned by the server; request credentials never override it.
+function getSnapTradeClientAndConfig() {
+  const config = loadSnapTradeConfig() || {};
+  return {
+    client: getSnapTradeClient(),
+    config: {
+      userId: config.userId || process.env.SNAPTRADE_USER_ID || 'finflow_user',
+      userSecret: config.userSecret || process.env.SNAPTRADE_USER_SECRET || ''
+    }
+  };
+}
 
-  // If not in headers, check body or memory
-  if (!cId) cId = (req?.body?.clientId || snaptradeClientId || '').trim();
-  if (!cKey) cKey = (req?.body?.consumerKey || snaptradeConsumerKey || '').trim();
-  if (!uId) uId = (req?.body?.userId || '').trim();
-  if (!uSec) uSec = (req?.body?.userSecret || '').trim();
-
-  // Fallback to loaded config if not in headers/body/memory
-  if (!uId || !uSec || uSec.includes('mock')) {
-    const fileConfig = loadSnapTradeConfig() || {};
-    uId = uId || fileConfig.userId;
-    uSec = uSec || fileConfig.userSecret;
-  }
-
-  // Fallback to env if still missing
-  if (!cId) {
-    cId = process.env.SNAPTRADE_CLIENT_ID || '';
-  }
-  if (!cKey) {
-    cKey = process.env.SNAPTRADE_CONSUMER_KEY || '';
-  }
-  if (!uId) {
-    uId = process.env.SNAPTRADE_USER_ID || '';
-  }
-  if (!uSec) {
-    uSec = process.env.SNAPTRADE_USER_SECRET || '';
-  }
-
-  if (!cId || !cKey) {
-    return {
-      client: null,
-      config: {
-        userId: uId || 'finflow_user',
-        userSecret: uSec || 'mock-user-secret-fallback'
-      }
-    };
-  }
-
-  const client = new Snaptrade({
-    clientId: cId,
-    consumerKey: cKey,
-  });
-
-  return { client, config: { userId: uId, userSecret: uSec } };
+function snapTradeMetadata(config) {
+  return { hasUserSecret: !!config?.userSecret && !config.userSecret.includes('mock') };
 }
 
 async function ensureSnapTradeUserForClient(client, config) {
@@ -1898,7 +1857,7 @@ async function ensureSnapTradeUserForClient(client, config) {
 // ─── SnapTrade HTTP Route Handlers ────────────────────────────────────────────
 async function handleSaveConfig(req, res) {
   try {
-    const { clientId, consumerKey, userId, userSecret } = req.body;
+    const { clientId, consumerKey } = req.body;
     if (!clientId || !consumerKey) {
       return res.status(400).json({ error: 'Missing clientId or consumerKey' });
     }
@@ -1906,12 +1865,7 @@ async function handleSaveConfig(req, res) {
     snaptradeConsumerKey = consumerKey;
     snaptradeClient = null; // force reinitialization
     
-    // Save credentials first
-    if (userId && userSecret) {
-      saveSnapTradeConfig({ userId, userSecret });
-    } else {
-      saveSnapTradeConfig({});
-    }
+    saveSnapTradeConfig({});
 
     const client = getSnapTradeClient();
     if (!client) {
@@ -1924,8 +1878,7 @@ async function handleSaveConfig(req, res) {
       success: true, 
       configured: true, 
       connected: config && !config.userSecret.includes('mock'),
-      userId: config.userId,
-      userSecret: config.userSecret
+      ...snapTradeMetadata(config)
     });
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
@@ -1946,9 +1899,8 @@ async function handleCreatePortalUrl(req, res) {
       userSecret: finalConfig.userSecret
     });
     res.json({ 
-      redirectURI: response.data?.redirectURI || response.data,
-      userId: finalConfig.userId,
-      userSecret: finalConfig.userSecret
+      redirectURI: typeof response.data === 'string' ? response.data : response.data?.redirectURI,
+      ...snapTradeMetadata(finalConfig)
     });
   } catch (err) {
     const errMsg = getSnapTradeErrorMessage(err);
@@ -1969,8 +1921,7 @@ async function handleSnapTradeStatus(req, res) {
         configured,
         connected: false,
         connections: [],
-        userId: finalConfig.userId,
-        userSecret: finalConfig.userSecret
+        ...snapTradeMetadata(finalConfig)
       });
     }
 
@@ -1982,7 +1933,13 @@ async function handleSnapTradeStatus(req, res) {
         const cache = JSON.parse(fs.readFileSync(statusCacheFile, 'utf8'));
         if (Date.now() - cache.timestamp < CACHE_STATUS_TTL_MS) {
           console.log(`[SnapTrade Cache] Returning cached status for user ${finalConfig.userId}.`);
-          return res.json(cache.data);
+          return res.json({
+            configured,
+            connected: !!cache.data.connected,
+            connections: cache.data.connections || [],
+            account_count: cache.data.account_count,
+            ...snapTradeMetadata(finalConfig)
+          });
         }
       } catch (err) {
         console.error(`[SnapTrade Cache] Error loading status cache:`, err.message);
@@ -2002,8 +1959,7 @@ async function handleSnapTradeStatus(req, res) {
       connected: connections.length > 0,
       connections,
       account_count: accounts.length,
-      userId: finalConfig.userId,
-      userSecret: finalConfig.userSecret
+      ...snapTradeMetadata(finalConfig)
     };
 
     // Save to status cache

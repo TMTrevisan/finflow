@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
-import { safeStorage } from '../utils/storage';
+import { safeStorage, sessionStore } from '../utils/storage';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { cleanMerchantName } from '../utils/formatting';
 import AssistantHeader from '../components/assistant/AssistantHeader';
@@ -45,10 +45,10 @@ export default function Assistant() {
   ));
   
   // API Keys
-  const [geminiKey, setGeminiKey] = useState(() => safeStorage.getItem('finflow_gemini_key') || '');
-  const [openaiKey, setOpenaiKey] = useState(() => safeStorage.getItem('finflow_openai_key') || '');
-  const [claudeKey, setClaudeKey] = useState(() => safeStorage.getItem('finflow_claude_key') || '');
-  const [deepseekKey, setDeepseekKey] = useState(() => safeStorage.getItem('finflow_deepseek_key') || '');
+  const [geminiKey, setGeminiKey] = useState(() => sessionStore.getItem('finflow_gemini_key') || '');
+  const [openaiKey, setOpenaiKey] = useState(() => sessionStore.getItem('finflow_openai_key') || '');
+  const [claudeKey, setClaudeKey] = useState(() => sessionStore.getItem('finflow_claude_key') || '');
+  const [deepseekKey, setDeepseekKey] = useState(() => sessionStore.getItem('finflow_deepseek_key') || '');
 
   // Dynamic Key input for onboarding
   const [onboardingKeyInput, setOnboardingKeyInput] = useState('');
@@ -59,7 +59,7 @@ export default function Assistant() {
     const raw = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
     return raw.trim().replace(/\/+$/, '');
   });
-  const [mcpSecret, setMcpSecret] = useState(() => safeStorage.getItem('finflow_mcp_secret') || 'test123');
+  const [mcpSecret, setMcpSecret] = useState(() => sessionStore.getItem('finflow_mcp_secret') || '');
   const [mcpTools, setMcpTools] = useState([]);
   const [mcpStatus, setMcpStatus] = useState('idle');
   const [toolStatus, setToolStatus] = useState('');
@@ -116,14 +116,14 @@ export default function Assistant() {
         safeStorage.getItem('finflow_ai_provider') || 'gemini',
         safeStorage.getItem('finflow_ai_model') || 'gemini-2.5-flash-lite'
       ));
-      setGeminiKey(safeStorage.getItem('finflow_gemini_key') || '');
-      setOpenaiKey(safeStorage.getItem('finflow_openai_key') || '');
-      setClaudeKey(safeStorage.getItem('finflow_claude_key') || '');
-      setDeepseekKey(safeStorage.getItem('finflow_deepseek_key') || '');
+      setGeminiKey(sessionStore.getItem('finflow_gemini_key') || '');
+      setOpenaiKey(sessionStore.getItem('finflow_openai_key') || '');
+      setClaudeKey(sessionStore.getItem('finflow_claude_key') || '');
+      setDeepseekKey(sessionStore.getItem('finflow_deepseek_key') || '');
       setMcpEnabled(safeStorage.getItem('finflow_mcp_enabled') === 'true');
       const rawUrl = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
       setMcpUrl(rawUrl.trim().replace(/\/+$/, ''));
-      setMcpSecret(safeStorage.getItem('finflow_mcp_secret') || 'test123');
+      setMcpSecret(sessionStore.getItem('finflow_mcp_secret') || '');
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -138,6 +138,13 @@ export default function Assistant() {
     let retryCount = 0;
 
     const getTools = async () => {
+      const mcpSecret = sessionStore.getItem('finflow_mcp_secret')?.trim() || '';
+      if (mcpEnabled && !mcpSecret) {
+        setMcpStatus('idle');
+        setMcpTools([]);
+        setErrorMessage('Enter your MCP bearer token in Settings → Copilot to connect.');
+        return;
+      }
       if (!mcpEnabled || !mcpUrl) {
         if (active) setMcpStatus('idle');
         setMcpTools([]);
@@ -230,7 +237,7 @@ export default function Assistant() {
   const handleSaveOnboardingKey = () => {
     if (onboardingKeyInput.trim()) {
       const storageKey = `finflow_${aiProvider}_key`;
-      safeStorage.setItem(storageKey, onboardingKeyInput.trim());
+      sessionStore.setItem(storageKey, onboardingKeyInput.trim());
       if (aiProvider === 'gemini') setGeminiKey(onboardingKeyInput.trim());
       else if (aiProvider === 'openai') setOpenaiKey(onboardingKeyInput.trim());
       else if (aiProvider === 'claude') setClaudeKey(onboardingKeyInput.trim());
@@ -391,6 +398,11 @@ export default function Assistant() {
 
   // Execute local tool on MCP server
   const runMcpTool = async (name, args) => {
+    const mcpSecret = sessionStore.getItem('finflow_mcp_secret')?.trim() || '';
+    if (!mcpSecret) {
+      setErrorMessage('Enter your MCP bearer token in Settings → Copilot to connect.');
+      return { error: 'Enter your MCP bearer token in Settings → Copilot to connect.' };
+    }
     setToolStatus(`Executing tool ${name}...`);
     const requestUrl = mcpSecret 
       ? (mcpUrl.endsWith(mcpSecret) ? `${mcpUrl}/tools/${name}` : `${mcpUrl}/${mcpSecret}/tools/${name}`)
@@ -419,6 +431,10 @@ export default function Assistant() {
   };
 
   const handleSendMessage = async (textToSend) => {
+    if (mcpEnabled && !sessionStore.getItem('finflow_mcp_secret')?.trim()) {
+      setErrorMessage('Enter your MCP bearer token in Settings → Copilot to connect.');
+      return;
+    }
     const promptText = textToSend || userInput;
     if (!promptText.trim() || isGenerating) return;
 
@@ -770,6 +786,8 @@ Rules:
           // Trigger completion call
           let response;
           if (mcpEnabled && mcpUrl) {
+            const mcpSecret = sessionStore.getItem('finflow_mcp_secret')?.trim() || '';
+            if (!mcpSecret) throw new Error('Enter your MCP bearer token in Settings → Copilot to connect.');
             // route through CORS bypass proxy
             const requestUrl = mcpSecret 
               ? (mcpUrl.endsWith(mcpSecret) ? `${mcpUrl}/proxy` : `${mcpUrl}/${mcpSecret}/proxy`)

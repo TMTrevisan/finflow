@@ -21,6 +21,10 @@ try {
   });
 }
 
+import { wipeLegacySecrets } from './utils/storage'
+
+wipeLegacySecrets();
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

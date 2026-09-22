@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../ui/Card';
 import { Brain, Link, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
-import { safeStorage } from '../../utils/storage';
+import { safeStorage, sessionStore } from '../../utils/storage';
 
 const normalizeAiModel = (provider, model) => (
   provider === 'deepseek' && !['deepseek-v4-flash', 'deepseek-v4-pro'].includes(model)
@@ -21,16 +21,16 @@ export default function CopilotSettingsCard() {
     );
   });
   const [geminiKeyInput, setGeminiKeyInput] = useState(() => {
-    return safeStorage.getItem('finflow_gemini_key') || '';
+    return sessionStore.getItem('finflow_gemini_key') || '';
   });
   const [openaiKeyInput, setOpenaiKeyInput] = useState(() => {
-    return safeStorage.getItem('finflow_openai_key') || '';
+    return sessionStore.getItem('finflow_openai_key') || '';
   });
   const [claudeKeyInput, setClaudeKeyInput] = useState(() => {
-    return safeStorage.getItem('finflow_claude_key') || '';
+    return sessionStore.getItem('finflow_claude_key') || '';
   });
   const [deepseekKeyInput, setDeepseekKeyInput] = useState(() => {
-    return safeStorage.getItem('finflow_deepseek_key') || '';
+    return sessionStore.getItem('finflow_deepseek_key') || '';
   });
   const [aiMessage, setAiMessage] = useState(null);
 
@@ -42,7 +42,7 @@ export default function CopilotSettingsCard() {
     return safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
   });
   const [mcpSecretInput, setMcpSecretInput] = useState(() => {
-    return safeStorage.getItem('finflow_mcp_secret') || 'test123';
+    return sessionStore.getItem('finflow_mcp_secret') || '';
   });
   const [mcpMessage, setMcpMessage] = useState(null);
   const [mcpToolsList, setMcpToolsList] = useState([]);
@@ -51,7 +51,7 @@ export default function CopilotSettingsCard() {
   useEffect(() => {
     const enabled = safeStorage.getItem('finflow_mcp_enabled') === 'true';
     const url = (safeStorage.getItem('finflow_mcp_url') || '').trim().replace(/\/+$/, '');
-    const secret = (safeStorage.getItem('finflow_mcp_secret') || '').trim();
+    const secret = (sessionStore.getItem('finflow_mcp_secret') || '').trim();
     
     if (enabled && url) {
       const fetchToolsList = async () => {
@@ -177,17 +177,17 @@ export default function CopilotSettingsCard() {
       safeStorage.setItem('finflow_ai_provider', provider);
       safeStorage.setItem('finflow_ai_model', model);
 
-      if (geminiKey) safeStorage.setItem('finflow_gemini_key', geminiKey);
-      else safeStorage.removeItem('finflow_gemini_key');
+      if (geminiKey) sessionStore.setItem('finflow_gemini_key', geminiKey);
+      else sessionStore.removeItem('finflow_gemini_key');
 
-      if (openaiKey) safeStorage.setItem('finflow_openai_key', openaiKey);
-      else safeStorage.removeItem('finflow_openai_key');
+      if (openaiKey) sessionStore.setItem('finflow_openai_key', openaiKey);
+      else sessionStore.removeItem('finflow_openai_key');
 
-      if (claudeKey) safeStorage.setItem('finflow_claude_key', claudeKey);
-      else safeStorage.removeItem('finflow_claude_key');
+      if (claudeKey) sessionStore.setItem('finflow_claude_key', claudeKey);
+      else sessionStore.removeItem('finflow_claude_key');
 
-      if (deepseekKey) safeStorage.setItem('finflow_deepseek_key', deepseekKey);
-      else safeStorage.removeItem('finflow_deepseek_key');
+      if (deepseekKey) sessionStore.setItem('finflow_deepseek_key', deepseekKey);
+      else sessionStore.removeItem('finflow_deepseek_key');
     }
   };
 
@@ -200,7 +200,7 @@ export default function CopilotSettingsCard() {
     if (!mcpEnabled) {
       safeStorage.setItem('finflow_mcp_enabled', 'false');
       safeStorage.setItem('finflow_mcp_url', url);
-      safeStorage.setItem('finflow_mcp_secret', secret);
+      sessionStore.setItem('finflow_mcp_secret', secret);
       setMcpMessage({ type: 'success', text: 'MCP Support disabled successfully.' });
       return;
     }
@@ -235,7 +235,7 @@ export default function CopilotSettingsCard() {
 
       safeStorage.setItem('finflow_mcp_enabled', 'true');
       safeStorage.setItem('finflow_mcp_url', url);
-      safeStorage.setItem('finflow_mcp_secret', secret);
+      sessionStore.setItem('finflow_mcp_secret', secret);
       
       setMcpMessage({
         type: 'success',

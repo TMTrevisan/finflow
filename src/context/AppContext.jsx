@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { fetchFinData, updateTransactionCategory, updateAccountBalance } from '../services/api';
 import { MOCK_TRANSACTIONS, MOCK_CATEGORIES, MOCK_BALANCES } from '../services/mockData';
-import { safeStorage } from '../utils/storage';
+import { safeStorage, sessionStore } from '../utils/storage';
 import {
   resolveBudget,
   decorateData,
@@ -164,7 +164,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
   const getSnapTradeUrl = useCallback((path) => {
     const rawUrl = safeStorage.getItem('finflow_mcp_url') || 'http://localhost:3001';
     const cleanUrl = rawUrl.trim().replace(/\/+$/, '');
-    const mcpSecret = safeStorage.getItem('finflow_mcp_secret') || '';
+    const mcpSecret = sessionStore.getItem('finflow_mcp_secret') || '';
     
     if (mcpSecret) {
       return cleanUrl.endsWith(mcpSecret) 
@@ -194,17 +194,11 @@ export const AppProvider = ({ children, setCurrentView }) => {
     const loadPromise = (async () => {
     try {
       const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
-      const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
-      const localUserId = safeStorage.getItem('finflow_snaptrade_user_id') || '';
-      const localUserSecret = safeStorage.getItem('finflow_snaptrade_user_secret') || '';
+      const localConsumerKey = sessionStore.getItem('finflow_snaptrade_consumer_key') || '';
       const isForcedMock = safeStorage.getItem('finflow_force_mock') === 'true';
 
       const headers = {
         'Content-Type': 'application/json',
-        'x-snaptrade-client-id': localClientId,
-        'x-snaptrade-consumer-key': localConsumerKey,
-        'x-snaptrade-user-id': localUserId,
-        'x-snaptrade-user-secret': localUserSecret
       };
 
       const statusUrl = refreshStatus
@@ -212,28 +206,15 @@ export const AppProvider = ({ children, setCurrentView }) => {
         : getSnapTradeUrl('api/snaptrade/status');
       let statusData = { connected: false, configured: false };
 
-      if (localClientId && localConsumerKey) {
+      {
         logSync('Connecting to SnapTrade backend...', 'info');
         const statusRes = await fetch(statusUrl, { headers });
         if (statusRes.ok) {
           statusData = await statusRes.json();
           logSync('SnapTrade credentials validated on backend', 'success', `configured: ${statusData.configured}, connected: ${statusData.connected}`);
           
-          if (statusData.userId) {
-            if (statusData.userId !== localUserId) {
-              safeStorage.setItem('finflow_snaptrade_user_id', statusData.userId);
-              headers['x-snaptrade-user-id'] = statusData.userId;
-            }
-          }
-          if (statusData.userSecret) {
-            if (statusData.userSecret !== localUserSecret) {
-              safeStorage.setItem('finflow_snaptrade_user_secret', statusData.userSecret);
-              headers['x-snaptrade-user-secret'] = statusData.userSecret;
-            }
-          }
-
           // Dynamic backend self-healing configuration check
-          if (!statusData.configured) {
+          if (!statusData.configured && localClientId && localConsumerKey) {
             logSync('Backend client not configured. Re-initializing config...', 'info');
             const configUrl = getSnapTradeUrl('api/snaptrade/config');
             const configRes = await fetch(configUrl, {
@@ -242,15 +223,6 @@ export const AppProvider = ({ children, setCurrentView }) => {
               body: JSON.stringify({ clientId: localClientId, consumerKey: localConsumerKey })
             });
             if (configRes.ok) {
-              const configData = await configRes.json();
-              if (configData.userId) {
-                safeStorage.setItem('finflow_snaptrade_user_id', configData.userId);
-                headers['x-snaptrade-user-id'] = configData.userId;
-              }
-              if (configData.userSecret) {
-                safeStorage.setItem('finflow_snaptrade_user_secret', configData.userSecret);
-                headers['x-snaptrade-user-secret'] = configData.userSecret;
-              }
               const secondStatusRes = await fetch(statusUrl, { headers });
               if (secondStatusRes.ok) {
                 statusData = await secondStatusRes.json();
@@ -267,7 +239,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       });
 
       // Fetch holdings if connected OR if mock data is requested/active
-      const shouldFetchMock = isForcedMock || (!localClientId || !localConsumerKey);
+      const shouldFetchMock = isForcedMock || !statusData.configured;
 
       if (statusData.connected || shouldFetchMock) {
         logSync('Fetching brokerage investment holdings from SnapTrade...', 'info');
@@ -690,17 +662,9 @@ export const AppProvider = ({ children, setCurrentView }) => {
   const clearSnapTradeCache = async () => {
     try {
       logSync('finflow snaptrade cache --clear', 'cmd');
-      const localClientId = safeStorage.getItem('finflow_snaptrade_client_id') || '';
-      const localConsumerKey = safeStorage.getItem('finflow_snaptrade_consumer_key') || '';
-      const localUserId = safeStorage.getItem('finflow_snaptrade_user_id') || '';
-      const localUserSecret = safeStorage.getItem('finflow_snaptrade_user_secret') || '';
 
       const headers = {
         'Content-Type': 'application/json',
-        'x-snaptrade-client-id': localClientId,
-        'x-snaptrade-consumer-key': localConsumerKey,
-        'x-snaptrade-user-id': localUserId,
-        'x-snaptrade-user-secret': localUserSecret
       };
 
       const url = getSnapTradeUrl('api/snaptrade/clear_cache');
@@ -718,7 +682,6 @@ export const AppProvider = ({ children, setCurrentView }) => {
       setSnapTradeHoldings(null);
       setSnapTradeError(null);
       safeStorage.removeItem('finflow_cache_snaptrade_holdings');
-      safeStorage.removeItem('finflow_snaptrade_user_secret');
       await loadSnapTradeData().catch(() => {});
       return true;
     } catch (err) {
