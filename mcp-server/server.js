@@ -15,6 +15,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Snaptrade } from 'snaptrade-typescript-sdk';
 import dns from 'dns';
+import { randomUUID } from 'node:crypto';
+import { createAuthenticate, requireSseSession, validateAuthConfig } from './auth.js';
 import { buildConnectionSummaries, buildHoldingsSyncSummary } from './snaptrade-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -23,6 +25,23 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 const MCP_SECRET = process.env.MCP_SECRET || '';
+const HOST = process.env.HOST || undefined;
+let openMode;
+try {
+  openMode = validateAuthConfig({ secret: MCP_SECRET, devOpen: process.env.FINFLOW_DEV_OPEN, host: HOST });
+} catch (err) {
+  console.error(`[FinFlow] ${err.message}`);
+  process.exit(1);
+}
+if (openMode) {
+  console.warn(`
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+WARNING: FINFLOW DEVELOPMENT OPEN MODE — AUTHENTICATION OFF
+Anyone with access to 127.0.0.1 can access financial data.
+Use only for local development. Never expose via a proxy/tunnel.
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+`);
+}
 const SHEETS_API_URL = process.env.SHEETS_API_URL || ''; // Your Google Apps Script URL
 
 let snaptradeClientId = process.env.SNAPTRADE_CLIENT_ID || '';
@@ -647,24 +666,7 @@ async function fetchSheetData(forceRefresh = false) {
 }
 
 // ─── Authentication Middleware ────────────────────────────────────────────────
-function authenticate(req, res, next) {
-  const { secretPrefix } = req.params;
-  if (secretPrefix) {
-    if (MCP_SECRET && secretPrefix === MCP_SECRET) {
-      return next();
-    }
-    return res.status(401).json({ error: 'Unauthorized. Invalid secret prefix in URL.' });
-  }
-  if (!MCP_SECRET) {
-    return next();
-  }
-  const auth = req.headers.authorization || '';
-  const token = auth.replace('Bearer ', '').trim();
-  if (token !== MCP_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized. Provide a valid Bearer token.' });
-  }
-  next();
-}
+const authenticate = createAuthenticate(MCP_SECRET, openMode);
 
 // ─── MCP Tool Definitions ─────────────────────────────────────────────────────
 const TOOLS = [
@@ -2224,18 +2226,7 @@ app.delete('/:secretPrefix/mcp', authenticate, methodNotAllowedForMcp);
 
 function handleSseConnection(req, res) {
   const { secretPrefix } = req.params;
-  
-  if (secretPrefix && MCP_SECRET && secretPrefix !== MCP_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized. Invalid secret prefix.' });
-  }
-  
-  if (!secretPrefix && MCP_SECRET) {
-    const auth = req.headers.authorization || '';
-    const token = auth.replace('Bearer ', '').trim();
-    if (token !== MCP_SECRET) {
-      return res.status(401).json({ error: 'Unauthorized. Bearer token invalid.' });
-    }
-  }
+
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -2243,8 +2234,8 @@ function handleSseConnection(req, res) {
     'Connection': 'keep-alive'
   });
 
-  const sessionId = Math.random().toString(36).substring(2, 15);
-  sseConnections.set(sessionId, res);
+  const sessionId = randomUUID();
+  sseConnections.set(sessionId, { response: res, principal: req.authPrincipal });
 
   // Send standard MCP SSE endpoint announcement (Must be absolute for some remote clients like Grok/Cursor)
   const protocol = req.headers['x-forwarded-proto'] || req.protocol;
@@ -2264,21 +2255,7 @@ function handleSseConnection(req, res) {
 }
 
 async function handlePostMessage(req, res) {
-  const { secretPrefix } = req.params;
-  const { sessionId } = req.query;
-
-  if (secretPrefix && MCP_SECRET && secretPrefix !== MCP_SECRET) {
-    return res.status(401).json({ error: 'Unauthorized.' });
-  }
-
-  if (!sessionId) {
-    return res.status(400).json({ error: 'Missing sessionId query parameter.' });
-  }
-
-  const clientRes = sseConnections.get(sessionId);
-  if (!clientRes) {
-    return res.status(404).json({ error: 'Active SSE connection session not found.' });
-  }
+  const clientRes = req.sseResponse;
 
   const payload = req.body;
   const responsePayload = await handleJsonRpc(payload);
@@ -2290,10 +2267,10 @@ async function handlePostMessage(req, res) {
   res.status(202).end();
 }
 
-app.get('/sse', handleSseConnection);
-app.get('/:secretPrefix/sse', handleSseConnection);
-app.post('/message', handlePostMessage);
-app.post('/:secretPrefix/message', handlePostMessage);
+app.get('/sse', authenticate, handleSseConnection);
+app.get('/:secretPrefix/sse', authenticate, handleSseConnection);
+app.post('/message', authenticate, requireSseSession(sseConnections), handlePostMessage);
+app.post('/:secretPrefix/message', authenticate, requireSseSession(sseConnections), handlePostMessage);
 
 // Check if an IP address is private/local (RFC1918, loopbacks, etc.)
 function isPrivateIp(ip) {
@@ -2417,7 +2394,7 @@ app.post('/:secretPrefix/proxy', handleProxyCall);
 
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
   console.log(`\n🚀 FinFlow MCP Server running on port ${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/`);
   console.log(`   Tools:  http://localhost:${PORT}/tools`);
@@ -2425,7 +2402,7 @@ app.listen(PORT, () => {
   if (MCP_SECRET) {
     console.log(`   Auth:   Bearer token configured ✓`);
   } else {
-    console.log(`   Auth:   ⚠️  No MCP_SECRET set — open access (dev mode)`);
+    console.log(`   Auth:   ⚠️  FINFLOW_DEV_OPEN=1 — open access on 127.0.0.1`);
   }
   if (!SHEETS_API_URL) {
     console.log(`   Data:   ⚠️  No SHEETS_API_URL set — tool calls will fail`);
