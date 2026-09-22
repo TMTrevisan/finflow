@@ -27,7 +27,7 @@ export default function OnboardingModal() {
   const handleSaveUrl = () => {
     if (!apiUrl.trim()) return;
     // Set API URL in local storage
-    localStorage.setItem('finflow_google_script_url', apiUrl.trim());
+    localStorage.setItem('finflow_api_url', apiUrl.trim());
     // Also update current active environment
     window.location.reload(); // Reloading initializes AppContext with the new API URL
   };

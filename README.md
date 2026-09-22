@@ -133,3 +133,19 @@ To run both in Cursor:
    - **Name:** `snaptrade`
    - **Type:** `sse`
    - **URL:** `https://mcp.snaptrade.com/mcp`
+
+## Secure deployment configuration
+
+Set server environment variables before deploying:
+
+- `SHEETS_API_URL`: deployed Apps Script `/exec` URL.
+- `SHEETS_API_SECRET`: matches the Apps Script `ACCESS_SECRET`.
+- `MCP_SECRET`: required reader credential.
+- `FINFLOW_ADMIN_SECRET`: separate admin bearer credential, different from `MCP_SECRET`; required for SnapTrade registration, configuration changes, and disconnect.
+- `SNAPTRADE_CLIENT_ID`, `SNAPTRADE_CONSUMER_KEY`, `SNAPTRADE_USER_ID`, `SNAPTRADE_USER_SECRET`: server-only SnapTrade credentials. Environment values override saved configuration. Provision all four for an existing user; registration requires the explicit admin endpoint.
+- `TRUSTED_ORIGINS`: comma-separated exact frontend origins, for example `https://your-production-app.vercel.app,http://localhost:5173`. No wildcard or subdomain matching. When unset, production allows requests without an Origin header only; development additionally permits localhost/127.0.0.1 on ports 5173 and 3000. Explicitly configure the deployed frontend origin, even for same-origin browser requests that send Origin.
+- `FINFLOW_DEMO`: defaults off. Only `1` enables sample portfolio positions when live holdings are unavailable. Sample results carry `is_mock: true` and are never merged into live balances.
+
+In Apps Script, set `ACCESS_SECRET` in Project Settings → Script Properties, or replace the placeholder `ACCESS_SECRET` constant with a real secret. Script Properties take precedence. The gateway fails closed without a configured secret. Deploy as a Web App executing as you; callers must supply the matching `secret` query parameter. Keep secrets out of source control. For the frontend, configure the script URL (including its secret) through onboarding/settings; it is stored under `finflow_api_url`.
+
+**Breaking gateway change:** data reads now return `{ success: true, data: ... }`, and failures return `{ success: false, error: ... }`. The frontend and MCP server validate and unwrap these envelopes. Deploy the updated Apps Script together with these clients; mutations also require checking `success`.

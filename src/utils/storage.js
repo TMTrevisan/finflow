@@ -73,3 +73,11 @@ export function wipeLegacySecrets() {
     safeStorage.removeItem(key);
   }
 }
+
+export function migrateSheetsApiUrl() {
+  const legacyUrl = safeStorage.getItem('finflow_google_script_url');
+  if (!safeStorage.getItem('finflow_api_url') && legacyUrl) {
+    safeStorage.setItem('finflow_api_url', legacyUrl);
+  }
+  safeStorage.removeItem('finflow_google_script_url');
+}

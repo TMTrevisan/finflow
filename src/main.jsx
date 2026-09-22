@@ -21,9 +21,10 @@ try {
   });
 }
 
-import { wipeLegacySecrets } from './utils/storage'
+import { wipeLegacySecrets, migrateSheetsApiUrl } from './utils/storage'
 
 wipeLegacySecrets();
+migrateSheetsApiUrl();
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

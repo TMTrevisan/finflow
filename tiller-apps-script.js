@@ -10,12 +10,13 @@ const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
 const ACCESS_SECRET = "replace-with-your-mcp-secret-or-custom-token"; // Required: configure a real secret to enable the endpoint
 
 function isAuthorized(e) {
-  if (!ACCESS_SECRET || ACCESS_SECRET === "replace-with-your-mcp-secret-or-custom-token") {
+  const configuredSecret = (typeof PropertiesService !== 'undefined' && PropertiesService.getScriptProperties().getProperty('ACCESS_SECRET')) || ACCESS_SECRET;
+  if (!configuredSecret || configuredSecret === "replace-with-your-mcp-secret-or-custom-token") {
     return false; // Fail closed until a real secret is configured
   }
   const parameters = (e && e.parameter) || {};
   const token = parameters.secret || parameters.token;
-  return token === ACCESS_SECRET;
+  return token === configuredSecret;
 }
 
 function doGet(e) {
@@ -39,8 +40,8 @@ function doPost(e) {
   try {
     const action = e.parameter.action;
     if (action === 'updateCategory') {
-      const { transactionId, category } = JSON.parse(e.postData.contents);
-      return createJsonResponse(updateTransactionCategory(transactionId, category));
+      const { transactionId, category, nativeTransactionId } = JSON.parse(e.postData.contents);
+      return createJsonResponse(updateTransactionCategory(transactionId, category, nativeTransactionId));
     }
     if (action === 'updateBalance') {
       const { accountName, institution, balance, accountId, accountClass, accountType } = JSON.parse(e.postData.contents);
@@ -163,7 +164,7 @@ function getSheetData(ss, sheetName) {
         if (key) {
           // Compress columns at source
           if (isTxns) {
-            if (['date', 'description', 'category', 'amount', 'account'].indexOf(key) === -1) {
+            if (['date', 'description', 'category', 'amount', 'account', 'type', 'transaction_id'].indexOf(key) === -1) {
               return;
             }
           } else if (isCats) {
@@ -274,7 +275,7 @@ function sanitizeSheetString(value) {
   return text;
 }
 
-function updateTransactionCategory(transactionId, newCategory) {
+function updateTransactionCategory(transactionId, newCategory, nativeTransactionId) {
   try {
     if (typeof newCategory !== 'string' || !newCategory.trim()) {
       throw new Error('Category must be a non-empty string');
@@ -292,20 +293,31 @@ function updateTransactionCategory(transactionId, newCategory) {
     const data = sheet.getDataRange().getValues();
     const headerIndex = findHeaderRowIndex(data, 'Transactions');
     if (headerIndex === -1) throw new Error('Transaction headers not found');
-    const headers = data[headerIndex].map(h => String(h || '').toLowerCase().trim());
+    const headers = data[headerIndex].map(h => String(h || '').toLowerCase().trim().replace(/\s+/g, '_'));
     const categoryCol = headers.indexOf('category');
     const dateCol = headers.indexOf('date');
     const amountCol = headers.indexOf('amount');
     if ([categoryCol, dateCol, amountCol].some(col => col === -1)) {
       throw new Error('Required transaction columns not found');
     }
-    let index = 0;
+    const nativeIdCol = headers.indexOf('transaction_id');
     let targetRow = -1;
-    for (let row = headerIndex + 1; row < data.length; row++) {
-      // Match getSheetData's ID enumeration exactly, including its blank-row predicate.
-      if (!data[row].some(value => value !== null && value !== '')) continue;
-      if (index === targetIndex) { targetRow = row; break; }
-      index++;
+    if (nativeIdCol !== -1) {
+      if (nativeTransactionId == null || String(nativeTransactionId).trim() === '') throw new Error('Native transaction ID required');
+      const matches = [];
+      for (let row = headerIndex + 1; row < data.length; row++) {
+        if (data[row][nativeIdCol] === nativeTransactionId) matches.push(row);
+      }
+      if (matches.length !== 1) throw new Error('Native transaction ID missing or ambiguous');
+      targetRow = matches[0];
+    } else {
+      if (nativeTransactionId != null) throw new Error('Native transaction ID column missing');
+      let index = 0;
+      for (let row = headerIndex + 1; row < data.length; row++) {
+        if (!data[row].some(value => value !== null && value !== '')) continue;
+        if (index === targetIndex) { targetRow = row; break; }
+        index++;
+      }
     }
     if (targetRow <= headerIndex) throw new Error('Transaction not found');
     const date = data[targetRow][dateCol];

@@ -701,7 +701,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
     });
 
     try {
-      await updateTransactionCategory(transactionId, newCategory);
+      await updateTransactionCategory(transactionId, newCategory, rawTransactions.find(txn => txn.id === transactionId)?.transaction_id);
     } catch (err) {
       console.error("Failed to update category", err);
       loadData();

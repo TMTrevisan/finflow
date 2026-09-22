@@ -259,6 +259,7 @@ export const decorateData = (rawTxns, rawCats, useCalendarToday) => {
 export const compressTransactions = (txns) => {
   return (txns || []).map(t => ({
     id: t.id,
+    transaction_id: t.transaction_id,
     date: t.date,
     description: t.description,
     category: t.category,

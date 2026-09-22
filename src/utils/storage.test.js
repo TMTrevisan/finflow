@@ -48,3 +48,17 @@ describe('credential storage', () => {
     expect(session.getItem('finflow_mcp_secret')).toBe('new-token');
   });
 });
+
+it('migrates the Sheets URL once without overwriting the canonical setting', async () => {
+  const { migrateSheetsApiUrl } = await import('./storage');
+  const local = storage();
+  vi.stubGlobal('localStorage', local);
+  local.setItem('finflow_google_script_url', 'legacy');
+  migrateSheetsApiUrl();
+  expect(local.getItem('finflow_api_url')).toBe('legacy');
+  expect(local.getItem('finflow_google_script_url')).toBeNull();
+  local.setItem('finflow_google_script_url', 'older');
+  migrateSheetsApiUrl();
+  expect(local.getItem('finflow_api_url')).toBe('legacy');
+  expect(local.getItem('finflow_google_script_url')).toBeNull();
+});

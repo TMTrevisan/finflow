@@ -607,23 +607,24 @@ async function getSnapTradeHoldings(forceRefresh = false) {
   return fetchNormalizedSnapTradeHoldings(client, config, forceRefresh);
 }
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:3000',
-  'https://finflow-mu-nine.vercel.app'
-];
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.vercel.app')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  }
-}));
+const allowedOrigins = (process.env.TRUSTED_ORIGINS !== undefined
+  ? process.env.TRUSTED_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
+  : process.env.NODE_ENV === 'production' ? [] : [
+    'http://localhost:5173', 'http://localhost:3000',
+    'http://127.0.0.1:5173', 'http://127.0.0.1:3000'
+  ]);
+function checkOrigin(origin, callback) {
+  if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+  callback(new Error('Not allowed by CORS'));
+}
+// Apply before auth, parsers and CORS so errors cannot cache sensitive responses either.
+function noStore(req, res, next) {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+  next();
+}
+app.use(noStore);
+app.use(cors({ origin: checkOrigin }));
 app.use(express.json());
 
 // Active Server-Sent Events (SSE) connections mapping session IDs to response objects
@@ -633,6 +634,17 @@ const sseConnections = new Map();
 let cachedSheetData = null;
 let lastCacheFetchTime = 0;
 const CACHE_TTL_MS = 60 * 1000; // 1 minute Cache TTL
+
+function normalizeTransactionTypes(transactions, categories) {
+  const canonical = value => ({ income: 'Income', expense: 'Expense', transfer: 'Transfer' })[String(value || '').trim().toLowerCase()];
+  const metadata = new Map(categories.map(c => [String(c.category || '').trim().toLowerCase(), c]));
+  return transactions.map(transaction => {
+    const category = metadata.get(String(transaction.category || '').trim().toLowerCase());
+    const type = (category && (canonical(category.type) || canonical(category.group))) ||
+      canonical(transaction.type) || (category ? 'Unknown' : Number(transaction.amount) < 0 ? 'Expense' : Number(transaction.amount) > 0 ? 'Income' : 'Unknown');
+    return { ...transaction, type };
+  });
+}
 
 async function fetchSheetData(forceRefresh = false) {
   if (!SHEETS_API_URL) {
@@ -666,7 +678,7 @@ async function fetchSheetData(forceRefresh = false) {
       typeof envelope.data !== 'object' || Array.isArray(envelope.data)) {
     throw new Error('Invalid Sheets gateway response envelope');
   }
-  cachedSheetData = envelope.data;
+  cachedSheetData = { ...envelope.data, transactions: normalizeTransactionTypes(envelope.data.transactions || [], envelope.data.categories || []) };
   lastCacheFetchTime = Date.now();
   return cachedSheetData;
 }
@@ -1359,7 +1371,8 @@ async function runTool(toolName, args) {
         { ticker: 'CLSK', name: 'CleanSpark Inc', value: 115.32, assetClass: 'Alternatives (Crypto/Crypto-related)', sector: 'Cryptocurrency / Bitcoin Mining', geography: 'United States' }
       ];
 
-      let holdingsList = DEMO_HOLDINGS;
+      let holdingsList = [];
+      let isMock = false;
       const snapData = await getSnapTradeHoldings(false).catch(() => null);
       if (snapData && snapData.positions && snapData.accounts) {
         const accMap = new Map(snapData.accounts.map(a => [a.id, a]));
@@ -1381,6 +1394,11 @@ async function runTool(toolName, args) {
             accountName: acc.name || 'Brokerage Account'
           };
         });
+      }
+
+      if (!snapData && process.env.FINFLOW_DEMO === '1') {
+        holdingsList = DEMO_HOLDINGS;
+        isMock = true;
       }
 
       if (account) {
@@ -1410,11 +1428,13 @@ async function runTool(toolName, args) {
       };
 
       return {
+        is_mock: isMock,
         total_investment_value: totalVal,
         allocation_by_class: getPercentages(classMap),
         allocation_by_sector: getPercentages(sectorMap),
         allocation_by_geography: getPercentages(geoMap),
         holdings: holdingsList.map(h => ({
+          is_mock: isMock,
           ticker: h.ticker,
           name: h.name,
           value: h.value,
@@ -2101,7 +2121,7 @@ function handleHealthCheck(req, res) {
 }
 
 app.get('/', handleHealthCheck);
-app.get('/:secretPrefix', handleHealthCheck);
+
 
 // Simple REST endpoints (For Claude.ai custom connectors/REST integrations)
 app.get('/tools', authenticate, (req, res) => {
@@ -2170,7 +2190,7 @@ function handleSseConnection(req, res) {
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-store',
     'Connection': 'keep-alive'
   });
 
@@ -2255,8 +2275,12 @@ async function resolveHostAndCheck(hostname) {
 
 // Generic Proxy endpoint to bypass browser CORS (e.g. OpenAI/Anthropic/DeepSeek)
 async function handleProxyCall(req, res) {
-  const { secretPrefix } = req.params;
-  const { url, headers, method, body } = req.body;
+  // Proxy access always requires a configured credential, including in dev-open mode.
+  let authenticated = false;
+  if (!MCP_SECRET) return res.status(401).json({ error: 'Proxy authentication required' });
+  authenticate(req, res, () => { authenticated = true; });
+  if (!authenticated) return;
+  const { url, headers, method, body } = req.body || {};
   if (!url) {
     return res.status(400).json({ error: 'Missing target url parameter in proxy request.' });
   }
@@ -2265,6 +2289,11 @@ async function handleProxyCall(req, res) {
   try {
     const parsedUrl = new URL(url);
     const host = parsedUrl.hostname.toLowerCase();
+    if (parsedUrl.protocol !== 'https:' || parsedUrl.username || parsedUrl.password ||
+        (parsedUrl.port && parsedUrl.port !== '443') ||
+        !['api.openai.com', 'api.anthropic.com', 'api.deepseek.com'].includes(host)) {
+      return res.status(403).json({ error: 'Proxy target is not allowed' });
+    }
     
     const isUnsafe = await resolveHostAndCheck(host);
     if (isUnsafe) {
@@ -2274,20 +2303,6 @@ async function handleProxyCall(req, res) {
     return res.status(400).json({ error: 'Invalid URL format provided to proxy.' });
   }
 
-  // If MCP_SECRET is configured, restrict proxy access to authenticated clients
-  if (MCP_SECRET) {
-    if (secretPrefix) {
-      if (secretPrefix !== MCP_SECRET) {
-        return res.status(401).json({ error: 'Unauthorized. Invalid secret prefix.' });
-      }
-    } else {
-      const auth = req.headers.authorization || '';
-      const token = auth.replace('Bearer ', '').trim();
-      if (token !== MCP_SECRET) {
-        return res.status(401).json({ error: 'Unauthorized. Provide a valid Bearer token for the proxy.' });
-      }
-    }
-  }
 
   try {
     const response = await fetch(url, {
@@ -2302,7 +2317,7 @@ async function handleProxyCall(req, res) {
     
     // Copy headers back to client, filtering safety headers
     for (const [key, val] of response.headers.entries()) {
-      if (key.toLowerCase() !== 'content-encoding' && key.toLowerCase() !== 'transfer-encoding') {
+      if (!['content-encoding', 'transfer-encoding', 'cache-control', 'pragma'].includes(key.toLowerCase())) {
         res.setHeader(key, val);
       }
     }
@@ -2332,6 +2347,9 @@ async function handleProxyCall(req, res) {
 app.post('/proxy', handleProxyCall);
 app.post('/:secretPrefix/proxy', handleProxyCall);
 
+
+// Keep the generic health route after every specific route.
+app.get('/:secretPrefix', handleHealthCheck);
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, HOST, () => {

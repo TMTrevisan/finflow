@@ -80,3 +80,28 @@ it.each([{ success: false, error: 'Unauthorized' }, { error: '' }, { success: tr
   await expect(context.fetchSheetData()).rejects.toThrow();
   expect(fetch).toHaveBeenCalledTimes(2);
 });
+
+it('normalizes category types and groups before sign fallback', () => {
+  const { context } = gateway({ success: true, data: {} });
+  const categories = [{ category: 'Salary', group: 'Income' }, { category: 'Food', type: 'Expense' }, { category: 'Move', type: 'Transfer' }, { category: 'Other', group: 'Misc' }];
+  const txns = [{ category: 'Salary', amount: -10 }, { category: 'Food', amount: 10 }, { category: 'Move', amount: -5 }, { category: 'Other', amount: -5 }, { category: 'Absent', amount: -1 }, { amount: 1 }];
+  expect(context.normalizeTransactionTypes(txns, categories).map(t => t.type)).toEqual(['Income', 'Expense', 'Transfer', 'Unknown', 'Expense', 'Income']);
+});
+it('exports native IDs and type, and follows IDs after row reorder', () => {
+  const { context, rows, sheet } = sheets();
+  rows[2].push('Transaction ID', 'Type');
+  rows[4].push('native-a', 'Expense');
+  rows[6].push('native-b', 'Income');
+  expect(context.getSheetData({ getSheetByName: () => sheet }, 'Transactions')[0]).toMatchObject({ transaction_id: 'native-a', type: 'Expense' });
+  [rows[4], rows[6]] = [rows[6], rows[4]];
+  expect(context.updateTransactionCategory('transactions_0', 'New', 'native-a').success).toBe(true);
+  expect(sheet.getRange).toHaveBeenLastCalledWith(7, 3);
+});
+it.each([undefined, 'missing', 'native', ' native-a'])('fails closed on absent, duplicate or inexact native ID %s', id => {
+  const { context, rows, setValue } = sheets();
+  rows[2].push('transaction_id');
+  rows[4].push('native');
+  rows[6].push('native');
+  expect(context.updateTransactionCategory('transactions_0', 'New', id).success).toBe(false);
+  expect(setValue).not.toHaveBeenCalled();
+});

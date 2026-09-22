@@ -62,13 +62,13 @@ export const fetchFinData = async () => {
   };
 };
 
-export const updateTransactionCategory = async (transactionId, newCategory) => {
+export const updateTransactionCategory = async (transactionId, newCategory, nativeTransactionId) => {
   const url = getApiUrl('updateCategory');
   if (url) {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' }, // Avoid CORS preflight options blocks
-      body: JSON.stringify({ transactionId, category: newCategory })
+      body: JSON.stringify({ transactionId, category: newCategory, nativeTransactionId })
     });
     if (!response.ok) {
       throw new Error(`Failed to update category (HTTP ${response.status})`);
