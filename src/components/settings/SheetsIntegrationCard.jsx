@@ -2,39 +2,56 @@ import React, { useState } from 'react';
 import { Card } from '../ui/Card';
 import { Link, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { safeStorage } from '../../utils/storage';
+import { fetchFinData, getVerificationOutcome } from '../../services/api';
 
 export default function SheetsIntegrationCard({ syncData, loadData, isSyncing }) {
   const [apiUrlInput, setApiUrlInput] = useState(() => {
     return safeStorage.getItem('finflow_api_url') || '';
   });
   const [urlMessage, setUrlMessage] = useState(null);
+  // Busy guard: verification below calls fetchFinData directly (not syncData),
+  // so isSyncing is never set while it runs. Without this, a second click
+  // mid-flight could start an overlapping verification whose stale completion
+  // would clobber the newer URL in storage and in the input field.
+  const [verifying, setVerifying] = useState(false);
 
   const handleSaveUrl = async () => {
-    setUrlMessage({ type: 'info', text: 'Saving and validating connection...' });
-    if (!apiUrlInput.trim()) {
+    if (verifying || isSyncing) return;
+    const nextUrl = apiUrlInput.trim();
+    if (!nextUrl) {
       safeStorage.removeItem('finflow_api_url');
       setUrlMessage({ type: 'success', text: 'URL cleared. App will fall back to local .env or Mock Data.' });
       loadData(true);
       return;
     }
 
+    const previousUrl = safeStorage.getItem('finflow_api_url');
+    safeStorage.setItem('finflow_api_url', nextUrl);
+    setVerifying(true);
+    setUrlMessage({ type: 'info', text: 'Saving and validating connection...' });
     try {
-      const previousUrl = safeStorage.getItem('finflow_api_url');
-      safeStorage.setItem('finflow_api_url', apiUrlInput.trim());
-      
+      // Verify with a direct gateway call (not syncData): syncData swallows the
+      // failure reason, and we must tell a wrong URL/secret apart from a
+      // transient failure. A transient failure must NOT revert the new URL.
+      await fetchFinData();
+      // Verification passed — run the full sync to populate state and caches.
       const success = await syncData();
-      if (success) {
-        setUrlMessage({ type: 'success', text: 'Connection verified! Your sheet is successfully connected.' });
-      } else {
-        if (previousUrl) {
-          safeStorage.setItem('finflow_api_url', previousUrl);
+      setUrlMessage(success
+        ? { type: 'success', text: 'Connection verified! Your sheet is successfully connected.' }
+        : { type: 'error', text: 'Connection verified, but the follow-up sync did not finish. Run a manual sync.' });
+    } catch (err) {
+      const outcome = getVerificationOutcome(err, previousUrl);
+      if (outcome.shouldRevert) {
+        if (outcome.restoreUrl) {
+          safeStorage.setItem('finflow_api_url', outcome.restoreUrl);
         } else {
           safeStorage.removeItem('finflow_api_url');
         }
-        setUrlMessage({ type: 'error', text: 'Connection failed. Verify the URL is correct and Apps Script is deployed as "Anyone".' });
+        setApiUrlInput(outcome.restoreUrl);
       }
-    } catch (err) {
-      setUrlMessage({ type: 'error', text: `Verification error: ${err.message}` });
+      setUrlMessage({ type: 'error', text: outcome.message });
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -93,10 +110,10 @@ export default function SheetsIntegrationCard({ syncData, loadData, isSyncing })
       <div className="pt-6 border-t border-obsidian-800/40 flex justify-end">
         <button
           onClick={handleSaveUrl}
-          disabled={isSyncing}
+          disabled={isSyncing || verifying}
           className="px-4 py-2 bg-neon-indigo hover:bg-neon-indigo-hover text-white text-xs font-bold rounded-xl transition-colors shadow-md disabled:opacity-50 cursor-pointer"
         >
-          Verify & Connect Sheet
+          {verifying ? 'Verifying…' : 'Verify & Connect Sheet'}
         </button>
       </div>
     </Card>

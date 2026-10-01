@@ -19,9 +19,45 @@ const getApiUrl = (action) => {
 
 function validateGatewayResponse(result) {
   if (!result || result.success !== true || Object.hasOwn(result, 'error')) {
-    throw new Error(String(result?.error || 'Invalid Apps Script response'));
+    const message = String(result?.error || 'Invalid Apps Script response');
+    const err = new Error(message);
+    // Tag auth rejections so callers can distinguish a wrong URL/secret
+    // (the saved value should be reverted) from transient failures like
+    // timeouts (the saved value should be kept).
+    if (/unauthorized/i.test(message)) err.code = 'GATEWAY_UNAUTHORIZED';
+    throw err;
   }
   return result;
+}
+
+/**
+ * True when the error means the gateway rejected our credentials —
+ * i.e. the stored URL/secret itself is wrong, as opposed to a transient
+ * failure (timeout, network blip, Google cold start).
+ */
+export function isGatewayAuthError(err) {
+  return err?.code === 'GATEWAY_UNAUTHORIZED' || /unauthorized/i.test(err?.message || '');
+}
+
+/**
+ * Maps a gateway verification failure to the UI outcome for the
+ * "Verify & Connect" flow. Auth rejection means the URL/secret itself is
+ * wrong (revert to the last working value); anything else is transient —
+ * keep the newly saved URL so a manual retry can succeed.
+ */
+export function getVerificationOutcome(err, previousUrl) {
+  if (isGatewayAuthError(err)) {
+    return {
+      shouldRevert: true,
+      restoreUrl: previousUrl || '',
+      message: 'The gateway rejected this URL (Unauthorized). Double-check the secret and try again.',
+    };
+  }
+  return {
+    shouldRevert: false,
+    restoreUrl: '',
+    message: `URL saved, but verification couldn't complete: ${err?.message || err}. Run a manual sync to confirm.`,
+  };
 }
 
 const delay = (ms) => new Promise(res => setTimeout(res, ms));

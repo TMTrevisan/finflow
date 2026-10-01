@@ -973,6 +973,14 @@ export const AppProvider = ({ children, setCurrentView }) => {
   }, []);
 
   // Background auto-sync checker (runs once an hour, triggers sync if lastSync > 24 hours)
+  // NOTE: this effect intentionally has NO dependencies. syncData's identity changes
+  // whenever isSyncing/isLoading toggle, so listing it here re-armed the 5s initial
+  // timer on every sync state change — causing a sync attempt every ~5s while the
+  // last sync was stale. A ref always points at the latest syncData instead.
+  const syncDataRef = useRef(syncData);
+  useEffect(() => {
+    syncDataRef.current = syncData;
+  });
   useEffect(() => {
     const checkAndSync = () => {
       const lastSyncTime = safeStorage.getItem('finflow_last_sync');
@@ -981,7 +989,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
         const hours = diffMs / (1000 * 60 * 60);
         if (hours >= 24) {
           logSync('Auto-triggering daily database sync...', 'info');
-          syncData();
+          syncDataRef.current();
         }
       }
     };
@@ -995,7 +1003,7 @@ export const AppProvider = ({ children, setCurrentView }) => {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [syncData]);
+  }, []);
 
   return (
     <AppContext.Provider value={{
