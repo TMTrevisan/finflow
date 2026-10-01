@@ -170,6 +170,24 @@ it('provisions a fresh identity when the clientId changes', async () => {
   expect(saved.userSecret).toBe('registered-secret');
   expect(res.json.mock.calls[0][0]).toEqual(expect.objectContaining({ success: true, configured: true }));
 });
+it('maps a SnapTrade 401 during provisioning to an actionable credential message', async () => {
+  const { context, client } = harness({ config: { userSecret: '' } });
+  const err = new Error('Request failed with status code 401');
+  err.status = 401;
+  client.authentication.registerSnapTradeUser.mockRejectedValueOnce(err);
+  const res = response();
+  await context.handleSaveConfig({ body: { clientId: 'new', consumerKey: 'bad-key' }, query: {} }, res);
+  expect(res.status).toHaveBeenCalledWith(502);
+  expect(res.json.mock.calls[0][0].error).toMatch(/rejected the Client ID \/ Consumer Key/);
+});
+it('keeps the generic message for non-auth provisioning failures', async () => {
+  const { context, client } = harness({ config: { userSecret: '' } });
+  client.authentication.registerSnapTradeUser.mockRejectedValueOnce(new Error('socket hang up'));
+  const res = response();
+  await context.handleSaveConfig({ body: { clientId: 'new', consumerKey: 'new-key' }, query: {} }, res);
+  expect(res.status).toHaveBeenCalledWith(500);
+  expect(res.json.mock.calls[0][0].error).toBe('SnapTrade request failed. Check the server configuration and try again.');
+});
 it('applies env > file for all credentials and supports env-only provisioning without writes', () => {
   const env = { SNAPTRADE_CLIENT_ID: 'env-client', SNAPTRADE_CONSUMER_KEY: 'env-key', SNAPTRADE_USER_ID: 'env-user', SNAPTRADE_USER_SECRET: 'env-secret' };
   const { context, files, fs } = harness({ env });

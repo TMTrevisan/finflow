@@ -1887,8 +1887,25 @@ async function handleSaveConfig(req, res) {
       ...snapTradeMetadata(config)
     });
   } catch (err) {
+    // Surface the real upstream failure: the SDK throws axios errors carrying
+    // the HTTP status. 401/403 means SnapTrade rejected the Client ID /
+    // Consumer Key pair itself — the overwhelmingly common cause is a typo or
+    // a key copied from the wrong app in the SnapTrade dashboard. Log status +
+    // message server-side (never the keys) and give the browser an actionable
+    // message instead of the generic "check the server configuration".
+    const status = err?.status ?? err?.response?.status;
+    // First line only: the SDK's SnaptradeError appends raw response headers
+    // after a newline, which we don't need in the log. The first line is the
+    // axios status message ("Request failed with status code 401") — it never
+    // carries key material (keys travel in query params / signature headers,
+    // which we don't log).
+    const safeDetail = String(err?.message ?? err).split('\n')[0].slice(0, 200);
+    console.error('[SnapTrade] Error saving config:', status ?? err?.code ?? 'unknown', '-', safeDetail);
+    if (status === 401 || status === 403) {
+      return res.status(502).json({ error: 'SnapTrade rejected the Client ID / Consumer Key. Copy fresh values from your SnapTrade dashboard API key page (no extra spaces) and try again.' });
+    }
     const errMsg = getSnapTradeErrorMessage(err);
-    console.error(`[SnapTrade] Error saving config:`, errMsg);
+    console.error('[SnapTrade] Error saving config (non-auth failure)');
     res.status(500).json({ error: errMsg });
   }
 }
