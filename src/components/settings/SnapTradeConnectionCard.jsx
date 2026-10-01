@@ -27,7 +27,21 @@ export default function SnapTradeConnectionCard({
     };
   };
 
+  // The backend authenticates these calls via the MCP secret in session storage
+  // (path-prefix mechanism in getSnapTradeUrl). Without it every call 401s with
+  // a cryptic backend message — fail fast with actionable guidance instead.
+  const requireBackendAuth = () => {
+    if (!sessionStore.getItem('finflow_mcp_secret')?.trim()) {
+      const msg = 'Backend credentials are missing in this browser tab. Enter your MCP secret in Settings → Copilot Core LLM → Enable MCP Support, save it, then try again.';
+      setSnapTradeMessage({ type: 'error', text: msg });
+      if (logSync) logSync('SnapTrade backend auth missing', 'error', msg);
+      return false;
+    }
+    return true;
+  };
+
   const handleLinkAccount = async () => {
+    if (!requireBackendAuth()) return;
     if (logSync) logSync('finflow snaptrade login --portal', 'cmd');
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Generating connection portal link...' });
@@ -61,6 +75,7 @@ export default function SnapTradeConnectionCard({
   };
 
   const handleSnapTradeSync = async () => {
+    if (!requireBackendAuth()) return;
     if (logSync) logSync('finflow snaptrade sync --force', 'cmd');
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Refreshing investments holdings (cache TTL 24h)...' });
@@ -77,6 +92,7 @@ export default function SnapTradeConnectionCard({
 
   const handleSaveKeys = async (e) => {
     e.preventDefault();
+    if (!requireBackendAuth()) return;
     if (logSync) logSync('finflow snaptrade setup --init', 'cmd');
     if (!clientId.trim() || !consumerKey.trim()) {
       if (logSync) logSync('Validation failed: client_id and consumer_key are required', 'error');
@@ -114,6 +130,7 @@ export default function SnapTradeConnectionCard({
   };
 
   const handleSnapTradeDisconnect = async () => {
+    if (!requireBackendAuth()) return;
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Disconnecting SnapTrade connection...' });
     try {
@@ -143,6 +160,7 @@ export default function SnapTradeConnectionCard({
   };
 
   const handleRemoveConnection = async (authorizationId) => {
+    if (!requireBackendAuth()) return;
     setSnapTradeSyncing(true);
     setSnapTradeMessage({ type: 'info', text: 'Removing brokerage connection...' });
     try {

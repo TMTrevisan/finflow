@@ -197,6 +197,17 @@ export const AppProvider = ({ children, setCurrentView }) => {
       const localConsumerKey = sessionStore.getItem('finflow_snaptrade_consumer_key') || '';
       const isForcedMock = safeStorage.getItem('finflow_force_mock') === 'true';
 
+      // The backend authenticates SnapTrade routes via the MCP secret (path
+      // prefix in getSnapTradeUrl). Without it every call 401s — fail fast
+      // with a clear message instead of a confusing backend error.
+      if (!sessionStore.getItem('finflow_mcp_secret')?.trim()) {
+        const authMsg = 'SnapTrade backend auth missing in this tab — enter the MCP secret in Settings → Copilot Core LLM → Enable MCP Support, save, then retry.';
+        logSync(authMsg, 'error');
+        const unauthenticated = { connected: false, configured: false };
+        setSnapTradeStatus(unauthenticated);
+        return unauthenticated;
+      }
+
       const headers = {
         'Content-Type': 'application/json',
       };
