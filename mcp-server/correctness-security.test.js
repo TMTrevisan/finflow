@@ -2,25 +2,41 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { expect, it, vi } from 'vitest';
 import { createAuthenticate } from './auth.js';
+import { resolveAllowedOrigins } from './cors-config.js';
 const source = readFileSync(new URL('./server.js', import.meta.url), 'utf8');
 function policy(env = {}) {
   const app = { use: vi.fn() };
-  const context = vm.createContext({ process: { env }, app, cors: vi.fn(), express: { json: vi.fn() } });
+  const context = vm.createContext({ process: { env }, app, cors: vi.fn(), express: { json: vi.fn() }, resolveAllowedOrigins });
   vm.runInContext(source.slice(source.indexOf('const allowedOrigins'), source.indexOf('// Active Server-Sent')), context);
   return { context, app };
 }
 it('uses exact origins and restrictive production defaults', () => {
-  for (const [env, origin, allowed] of [
-    [{ NODE_ENV: 'production' }, undefined, true],
-    [{ NODE_ENV: 'production' }, 'http://localhost:5173', false],
-    [{}, 'http://localhost:5173', true],
-    [{}, 'https://attacker.vercel.app', false],
-    [{ TRUSTED_ORIGINS: ' https://trusted.vercel.app,https://example.com ' }, 'https://trusted.vercel.app', true],
-    [{ TRUSTED_ORIGINS: 'https://example.com' }, 'https://sub.example.com', false]
-  ]) {
-    const callback = vi.fn();
-    policy(env).context.checkOrigin(origin, callback);
-    expect(callback.mock.calls[0][0] === null).toBe(allowed);
+  // cors-config.js reads the real process.env (module scope), so the cases
+  // drive the real environment; policy(env) additionally keeps the vm's mock
+  // process in sync for the sliced server code.
+  const savedNodeEnv = process.env.NODE_ENV;
+  const savedTrusted = process.env.TRUSTED_ORIGINS;
+  try {
+    for (const [env, origin, allowed] of [
+      [{ NODE_ENV: 'production' }, undefined, true],
+      [{ NODE_ENV: 'production' }, 'http://localhost:5173', false],
+      [{ NODE_ENV: 'production' }, 'https://finflow-mu-nine.vercel.app', true],
+      [{ NODE_ENV: 'production' }, 'https://attacker.vercel.app', false],
+      [{ NODE_ENV: 'production' }, 'https://finflow-mu-nine.vercel.app.evil.com', false],
+      [{}, 'http://localhost:5173', true],
+      [{}, 'https://attacker.vercel.app', false],
+      [{ TRUSTED_ORIGINS: ' https://trusted.vercel.app,https://example.com ' }, 'https://trusted.vercel.app', true],
+      [{ TRUSTED_ORIGINS: 'https://example.com' }, 'https://sub.example.com', false]
+    ]) {
+      if ('NODE_ENV' in env) process.env.NODE_ENV = env.NODE_ENV; else delete process.env.NODE_ENV;
+      if ('TRUSTED_ORIGINS' in env) process.env.TRUSTED_ORIGINS = env.TRUSTED_ORIGINS; else delete process.env.TRUSTED_ORIGINS;
+      const callback = vi.fn();
+      policy(env).context.checkOrigin(origin, callback);
+      expect(callback.mock.calls[0][0] === null).toBe(allowed);
+    }
+  } finally {
+    if (savedNodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = savedNodeEnv;
+    if (savedTrusted === undefined) delete process.env.TRUSTED_ORIGINS; else process.env.TRUSTED_ORIGINS = savedTrusted;
   }
 });
 it('installs no-store globally before all routes and preserves it for SSE', () => {

@@ -15,8 +15,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Snaptrade } from 'snaptrade-typescript-sdk';
 import dns from 'dns';
-import { randomUUID, createHash, timingSafeEqual } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { createAuthenticate, requireSseSession, validateAuthConfig } from './auth.js';
+import { resolveAllowedOrigins } from './cors-config.js';
 import { buildConnectionSummaries, buildHoldingsSyncSummary } from './snaptrade-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -29,13 +30,9 @@ app.set('json replacer', (key, value) =>
     ? undefined : value);
 const PORT = process.env.PORT || 3001;
 const MCP_SECRET = process.env.MCP_SECRET || '';
-const FINFLOW_ADMIN_SECRET = process.env.FINFLOW_ADMIN_SECRET || '';
 const HOST = process.env.HOST || undefined;
 let openMode;
 try {
-  if (FINFLOW_ADMIN_SECRET && FINFLOW_ADMIN_SECRET === MCP_SECRET) {
-    throw new Error('FINFLOW_ADMIN_SECRET must differ from MCP_SECRET.');
-  }
   openMode = validateAuthConfig({ secret: MCP_SECRET, devOpen: process.env.FINFLOW_DEV_OPEN, host: HOST });
 } catch (err) {
   console.error(`[FinFlow] ${err.message}`);
@@ -50,7 +47,6 @@ Use only for local development. Never expose via a proxy/tunnel.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 `);
 }
-console.log(`[FinFlow] Admin operations: ${FINFLOW_ADMIN_SECRET ? 'separate bearer required' : 'disabled (FINFLOW_ADMIN_SECRET not configured)'}.`);
 const SHEETS_API_SECRET = process.env.SHEETS_API_SECRET || '';
 const SHEETS_API_URL = process.env.SHEETS_API_URL || ''; // Your Google Apps Script URL
 
@@ -607,12 +603,7 @@ async function getSnapTradeHoldings(forceRefresh = false) {
   return fetchNormalizedSnapTradeHoldings(client, config, forceRefresh);
 }
 
-const allowedOrigins = (process.env.TRUSTED_ORIGINS !== undefined
-  ? process.env.TRUSTED_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
-  : process.env.NODE_ENV === 'production' ? [] : [
-    'http://localhost:5173', 'http://localhost:3000',
-    'http://127.0.0.1:5173', 'http://127.0.0.1:3000'
-  ]);
+const allowedOrigins = resolveAllowedOrigins();
 function checkOrigin(origin, callback) {
   if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
   callback(new Error('Not allowed by CORS'));
@@ -1827,19 +1818,6 @@ async function ensureSnapTradeUserForClient(client, config) {
   return config || { userId: '', userSecret: '' };
 }
 
-function authenticateAdmin(req, res, next) {
-  if (!FINFLOW_ADMIN_SECRET || FINFLOW_ADMIN_SECRET === MCP_SECRET) {
-    return res.status(503).json({ error: 'Admin operations disabled: configure a distinct FINFLOW_ADMIN_SECRET.' });
-  }
-  const token = /^Bearer (.+)$/.exec(req.headers.authorization || '')?.[1] || '';
-  const actual = Buffer.from(token);
-  const expected = Buffer.from(FINFLOW_ADMIN_SECRET);
-  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
-    return res.status(401).json({ error: 'A valid admin Bearer credential is required.' });
-  }
-  next();
-}
-
 async function handleRegisterSnapTradeUser(req, res) {
   try {
     const effective = loadSnapTradeConfig();
@@ -1869,7 +1847,37 @@ async function handleSaveConfig(req, res) {
     if (![clientId, consumerKey, userId, userSecret].every(value => typeof value === 'string')) {
       return res.status(400).json({ error: 'Credentials must be strings.' });
     }
-    saveSnapTradeConfig({ snaptradeClientId: clientId, snaptradeConsumerKey: consumerKey, userId, userSecret });
+    const current = loadSnapTradeConfig();
+    // Identity fields must arrive as a complete pair: a lone userId or userSecret
+    // would corrupt the stored identity while still reporting configured:true.
+    // Omitting both preserves the existing identity (the Settings card only sends
+    // clientId/consumerKey); clearing the identity is the disconnect endpoint's job.
+    const wantsIdentityChange = userId.trim() !== '' || userSecret !== '';
+    if (wantsIdentityChange && (userId.trim() === '' || userSecret === '')) {
+      return res.status(400).json({ error: 'userId and userSecret must be provided together.' });
+    }
+    // SnapTrade user identities are scoped to the clientId that created them, so a
+    // new clientId makes the old identity unusable — provision a fresh one instead
+    // of preserving it. A consumerKey rotation under the same clientId keeps it.
+    const clientChanged = current.snaptradeClientId !== '' && clientId !== current.snaptradeClientId;
+    const resolvedUserId = wantsIdentityChange ? userId.trim() : (clientChanged ? '' : current.userId);
+    const resolvedUserSecret = wantsIdentityChange ? userSecret : (clientChanged ? '' : current.userSecret);
+    saveSnapTradeConfig({ snaptradeClientId: clientId, snaptradeConsumerKey: consumerKey, userId: resolvedUserId, userSecret: resolvedUserSecret });
+    // Provision the SnapTrade user identity on first setup so the browser
+    // "Save & Initialize Keys" flow completes end-to-end. Registration is
+    // skipped when the identity already exists or is managed via environment.
+    let effective = loadSnapTradeConfig();
+    if (!effective.userSecret && process.env.SNAPTRADE_USER_SECRET === undefined) {
+      const bootstrapClient = getSnapTradeClient(effective);
+      if (bootstrapClient) {
+        const newUserId = effective.userId || `finflow_${randomUUID()}`;
+        const response = await bootstrapClient.authentication.registerSnapTradeUser({ userId: newUserId });
+        if (!response.data?.userSecret) throw new Error('Registration returned no secret');
+        saveSnapTradeConfig({ ...effective, userId: newUserId, userSecret: response.data.userSecret });
+        console.log('[SnapTrade] User identity provisioned.');
+        effective = loadSnapTradeConfig();
+      }
+    }
     const { client, config } = getSnapTradeClientAndConfig();
 
     res.json({ 
@@ -2083,10 +2091,17 @@ async function handleClearSnapTradeCache(req, res) {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 // SnapTrade endpoints
-app.post('/api/snaptrade/register', authenticateAdmin, handleRegisterSnapTradeUser);
-app.post('/:secretPrefix/api/snaptrade/register', authenticateAdmin, handleRegisterSnapTradeUser);
-app.post('/api/snaptrade/config', authenticateAdmin, handleSaveConfig);
-app.post('/:secretPrefix/api/snaptrade/config', authenticateAdmin, handleSaveConfig);
+// NOTE: SnapTrade credential self-service (register/config/disconnect) is gated
+// by the regular MCP-secret `authenticate` — the same credential the web UI
+// already uses for every other backend endpoint. This is a single-user personal
+// deployment: the operator holds the MCP secret, the web UI has no separate
+// admin-credential path, and the MCP secret already guards all financial data
+// (holdings, tools). Requiring a second admin secret would make the Settings
+// card's setup/disconnect buttons permanently unusable.
+app.post('/api/snaptrade/register', authenticate, handleRegisterSnapTradeUser);
+app.post('/:secretPrefix/api/snaptrade/register', authenticate, handleRegisterSnapTradeUser);
+app.post('/api/snaptrade/config', authenticate, handleSaveConfig);
+app.post('/:secretPrefix/api/snaptrade/config', authenticate, handleSaveConfig);
 
 app.post('/api/snaptrade/create_portal_url', authenticate, handleCreatePortalUrl);
 app.post('/:secretPrefix/api/snaptrade/create_portal_url', authenticate, handleCreatePortalUrl);
@@ -2097,8 +2112,8 @@ app.get('/:secretPrefix/api/snaptrade/status', authenticate, handleSnapTradeStat
 app.get('/api/snaptrade/holdings', authenticate, handleGetSnapTradeHoldings);
 app.get('/:secretPrefix/api/snaptrade/holdings', authenticate, handleGetSnapTradeHoldings);
 
-app.post('/api/snaptrade/disconnect', authenticateAdmin, handleSnapTradeDisconnect);
-app.post('/:secretPrefix/api/snaptrade/disconnect', authenticateAdmin, handleSnapTradeDisconnect);
+app.post('/api/snaptrade/disconnect', authenticate, handleSnapTradeDisconnect);
+app.post('/:secretPrefix/api/snaptrade/disconnect', authenticate, handleSnapTradeDisconnect);
 
 app.post('/api/snaptrade/clear_cache', authenticate, handleClearSnapTradeCache);
 app.post('/:secretPrefix/api/snaptrade/clear_cache', authenticate, handleClearSnapTradeCache);
